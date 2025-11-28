@@ -1,20 +1,25 @@
-import { type User, type InsertUser } from "@shared/schema";
+import { type User, type InsertUser, type Automation, type InsertAutomation } from "@shared/schema";
 import { randomUUID } from "crypto";
-
-// modify the interface with any CRUD methods
-// you might need
 
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  
+  createAutomation(automation: InsertAutomation): Promise<Automation>;
+  getAutomations(limit?: number): Promise<Automation[]>;
+  getAutomationById(id: number): Promise<Automation | undefined>;
 }
 
 export class MemStorage implements IStorage {
   private users: Map<string, User>;
+  private automations: Map<number, Automation>;
+  private automationIdCounter: number;
 
   constructor() {
     this.users = new Map();
+    this.automations = new Map();
+    this.automationIdCounter = 1;
   }
 
   async getUser(id: string): Promise<User | undefined> {
@@ -32,6 +37,27 @@ export class MemStorage implements IStorage {
     const user: User = { ...insertUser, id };
     this.users.set(id, user);
     return user;
+  }
+
+  async createAutomation(insertAutomation: InsertAutomation): Promise<Automation> {
+    const id = this.automationIdCounter++;
+    const automation: Automation = {
+      ...insertAutomation,
+      spreadsheetId: insertAutomation.spreadsheetId ?? null,
+      id,
+      createdAt: new Date(),
+    };
+    this.automations.set(id, automation);
+    return automation;
+  }
+
+  async getAutomations(limit: number = 50): Promise<Automation[]> {
+    const all = Array.from(this.automations.values());
+    return all.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, limit);
+  }
+
+  async getAutomationById(id: number): Promise<Automation | undefined> {
+    return this.automations.get(id);
   }
 }
 
