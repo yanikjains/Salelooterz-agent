@@ -2,8 +2,14 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
 import { scrapeAmazonProduct } from "./scraper";
-import { generateWhatsAppMessage, generateTelegramMessage } from "./messageGenerator";
+import { 
+  generateWhatsAppMessage, 
+  generateTelegramMessage,
+  generateWhatsAppMessageFromDiscovered,
+  generateTelegramMessageFromDiscovered
+} from "./messageGenerator";
 import { appendToSheet, getOrCreateSheet } from "./sheets";
+import { discoverProducts, discoverAllCategories, getRandomHotDeals, categories } from "./productDiscovery";
 import { z } from "zod";
 
 const automationRequestSchema = z.object({
@@ -12,11 +18,96 @@ const automationRequestSchema = z.object({
   spreadsheetId: z.string().optional(),
 });
 
+const discoveryRequestSchema = z.object({
+  category: z.string(),
+  affiliateTag: z.string().min(1),
+  limit: z.number().min(1).max(10).optional().default(5),
+});
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
   
+  app.get("/api/categories", async (req, res) => {
+    res.json({ categories });
+  });
+
+  app.post("/api/discover", async (req, res) => {
+    try {
+      const { category, affiliateTag, limit } = discoveryRequestSchema.parse(req.body);
+      
+      let products;
+      if (category === "all") {
+        products = discoverAllCategories(limit);
+      } else if (category === "hot") {
+        products = getRandomHotDeals(limit);
+      } else {
+        products = discoverProducts(category, limit);
+      }
+
+      if (products.length === 0) {
+        return res.status(404).json({
+          success: false,
+          error: "No products found for this category",
+        });
+      }
+
+      const spreadsheetId = await getOrCreateSheet('AmzViral Automation');
+      
+      const results = [];
+      
+      for (const product of products) {
+        const whatsappMessage = generateWhatsAppMessageFromDiscovered(product, affiliateTag);
+        const telegramMessage = generateTelegramMessageFromDiscovered(product, affiliateTag);
+        
+        await appendToSheet(spreadsheetId, {
+          timestamp: new Date().toISOString(),
+          productTitle: product.title,
+          price: product.price,
+          rating: `${product.rating}/5 (${product.reviews} reviews)`,
+          productUrl: `${product.url}?tag=${affiliateTag}`,
+          whatsappMessage,
+          telegramMessage,
+          affiliateTag,
+        });
+        
+        const automation = await storage.createAutomation({
+          productUrl: product.url,
+          productTitle: product.title,
+          price: product.price,
+          rating: `${product.rating}/5`,
+          whatsappMessage,
+          telegramMessage,
+          affiliateTag,
+          spreadsheetId,
+        });
+        
+        results.push({
+          product,
+          whatsappMessage,
+          telegramMessage,
+          automationId: automation.id,
+        });
+      }
+      
+      res.json({
+        success: true,
+        count: results.length,
+        spreadsheetId,
+        spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
+        results,
+      });
+      
+    } catch (error) {
+      console.error('Discovery error:', error);
+      res.status(400).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
   app.post("/api/automate", async (req, res) => {
     try {
       const { url, affiliateTag, spreadsheetId } = automationRequestSchema.parse(req.body);
