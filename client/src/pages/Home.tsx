@@ -1,22 +1,77 @@
 import { useState } from "react";
-import { ScraperInput } from "@/components/ScraperInput";
-import { ProductCard } from "@/components/ProductCard";
-import { MessageEditor } from "@/components/MessageEditor";
-import { ProductData, mockScrape } from "@/lib/mockScraper";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Sparkles, ExternalLink, Check, Loader2, FileSpreadsheet } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
 // @ts-ignore
 import bgImage from "@assets/generated_images/abstract_dark_cyber_grid_background_with_neon_orange_and_green_accents.png";
 
-export default function Home() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [product, setProduct] = useState<ProductData | null>(null);
+interface AutomationResult {
+  success: boolean;
+  spreadsheetId: string;
+  spreadsheetUrl: string;
+  automation: {
+    productTitle: string;
+    price: string;
+    whatsappMessage: string;
+    telegramMessage: string;
+  };
+}
 
-  const handleScrape = async (url: string) => {
+export default function Home() {
+  const [url, setUrl] = useState("");
+  const [affiliateTag, setAffiliateTag] = useState("myaffiliate-20");
+  const [isLoading, setIsLoading] = useState(false);
+  const [result, setResult] = useState<AutomationResult | null>(null);
+
+  const handleAutomate = async () => {
+    if (!url) {
+      toast({
+        title: "URL Required",
+        description: "Please enter an Amazon product URL",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!affiliateTag) {
+      toast({
+        title: "Affiliate Tag Required",
+        description: "Please enter your Amazon affiliate tag",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setIsLoading(true);
-    setProduct(null);
+    setResult(null);
+
     try {
-      const data = await mockScrape(url);
-      setProduct(data);
+      const response = await fetch("/api/automate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, affiliateTag }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        setResult(data);
+        toast({
+          title: "✅ Automation Complete!",
+          description: "Product scraped and messages pushed to Google Sheets",
+        });
+      } else {
+        throw new Error(data.error || "Automation failed");
+      }
+    } catch (error) {
+      toast({
+        title: "Automation Failed",
+        description: error instanceof Error ? error.message : "Unknown error",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -24,7 +79,6 @@ export default function Home() {
 
   return (
     <div className="min-h-screen w-full bg-background text-foreground relative overflow-x-hidden flex flex-col">
-      {/* Background Image with Overlay */}
       <div className="fixed inset-0 z-0">
         <img 
           src={bgImage} 
@@ -35,9 +89,7 @@ export default function Home() {
         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay" />
       </div>
 
-      {/* Content */}
       <div className="relative z-10 container mx-auto px-4 py-8 flex-1 flex flex-col">
-        {/* Header */}
         <motion.header 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -48,74 +100,170 @@ export default function Home() {
               A
             </div>
             <span className="text-2xl font-heading font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60">
-              AmzViral
+              AmzViral Automation
             </span>
           </div>
           <div className="flex items-center gap-4 text-sm text-muted-foreground">
              <span className="flex items-center gap-1.5">
                 <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                System Online
+                Ready
              </span>
           </div>
         </motion.header>
 
-        {/* Main Input Section - Moves up when product is loaded */}
         <motion.div 
-          layout
-          className={`flex flex-col transition-all duration-500 ${product ? 'mb-8' : 'min-h-[60vh] justify-center mb-0'}`}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="max-w-3xl mx-auto w-full space-y-8"
         >
-          {!product && !isLoading && (
-             <motion.div 
-               initial={{ opacity: 0 }} 
-               animate={{ opacity: 1 }}
-               exit={{ opacity: 0 }}
-               className="text-center mb-8 space-y-2"
-             >
-               <h1 className="text-5xl md:text-6xl font-heading font-bold text-white mb-4">
-                 Automate Your <span className="text-primary neon-glow">Affiliate Empire</span>
-               </h1>
-               <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-                 Turn any Amazon link into a viral, formatted post for WhatsApp & Telegram in seconds. AI-powered hooks included.
-               </p>
-             </motion.div>
-          )}
+          <div className="text-center space-y-4 mb-12">
+            <h1 className="text-5xl md:text-6xl font-heading font-bold text-white mb-4">
+              Amazon → <span className="text-primary neon-glow">Google Sheets</span>
+            </h1>
+            <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
+              Paste Amazon URL → Get viral WhatsApp & Telegram messages in your Google Sheet. Zero manual work.
+            </p>
+          </div>
 
-          <ScraperInput onScrape={handleScrape} isLoading={isLoading} />
-        </motion.div>
+          <Card className="glass-panel border-white/10">
+            <CardContent className="p-8 space-y-6">
+              <div className="space-y-4">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground mb-2 block">
+                    Amazon Product URL
+                  </label>
+                  <Input
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    placeholder="https://amazon.com/dp/B09XS..."
+                    className="h-12 bg-black/20 border-white/10"
+                    disabled={isLoading}
+                    data-testid="input-amazon-url"
+                  />
+                </div>
 
-        {/* Dashboard View */}
-        <AnimatePresence>
-          {product && (
-            <motion.div 
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground mb-2 block">
+                    Your Affiliate Tag
+                  </label>
+                  <Input
+                    value={affiliateTag}
+                    onChange={(e) => setAffiliateTag(e.target.value)}
+                    placeholder="myaffiliate-20"
+                    className="h-12 bg-black/20 border-white/10"
+                    disabled={isLoading}
+                    data-testid="input-affiliate-tag"
+                  />
+                </div>
+              </div>
+
+              <Button
+                onClick={handleAutomate}
+                disabled={isLoading || !url || !affiliateTag}
+                className="w-full h-14 bg-primary hover:bg-primary/90 text-white font-bold text-lg shadow-lg shadow-primary/20"
+                data-testid="button-automate"
+              >
+                {isLoading ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    Processing... (Scraping → Generating → Pushing)
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <Sparkles className="w-5 h-5" />
+                    Run Full Automation
+                  </span>
+                )}
+              </Button>
+            </CardContent>
+          </Card>
+
+          {result && (
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: 20 }}
-              className="grid grid-cols-1 lg:grid-cols-2 gap-8 flex-1 min-h-[500px]"
+              className="space-y-4"
             >
-              {/* Left Column: Product Analysis */}
-              <div className="flex flex-col gap-6">
-                 <div className="flex items-center justify-between px-1">
-                   <h3 className="text-lg font-medium text-muted-foreground">Product Analysis</h3>
-                   <span className="text-xs font-mono text-primary bg-primary/10 px-2 py-1 rounded border border-primary/20">
-                     CONFIDENCE: 98%
-                   </span>
-                 </div>
-                 <ProductCard product={product} />
-              </div>
+              <Card className="glass-panel border-green-500/30 bg-green-500/5">
+                <CardContent className="p-6">
+                  <div className="flex items-start gap-4">
+                    <div className="w-10 h-10 rounded-full bg-green-500/20 flex items-center justify-center flex-shrink-0">
+                      <Check className="w-6 h-6 text-green-400" />
+                    </div>
+                    <div className="flex-1 space-y-3">
+                      <div>
+                        <h3 className="font-bold text-lg text-white mb-1">Automation Complete!</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Product: {result.automation.productTitle}
+                        </p>
+                      </div>
+                      
+                      <div className="flex gap-3">
+                        <Button
+                          onClick={() => window.open(result.spreadsheetUrl, '_blank')}
+                          className="bg-green-600 hover:bg-green-700"
+                          data-testid="button-open-sheets"
+                        >
+                          <FileSpreadsheet className="w-4 h-4 mr-2" />
+                          Open Google Sheet
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            navigator.clipboard.writeText(result.automation.whatsappMessage);
+                            toast({ title: "WhatsApp message copied!" });
+                          }}
+                          data-testid="button-copy-whatsapp"
+                        >
+                          Copy WhatsApp
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            navigator.clipboard.writeText(result.automation.telegramMessage);
+                            toast({ title: "Telegram message copied!" });
+                          }}
+                          data-testid="button-copy-telegram"
+                        >
+                          Copy Telegram
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
 
-              {/* Right Column: Content Generation */}
-              <div className="flex flex-col gap-6">
-                 <div className="flex items-center justify-between px-1">
-                   <h3 className="text-lg font-medium text-muted-foreground">Viral Content Engine</h3>
-                   <span className="text-xs font-mono text-secondary bg-secondary/10 px-2 py-1 rounded border border-secondary/20">
-                     AI MODEL: ACTIVE
-                   </span>
-                 </div>
-                 <MessageEditor product={product} />
-              </div>
+              <Card className="glass-panel border-white/5">
+                <CardContent className="p-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-white">Preview: WhatsApp Message</h4>
+                    <span className="text-xs text-green-400 font-mono">READY TO SEND</span>
+                  </div>
+                  <pre className="bg-black/40 p-4 rounded-lg text-sm text-gray-300 whitespace-pre-wrap font-mono border border-white/5" data-testid="text-whatsapp-preview">
+                    {result.automation.whatsappMessage}
+                  </pre>
+                </CardContent>
+              </Card>
+
+              <Card className="glass-panel border-white/5">
+                <CardContent className="p-6 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-medium text-white">Preview: Telegram Message</h4>
+                    <span className="text-xs text-blue-400 font-mono">READY TO SEND</span>
+                  </div>
+                  <pre className="bg-black/40 p-4 rounded-lg text-sm text-gray-300 whitespace-pre-wrap font-mono border border-white/5" data-testid="text-telegram-preview">
+                    {result.automation.telegramMessage}
+                  </pre>
+                </CardContent>
+              </Card>
             </motion.div>
           )}
-        </AnimatePresence>
+
+          <div className="text-center text-xs text-muted-foreground space-y-2 pt-8">
+            <p>💡 Each run creates a new row in your Google Sheet with product details and formatted messages</p>
+            <p className="font-mono">Scrape → AI Viral Hooks → Sheet Export → Done</p>
+          </div>
+        </motion.div>
       </div>
     </div>
   );
