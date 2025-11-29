@@ -9,7 +9,7 @@ import {
   generateTelegramMessageFromDiscovered
 } from "./messageGenerator";
 import { appendToSheet, getOrCreateSheet } from "./sheets";
-import { discoverProducts, discoverAllCategories, getRandomHotDeals, categories } from "./productDiscovery";
+import { discoverProducts, discoverFromAllCategories, discoverHotDeals, categories } from "./productDiscovery";
 import { z } from "zod";
 
 const automationRequestSchema = z.object({
@@ -39,21 +39,21 @@ export async function registerRoutes(
       
       let products;
       if (category === "all") {
-        products = discoverAllCategories(limit);
+        products = await discoverFromAllCategories(limit);
       } else if (category === "hot") {
-        products = getRandomHotDeals(limit);
+        products = await discoverHotDeals(limit);
       } else {
-        products = discoverProducts(category, limit);
+        products = await discoverProducts(category, limit);
       }
 
       if (products.length === 0) {
         return res.status(404).json({
           success: false,
-          error: "No products found for this category",
+          error: "No products found for this category. Amazon may be rate limiting requests.",
         });
       }
 
-      const spreadsheetId = await getOrCreateSheet('AmzViral Automation');
+      const spreadsheetId = await getOrCreateSheet('AmzViral - Amazon India Deals');
       
       const results = [];
       
@@ -119,7 +119,7 @@ export async function registerRoutes(
       
       let finalSpreadsheetId = spreadsheetId;
       if (!finalSpreadsheetId) {
-        finalSpreadsheetId = await getOrCreateSheet('AmzViral Automation');
+        finalSpreadsheetId = await getOrCreateSheet('AmzViral - Amazon India Deals');
       }
       
       await appendToSheet(finalSpreadsheetId, {

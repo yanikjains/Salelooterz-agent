@@ -7,17 +7,16 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Sparkles, ExternalLink, Check, Loader2, FileSpreadsheet, 
-  Zap, TrendingUp, Copy, ChevronRight
+  Zap, Copy, ArrowRight, ShoppingBag, IndianRupee, Star,
+  MessageCircle, Send
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-// @ts-ignore
-import bgImage from "@assets/generated_images/abstract_dark_cyber_grid_background_with_neon_orange_and_green_accents.png";
 
 interface Category {
   id: string;
   name: string;
   icon: string;
-  count: number;
+  description: string;
 }
 
 interface DiscoveryResult {
@@ -29,8 +28,13 @@ interface DiscoveryResult {
     product: {
       title: string;
       price: string;
-      discount: number;
+      originalPrice: string;
+      discount: string;
+      rating: number;
+      reviews: number;
+      image: string;
       category: string;
+      url: string;
     };
     whatsappMessage: string;
     telegramMessage: string;
@@ -38,10 +42,10 @@ interface DiscoveryResult {
 }
 
 export default function Home() {
-  const [affiliateTag, setAffiliateTag] = useState("myaffiliate-20");
+  const [affiliateTag, setAffiliateTag] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedCategory, setSelectedCategory] = useState<string>("electronics");
   const [discoveryResult, setDiscoveryResult] = useState<DiscoveryResult | null>(null);
   const [productLimit, setProductLimit] = useState(5);
 
@@ -50,8 +54,7 @@ export default function Home() {
       .then(res => res.json())
       .then(data => {
         setCategories([
-          { id: "all", name: "All Categories", icon: "🌟", count: 15 },
-          { id: "hot", name: "Hot Deals", icon: "🔥", count: 5 },
+          { id: "hot", name: "Hot Deals", icon: "🔥", description: "Today's Best" },
           ...data.categories
         ]);
       })
@@ -62,7 +65,7 @@ export default function Home() {
     if (!affiliateTag) {
       toast({
         title: "Affiliate Tag Required",
-        description: "Please enter your Amazon affiliate tag",
+        description: "Please enter your Amazon India affiliate tag (e.g., yourtag-21)",
         variant: "destructive",
       });
       return;
@@ -87,8 +90,8 @@ export default function Home() {
       if (data.success) {
         setDiscoveryResult(data);
         toast({
-          title: `✅ Found ${data.count} Products!`,
-          description: "All products have been pushed to your Google Sheet",
+          title: `Found ${data.count} Products!`,
+          description: "All products with viral messages pushed to Google Sheets",
         });
       } else {
         throw new Error(data.error || "Discovery failed");
@@ -96,7 +99,7 @@ export default function Home() {
     } catch (error) {
       toast({
         title: "Discovery Failed",
-        description: error instanceof Error ? error.message : "Unknown error",
+        description: error instanceof Error ? error.message : "Please try again",
         variant: "destructive",
       });
     } finally {
@@ -110,68 +113,71 @@ export default function Home() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-background text-foreground relative overflow-x-hidden">
-      <div className="fixed inset-0 z-0">
-        <img src={bgImage} alt="Background" className="w-full h-full object-cover opacity-30" />
-        <div className="absolute inset-0 bg-gradient-to-b from-background via-background/95 to-background" />
-      </div>
-
-      <div className="relative z-10 container mx-auto px-4 py-8">
+    <div className="min-h-screen w-full">
+      <div className="container mx-auto px-4 py-6 max-w-6xl">
         <motion.header 
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between mb-8"
+          className="flex items-center justify-between mb-10"
         >
-          <div className="flex items-center gap-2">
-            <div className="w-10 h-10 bg-gradient-to-br from-primary to-orange-600 rounded-xl shadow-lg shadow-primary/30 flex items-center justify-center font-bold text-white text-xl">
-              A
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl shadow-lg glow-amber flex items-center justify-center">
+              <ShoppingBag className="w-6 h-6 text-white" />
             </div>
             <div>
-              <span className="text-2xl font-heading font-bold tracking-tight text-white">
-                AmzViral
-              </span>
-              <p className="text-xs text-muted-foreground">Auto Product Research</p>
+              <h1 className="text-2xl font-bold text-white tracking-tight">AmzViral</h1>
+              <p className="text-xs text-muted-foreground">Amazon India Affiliate Automation</p>
             </div>
           </div>
-          <Badge variant="outline" className="border-green-500/50 text-green-400">
-            <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse mr-2" />
-            Demo Mode Active
+          <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 px-3 py-1">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-2" />
+            Live Scraping
           </Badge>
         </motion.header>
 
         <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          className="max-w-5xl mx-auto space-y-8"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="text-center mb-10"
         >
-          <div className="text-center space-y-4 mb-8">
-            <h1 className="text-4xl md:text-5xl font-heading font-bold text-white">
-              Auto-Discover <span className="text-primary">Trending Products</span>
-            </h1>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Select a category → Get viral messages for trending products → Everything pushed to Google Sheets automatically
-            </p>
-          </div>
+          <h2 className="text-4xl md:text-5xl font-bold mb-4">
+            <span className="text-white">Scrape Real Products from </span>
+            <span className="gradient-text">Amazon.in</span>
+          </h2>
+          <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
+            Select category → Auto-scrape trending products → Get viral WhatsApp & Telegram messages → Export to Google Sheets
+          </p>
+        </motion.div>
 
-          <Card className="glass-panel border-white/10">
-            <CardContent className="p-6 space-y-6">
-              <div className="flex flex-col md:flex-row gap-4">
-                <div className="flex-1">
-                  <label className="text-sm font-medium text-muted-foreground mb-2 block">
-                    Your Affiliate Tag
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+        >
+          <Card className="glass-card mb-8 overflow-hidden">
+            <CardContent className="p-8">
+              <div className="grid md:grid-cols-3 gap-6 mb-8">
+                <div className="md:col-span-2">
+                  <label className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
+                    <IndianRupee className="w-4 h-4" />
+                    Your Amazon India Affiliate Tag
                   </label>
                   <Input
                     value={affiliateTag}
                     onChange={(e) => setAffiliateTag(e.target.value)}
-                    placeholder="myaffiliate-20"
-                    className="h-12 bg-black/20 border-white/10"
+                    placeholder="yourtag-21"
+                    className="h-14 text-lg bg-background/50 border-white/10 placeholder:text-muted-foreground/50"
                     disabled={isLoading}
                     data-testid="input-affiliate-tag"
                   />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Find your tag at affiliate-program.amazon.in
+                  </p>
                 </div>
-                <div className="w-32">
-                  <label className="text-sm font-medium text-muted-foreground mb-2 block">
-                    Products
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground mb-3 block">
+                    Products to Fetch
                   </label>
                   <Input
                     type="number"
@@ -179,32 +185,38 @@ export default function Home() {
                     onChange={(e) => setProductLimit(Math.min(10, Math.max(1, parseInt(e.target.value) || 1)))}
                     min={1}
                     max={10}
-                    className="h-12 bg-black/20 border-white/10"
+                    className="h-14 text-lg bg-background/50 border-white/10 text-center"
                     disabled={isLoading}
                     data-testid="input-limit"
                   />
                 </div>
               </div>
 
-              <div>
-                <label className="text-sm font-medium text-muted-foreground mb-3 block">
-                  Select Category
+              <div className="mb-8">
+                <label className="text-sm font-medium text-muted-foreground mb-4 block">
+                  Select Product Category
                 </label>
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
                   {categories.map((cat) => (
                     <button
                       key={cat.id}
                       onClick={() => setSelectedCategory(cat.id)}
-                      className={`p-4 rounded-xl border transition-all text-center ${
+                      className={`group relative p-4 rounded-2xl border-2 transition-all duration-300 text-center overflow-hidden ${
                         selectedCategory === cat.id
-                          ? "bg-primary/20 border-primary text-white shadow-lg shadow-primary/20"
-                          : "bg-black/20 border-white/10 text-muted-foreground hover:border-white/30"
+                          ? "bg-gradient-to-b from-amber-500/20 to-orange-600/10 border-amber-500/50 shadow-lg glow-amber"
+                          : "bg-card/40 border-white/5 hover:border-white/20 hover:bg-card/60"
                       }`}
                       disabled={isLoading}
                       data-testid={`button-category-${cat.id}`}
                     >
-                      <span className="text-2xl block mb-1">{cat.icon}</span>
-                      <span className="text-xs font-medium line-clamp-1">{cat.name}</span>
+                      <span className="text-3xl block mb-2 group-hover:scale-110 transition-transform">
+                        {cat.icon}
+                      </span>
+                      <span className={`text-xs font-semibold block ${
+                        selectedCategory === cat.id ? "text-amber-400" : "text-white/80"
+                      }`}>
+                        {cat.name}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -213,155 +225,195 @@ export default function Home() {
               <Button
                 onClick={handleDiscover}
                 disabled={isLoading || !affiliateTag}
-                className="w-full h-14 bg-gradient-to-r from-primary to-orange-500 hover:from-primary/90 hover:to-orange-500/90 text-white font-bold text-lg shadow-lg shadow-primary/30"
+                className="w-full h-16 text-lg font-bold bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-xl glow-amber transition-all duration-300 disabled:opacity-50"
                 data-testid="button-discover"
               >
                 {isLoading ? (
-                  <span className="flex items-center gap-2">
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                    Discovering Products & Generating Messages...
+                  <span className="flex items-center gap-3">
+                    <Loader2 className="w-6 h-6 animate-spin" />
+                    Scraping Amazon India...
                   </span>
                 ) : (
-                  <span className="flex items-center gap-2">
-                    <Zap className="w-5 h-5" />
-                    Auto-Discover & Push to Sheets
-                    <ChevronRight className="w-5 h-5" />
+                  <span className="flex items-center gap-3">
+                    <Zap className="w-6 h-6" />
+                    Scrape & Generate Viral Messages
+                    <ArrowRight className="w-5 h-5" />
                   </span>
                 )}
               </Button>
             </CardContent>
           </Card>
+        </motion.div>
 
-          <AnimatePresence>
-            {discoveryResult && (
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 20 }}
-                className="space-y-6"
-              >
-                <Card className="glass-panel border-green-500/30 bg-green-500/5">
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between flex-wrap gap-4">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-full bg-green-500/20 flex items-center justify-center">
-                          <Check className="w-7 h-7 text-green-400" />
-                        </div>
-                        <div>
-                          <h3 className="font-bold text-xl text-white">
-                            {discoveryResult.count} Products Processed!
-                          </h3>
-                          <p className="text-sm text-muted-foreground">
-                            All viral messages ready in your Google Sheet
-                          </p>
-                        </div>
+        <AnimatePresence>
+          {discoveryResult && (
+            <motion.div
+              initial={{ opacity: 0, y: 30 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 30 }}
+              className="space-y-6"
+            >
+              <Card className="glass-card border-emerald-500/30 glow-green overflow-hidden">
+                <CardContent className="p-6">
+                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-lg">
+                        <Check className="w-8 h-8 text-white" />
                       </div>
-                      <Button
-                        onClick={() => window.open(discoveryResult.spreadsheetUrl, '_blank')}
-                        className="bg-green-600 hover:bg-green-700"
-                        data-testid="button-open-sheets"
-                      >
-                        <FileSpreadsheet className="w-4 h-4 mr-2" />
-                        Open Google Sheet
-                        <ExternalLink className="w-4 h-4 ml-2" />
-                      </Button>
+                      <div>
+                        <h3 className="font-bold text-2xl text-white">
+                          {discoveryResult.count} Products Scraped!
+                        </h3>
+                        <p className="text-muted-foreground">
+                          Real data from Amazon.in with viral messages
+                        </p>
+                      </div>
                     </div>
-                  </CardContent>
-                </Card>
-
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-lg font-medium text-white flex items-center gap-2">
-                      <TrendingUp className="w-5 h-5 text-primary" />
-                      Generated Messages Preview
-                    </h3>
-                    <Badge className="bg-primary/20 text-primary border-primary/30">
-                      {discoveryResult.count} products
-                    </Badge>
+                    <Button
+                      onClick={() => window.open(discoveryResult.spreadsheetUrl, '_blank')}
+                      className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg"
+                      data-testid="button-open-sheets"
+                    >
+                      <FileSpreadsheet className="w-5 h-5 mr-2" />
+                      Open Google Sheet
+                      <ExternalLink className="w-4 h-4 ml-2" />
+                    </Button>
                   </div>
+                </CardContent>
+              </Card>
 
-                  <div className="grid gap-4">
-                    {discoveryResult.results.map((result, index) => (
-                      <Card key={index} className="glass-panel border-white/5 overflow-hidden">
-                        <CardContent className="p-0">
-                          <div className="p-4 border-b border-white/5 flex items-center justify-between">
-                            <div className="flex-1">
-                              <h4 className="font-medium text-white line-clamp-1">
-                                {result.product.title}
-                              </h4>
-                              <div className="flex items-center gap-3 mt-1">
-                                <span className="text-sm text-muted-foreground">{result.product.price}</span>
-                                <Badge variant="secondary" className="bg-red-500/20 text-red-400 border-red-500/30 text-xs">
-                                  -{result.product.discount}% OFF
-                                </Badge>
+              <div className="grid gap-4">
+                {discoveryResult.results.map((result, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                  >
+                    <Card className="glass-card overflow-hidden hover:border-white/20 transition-colors">
+                      <CardContent className="p-0">
+                        <div className="flex flex-col lg:flex-row">
+                          <div className="lg:w-2/5 p-6 border-b lg:border-b-0 lg:border-r border-white/5">
+                            <div className="flex items-start gap-4">
+                              {result.product.image && (
+                                <div className="w-20 h-20 rounded-xl bg-white/5 overflow-hidden flex-shrink-0">
+                                  <img 
+                                    src={result.product.image} 
+                                    alt={result.product.title}
+                                    className="w-full h-full object-contain"
+                                    onError={(e) => {
+                                      (e.target as HTMLImageElement).style.display = 'none';
+                                    }}
+                                  />
+                                </div>
+                              )}
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-semibold text-white leading-tight line-clamp-2 mb-2">
+                                  {result.product.title}
+                                </h4>
+                                <div className="flex flex-wrap items-center gap-2 mb-2">
+                                  <span className="text-xl font-bold text-amber-400">
+                                    {result.product.price}
+                                  </span>
+                                  {result.product.originalPrice && result.product.originalPrice !== result.product.price && (
+                                    <span className="text-sm text-muted-foreground line-through">
+                                      {result.product.originalPrice}
+                                    </span>
+                                  )}
+                                  {result.product.discount && (
+                                    <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
+                                      {result.product.discount}
+                                    </Badge>
+                                  )}
+                                </div>
+                                {result.product.rating > 0 && (
+                                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
+                                    <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                                    <span>{result.product.rating}/5</span>
+                                    {result.product.reviews > 0 && (
+                                      <span>({result.product.reviews.toLocaleString('en-IN')} reviews)</span>
+                                    )}
+                                  </div>
+                                )}
                               </div>
                             </div>
                           </div>
-                          
-                          <Tabs defaultValue="whatsapp" className="w-full">
-                            <div className="px-4 pt-2">
-                              <TabsList className="bg-black/30 w-full">
-                                <TabsTrigger value="whatsapp" className="flex-1 data-[state=active]:bg-green-600">
-                                  WhatsApp
-                                </TabsTrigger>
-                                <TabsTrigger value="telegram" className="flex-1 data-[state=active]:bg-blue-500">
-                                  Telegram
-                                </TabsTrigger>
-                              </TabsList>
-                            </div>
-                            
-                            <TabsContent value="whatsapp" className="p-4 pt-2 m-0">
-                              <div className="relative">
-                                <pre className="bg-black/40 p-4 rounded-lg text-xs text-gray-300 whitespace-pre-wrap font-mono border border-white/5 max-h-48 overflow-y-auto">
-                                  {result.whatsappMessage}
-                                </pre>
-                                <Button
-                                  size="sm"
-                                  variant="secondary"
-                                  className="absolute top-2 right-2 bg-green-600/80 hover:bg-green-600"
-                                  onClick={() => copyToClipboard(result.whatsappMessage, "WhatsApp")}
-                                  data-testid={`button-copy-whatsapp-${index}`}
-                                >
-                                  <Copy className="w-3 h-3 mr-1" />
-                                  Copy
-                                </Button>
-                              </div>
-                            </TabsContent>
-                            
-                            <TabsContent value="telegram" className="p-4 pt-2 m-0">
-                              <div className="relative">
-                                <pre className="bg-black/40 p-4 rounded-lg text-xs text-gray-300 whitespace-pre-wrap font-mono border border-white/5 max-h-48 overflow-y-auto">
-                                  {result.telegramMessage}
-                                </pre>
-                                <Button
-                                  size="sm"
-                                  variant="secondary"
-                                  className="absolute top-2 right-2 bg-blue-500/80 hover:bg-blue-500"
-                                  onClick={() => copyToClipboard(result.telegramMessage, "Telegram")}
-                                  data-testid={`button-copy-telegram-${index}`}
-                                >
-                                  <Copy className="w-3 h-3 mr-1" />
-                                  Copy
-                                </Button>
-                              </div>
-                            </TabsContent>
-                          </Tabs>
-                        </CardContent>
-                      </Card>
-                    ))}
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
 
-          <div className="text-center text-xs text-muted-foreground space-y-2 pt-8 pb-12">
-            <p className="font-mono bg-black/30 inline-block px-4 py-2 rounded-full border border-white/10">
-              🔄 Select Category → 🔍 Auto-Discover → 📝 Generate Messages → 📊 Push to Sheets
-            </p>
-            <p className="text-muted-foreground/60">
-              Demo mode uses curated trending products. Connect Amazon PA-API for real-time discovery.
-            </p>
+                          <div className="lg:w-3/5">
+                            <Tabs defaultValue="whatsapp" className="h-full">
+                              <div className="px-4 pt-4 border-b border-white/5">
+                                <TabsList className="bg-background/50 w-full">
+                                  <TabsTrigger 
+                                    value="whatsapp" 
+                                    className="flex-1 gap-2 data-[state=active]:bg-emerald-600 data-[state=active]:text-white"
+                                  >
+                                    <MessageCircle className="w-4 h-4" />
+                                    WhatsApp
+                                  </TabsTrigger>
+                                  <TabsTrigger 
+                                    value="telegram" 
+                                    className="flex-1 gap-2 data-[state=active]:bg-blue-500 data-[state=active]:text-white"
+                                  >
+                                    <Send className="w-4 h-4" />
+                                    Telegram
+                                  </TabsTrigger>
+                                </TabsList>
+                              </div>
+                              
+                              <TabsContent value="whatsapp" className="p-4 m-0">
+                                <div className="relative">
+                                  <pre className="bg-background/60 p-4 rounded-xl text-xs text-gray-300 whitespace-pre-wrap font-mono border border-white/5 max-h-40 overflow-y-auto">
+                                    {result.whatsappMessage}
+                                  </pre>
+                                  <Button
+                                    size="sm"
+                                    className="absolute top-2 right-2 bg-emerald-600 hover:bg-emerald-700"
+                                    onClick={() => copyToClipboard(result.whatsappMessage, "WhatsApp")}
+                                    data-testid={`button-copy-whatsapp-${index}`}
+                                  >
+                                    <Copy className="w-4 h-4 mr-1" />
+                                    Copy
+                                  </Button>
+                                </div>
+                              </TabsContent>
+                              
+                              <TabsContent value="telegram" className="p-4 m-0">
+                                <div className="relative">
+                                  <pre className="bg-background/60 p-4 rounded-xl text-xs text-gray-300 whitespace-pre-wrap font-mono border border-white/5 max-h-40 overflow-y-auto">
+                                    {result.telegramMessage}
+                                  </pre>
+                                  <Button
+                                    size="sm"
+                                    className="absolute top-2 right-2 bg-blue-500 hover:bg-blue-600"
+                                    onClick={() => copyToClipboard(result.telegramMessage, "Telegram")}
+                                    data-testid={`button-copy-telegram-${index}`}
+                                  >
+                                    <Copy className="w-4 h-4 mr-1" />
+                                    Copy
+                                  </Button>
+                                </div>
+                              </TabsContent>
+                            </Tabs>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.4 }}
+          className="text-center py-12"
+        >
+          <div className="inline-flex items-center gap-3 bg-card/40 border border-white/5 rounded-full px-6 py-3 text-sm text-muted-foreground">
+            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+            Scrapes real-time data from Amazon.in
           </div>
         </motion.div>
       </div>

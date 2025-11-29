@@ -1,26 +1,26 @@
 import { ProductData } from './scraper';
 import { DiscoveredProduct } from './productDiscovery';
 
-const viralHooks = [
-  "🔥 PRICE DROP ALERT",
-  "😱 LIMITED TIME DEAL",
-  "⚡ FLASH SALE",
+const viralHooksHindi = [
+  "🔥 LOOT DEAL ALERT",
+  "😱 PRICE CRASH",
+  "⚡ FLASH SALE LIVE",
   "🎯 TRENDING NOW",
   "💎 BESTSELLER ALERT",
-  "🚨 ALMOST SOLD OUT",
-  "🔥 HOT DEAL ALERT",
-  "💰 MASSIVE SAVINGS",
-  "⏰ TODAY ONLY",
-  "🛒 MUST-HAVE ITEM"
+  "🚨 LAST FEW LEFT",
+  "🔥 MEGA DISCOUNT",
+  "💰 UNBELIEVABLE PRICE",
+  "⏰ LIMITED TIME OFFER",
+  "🛒 MUST GRAB DEAL"
 ];
 
-const closingLines = [
-  "⚠️ Limited stock - grab yours now!",
-  "⏰ Deal ends soon!",
-  "🏃‍♂️ Hurry before it's gone!",
-  "💨 Flying off the shelves!",
-  "⚡ Don't miss out!",
-  "🔥 Selling fast!",
+const closingLinesHindi = [
+  "⚠️ Limited stock - Jaldi grab karo!",
+  "⏰ Offer jaldi khatam ho jayega!",
+  "🏃‍♂️ Miss mat karo ye deal!",
+  "💨 Fast selling - Hurry up!",
+  "⚡ Don't miss this deal!",
+  "🔥 Selling out fast!",
   "⭐ Top rated product!"
 ];
 
@@ -28,98 +28,123 @@ function getRandomElement<T>(array: T[]): T {
   return array[Math.floor(Math.random() * array.length)];
 }
 
-export function generateWhatsAppMessage(product: ProductData, affiliateTag: string): string {
-  const hook = getRandomElement(viralHooks);
-  const closing = getRandomElement(closingLines);
-  
-  const originalPrice = (parseFloat(product.price.replace('$', '')) * 1.2).toFixed(2);
-  const discount = Math.round(((parseFloat(originalPrice) - parseFloat(product.price.replace('$', ''))) / parseFloat(originalPrice)) * 100);
-  
-  return `${hook} 🔥
-
-*${product.title.substring(0, 60)}${product.title.length > 60 ? '...' : ''}*
-
-❌ ~Was: $${originalPrice}~
-✅ *Now: ${product.price}* (${discount}% OFF)
-
-⭐ *${product.rating}/5* (${product.reviews.toLocaleString()} reviews)
-
-😱 *Why you need this:*
-${product.features.slice(0, 4).map(f => `• ${f}`).join('\n')}
-
-👇 *GET IT HERE:*
-${product.url}${product.url.includes('?') ? '&' : '?'}tag=${affiliateTag}
-
-${closing}
-
-#AmazonDeals #Sale #Shopping #Deals`;
+function formatIndianPrice(price: string): string {
+  return price.includes('₹') ? price : `₹${price}`;
 }
 
-export function generateTelegramMessage(product: ProductData, affiliateTag: string): string {
-  const hook = getRandomElement(viralHooks);
-  const closing = getRandomElement(closingLines);
+export function generateWhatsAppMessage(product: ProductData | DiscoveredProduct, affiliateTag: string): string {
+  const hook = getRandomElement(viralHooksHindi);
+  const closing = getRandomElement(closingLinesHindi);
   
-  const originalPrice = (parseFloat(product.price.replace('$', '')) * 1.2).toFixed(2);
-  const discount = Math.round(((parseFloat(originalPrice) - parseFloat(product.price.replace('$', ''))) / parseFloat(originalPrice)) * 100);
+  const affiliateUrl = `${product.url}${product.url.includes('?') ? '&' : '?'}tag=${affiliateTag}`;
   
-  return `${hook} 🚀
+  const title = product.title.length > 80 ? product.title.substring(0, 80) + '...' : product.title;
+  
+  let message = `${hook} 🔥
 
-*${product.title}*
+*${title}*
 
-💰 *Price:* ${product.price} (Save ${discount}%)
-⭐️ *Rating:* ${product.rating}/5 ⭐ (${product.reviews.toLocaleString()} reviews)
+`;
 
-✨ *Top Features:*
-${product.features.slice(0, 4).map(f => `🔹 ${f}`).join('\n')}
+  if (product.originalPrice && product.originalPrice !== product.price) {
+    message += `❌ ~MRP: ${formatIndianPrice(product.originalPrice)}~
+`;
+  }
+  
+  message += `✅ *Deal Price: ${formatIndianPrice(product.price)}*`;
+  
+  if (product.discount) {
+    message += ` (${product.discount})`;
+  }
+  
+  message += `
 
-🛒 *ORDER NOW:* ${product.url}${product.url.includes('?') ? '&' : '?'}tag=${affiliateTag}
+`;
+
+  if (product.rating > 0) {
+    message += `⭐ *Rating:* ${product.rating}/5`;
+    if (product.reviews > 0) {
+      message += ` (${product.reviews.toLocaleString('en-IN')} reviews)`;
+    }
+    message += `
+
+`;
+  }
+
+  if (product.features && product.features.length > 0) {
+    message += `✨ *Features:*
+${product.features.slice(0, 3).map(f => `• ${f.substring(0, 60)}${f.length > 60 ? '...' : ''}`).join('\n')}
+
+`;
+  }
+
+  message += `🛒 *BUY NOW:*
+${affiliateUrl}
 
 ${closing}
 
-#Amazon #Deals #Shopping #Discounts #OnlineShopping`;
+#AmazonIndia #Deals #Shopping #Loot`;
+
+  return message;
+}
+
+export function generateTelegramMessage(product: ProductData | DiscoveredProduct, affiliateTag: string): string {
+  const hook = getRandomElement(viralHooksHindi);
+  const closing = getRandomElement(closingLinesHindi);
+  
+  const affiliateUrl = `${product.url}${product.url.includes('?') ? '&' : '?'}tag=${affiliateTag}`;
+  
+  let message = `${hook} 🚀
+
+**${product.title}**
+
+`;
+
+  if (product.originalPrice && product.originalPrice !== product.price) {
+    message += `💸 ~~MRP: ${formatIndianPrice(product.originalPrice)}~~
+`;
+  }
+  
+  message += `💰 **Deal Price:** ${formatIndianPrice(product.price)}`;
+  
+  if (product.discount) {
+    message += ` 🏷️ ${product.discount}`;
+  }
+  
+  message += `
+
+`;
+
+  if (product.rating > 0) {
+    message += `⭐ **Rating:** ${product.rating}/5`;
+    if (product.reviews > 0) {
+      message += ` (${product.reviews.toLocaleString('en-IN')} reviews)`;
+    }
+    message += `
+
+`;
+  }
+
+  if (product.features && product.features.length > 0) {
+    message += `✨ **Key Features:**
+${product.features.slice(0, 4).map(f => `🔹 ${f.substring(0, 70)}${f.length > 70 ? '...' : ''}`).join('\n')}
+
+`;
+  }
+
+  message += `🛒 **ORDER NOW:** [Click Here](${affiliateUrl})
+
+${closing}
+
+#Amazon #India #Deals #Shopping #OnlineShopping`;
+
+  return message;
 }
 
 export function generateWhatsAppMessageFromDiscovered(product: DiscoveredProduct, affiliateTag: string): string {
-  const hook = getRandomElement(viralHooks);
-  const closing = getRandomElement(closingLines);
-  
-  return `${hook} 🔥
-
-*${product.title.substring(0, 60)}${product.title.length > 60 ? '...' : ''}*
-
-❌ ~Was: ${product.originalPrice}~
-✅ *Now: ${product.price}* (${product.discount}% OFF)
-
-⭐ *${product.rating}/5* (${product.reviews.toLocaleString()} reviews)
-
-😱 *Why you need this:*
-${product.features.slice(0, 4).map(f => `• ${f}`).join('\n')}
-
-👇 *GET IT HERE:*
-${product.url}${product.url.includes('?') ? '&' : '?'}tag=${affiliateTag}
-
-${closing}
-
-#AmazonDeals #Sale #Shopping #${product.category.charAt(0).toUpperCase() + product.category.slice(1)}`;
+  return generateWhatsAppMessage(product, affiliateTag);
 }
 
 export function generateTelegramMessageFromDiscovered(product: DiscoveredProduct, affiliateTag: string): string {
-  const hook = getRandomElement(viralHooks);
-  const closing = getRandomElement(closingLines);
-  
-  return `${hook} 🚀
-
-*${product.title}*
-
-💰 *Price:* ${product.price} (Save ${product.discount}%)
-⭐️ *Rating:* ${product.rating}/5 ⭐ (${product.reviews.toLocaleString()} reviews)
-
-✨ *Top Features:*
-${product.features.slice(0, 4).map(f => `🔹 ${f}`).join('\n')}
-
-🛒 *ORDER NOW:* ${product.url}${product.url.includes('?') ? '&' : '?'}tag=${affiliateTag}
-
-${closing}
-
-#Amazon #Deals #${product.category.charAt(0).toUpperCase() + product.category.slice(1)} #OnlineShopping`;
+  return generateTelegramMessage(product, affiliateTag);
 }
