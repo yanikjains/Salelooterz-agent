@@ -46,6 +46,7 @@ export default function Home() {
   const [, setLocation] = useLocation();
   const [username, setUsername] = useState("");
   const [affiliateTag, setAffiliateTag] = useState("");
+  const [productLimit, setProductLimit] = useState(5);
   const [isLoading, setIsLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("electronics");
@@ -108,7 +109,8 @@ export default function Home() {
         },
         body: JSON.stringify({ 
           category: selectedCategory, 
-          affiliateTag
+          affiliateTag,
+          limit: productLimit
         }),
       });
 
@@ -200,22 +202,41 @@ export default function Home() {
         >
           <Card className="glass-card mb-8 overflow-hidden">
             <CardContent className="p-8">
-              <div className="mb-8">
-                <label className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
-                  <IndianRupee className="w-4 h-4" />
-                  Your Amazon India Affiliate Tag
-                </label>
-                <Input
-                  value={affiliateTag}
-                  onChange={(e) => setAffiliateTag(e.target.value)}
-                  placeholder="yourtag-21"
-                  className="h-14 text-lg bg-background/50 border-white/10 placeholder:text-muted-foreground/50"
-                  disabled={isLoading}
-                  data-testid="input-affiliate-tag"
-                />
-                <p className="text-xs text-muted-foreground mt-2">
-                  Find your tag at affiliate-program.amazon.in
-                </p>
+              <div className="grid md:grid-cols-3 gap-6 mb-8">
+                <div className="md:col-span-2">
+                  <label className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
+                    <IndianRupee className="w-4 h-4" />
+                    Your Amazon India Affiliate Tag
+                  </label>
+                  <Input
+                    value={affiliateTag}
+                    onChange={(e) => setAffiliateTag(e.target.value)}
+                    placeholder="yourtag-21"
+                    className="h-14 text-lg bg-background/50 border-white/10 placeholder:text-muted-foreground/50"
+                    disabled={isLoading}
+                    data-testid="input-affiliate-tag"
+                  />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Find your tag at affiliate-program.amazon.in
+                  </p>
+                </div>
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground mb-3 block">
+                    Products to Scrape
+                  </label>
+                  <Input
+                    type="number"
+                    value={productLimit}
+                    onChange={(e) => setProductLimit(Math.max(1, parseInt(e.target.value) || 1))}
+                    min={1}
+                    className="h-14 text-lg bg-background/50 border-white/10 text-center"
+                    disabled={isLoading}
+                    data-testid="input-product-limit"
+                  />
+                  <p className="text-xs text-muted-foreground mt-2">
+                    No limit • Scrape as many as you want
+                  </p>
+                </div>
               </div>
 
               <div className="mb-8">
@@ -262,7 +283,7 @@ export default function Home() {
                 ) : (
                   <span className="flex items-center gap-3">
                     <Zap className="w-6 h-6" />
-                    Scrape & Generate Viral Messages (Unlimited)
+                    Scrape {productLimit} Products & Generate Messages
                     <ArrowRight className="w-5 h-5" />
                   </span>
                 )}
