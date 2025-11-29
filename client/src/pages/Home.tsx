@@ -51,6 +51,7 @@ export default function Home() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("electronics");
   const [discoveryResult, setDiscoveryResult] = useState<DiscoveryResult | null>(null);
+  const [weeklyStats, setWeeklyStats] = useState({ weeklyCount: 0, remaining: 50, weeklyLimit: 50 });
 
   useEffect(() => {
     const userId = localStorage.getItem("userId");
@@ -63,15 +64,23 @@ export default function Home() {
 
     setUsername(storedUsername || "");
 
-    fetch("/api/categories")
-      .then(res => res.json())
-      .then(data => {
-        setCategories([
-          { id: "hot", name: "Hot Deals", icon: "🔥", description: "Today's Best" },
-          ...data.categories
-        ]);
+    Promise.all([
+      fetch("/api/categories")
+        .then(res => res.json())
+        .then(data => {
+          setCategories([
+            { id: "hot", name: "Hot Deals", icon: "🔥", description: "Today's Best" },
+            ...data.categories
+          ]);
+        }),
+      fetch("/api/user/weekly-stats", {
+        headers: { "x-user-id": userId }
       })
-      .catch(console.error);
+        .then(res => res.json())
+        .then(data => {
+          setWeeklyStats(data);
+        })
+    ]).catch(console.error);
   }, [setLocation]);
 
   const handleLogout = () => {
@@ -86,6 +95,24 @@ export default function Home() {
       toast({
         title: "Affiliate Tag Required",
         description: "Please enter your Amazon India affiliate tag (e.g., yourtag-21)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (weeklyStats.remaining <= 0) {
+      toast({
+        title: "Weekly Limit Reached",
+        description: "You've reached your limit of 50 products this week. Come back next week!",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (productLimit > weeklyStats.remaining) {
+      toast({
+        title: "Limit Exceeded",
+        description: `You can only scrape ${weeklyStats.remaining} more products this week.`,
         variant: "destructive",
       });
       return;
@@ -227,16 +254,25 @@ export default function Home() {
                   <Input
                     type="number"
                     value={productLimit}
-                    onChange={(e) => setProductLimit(Math.max(1, parseInt(e.target.value) || 1))}
+                    onChange={(e) => setProductLimit(Math.max(1, Math.min(weeklyStats.remaining, parseInt(e.target.value) || 1)))}
                     min={1}
+                    max={weeklyStats.remaining}
                     className="h-14 text-lg bg-background/50 border-white/10 text-center"
-                    disabled={isLoading}
+                    disabled={isLoading || weeklyStats.remaining <= 0}
                     data-testid="input-product-limit"
                   />
                   <p className="text-xs text-muted-foreground mt-2">
-                    No limit • Scrape as many as you want
+                    {weeklyStats.remaining > 0 
+                      ? `${weeklyStats.remaining} remaining this week`
+                      : "Weekly limit reached"}
                   </p>
                 </div>
+              </div>
+
+              <div className="mb-8 p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                <p className="text-sm text-muted-foreground">
+                  <span className="text-amber-400 font-semibold">{weeklyStats.weeklyCount} / {weeklyStats.weeklyLimit}</span> products scraped this week
+                </p>
               </div>
 
               <div className="mb-8">
@@ -271,7 +307,7 @@ export default function Home() {
 
               <Button
                 onClick={handleDiscover}
-                disabled={isLoading || !affiliateTag}
+                disabled={isLoading || !affiliateTag || weeklyStats.remaining <= 0}
                 className="w-full h-16 text-lg font-bold bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-xl glow-amber transition-all duration-300 disabled:opacity-50"
                 data-testid="button-discover"
               >

@@ -105,6 +105,28 @@ export async function registerRoutes(
         return res.status(404).json({ error: "User not found" });
       }
 
+      const weeklyCount = await storage.getWeeklyProductCount(userId);
+      const WEEKLY_LIMIT = 50;
+      const remaining = WEEKLY_LIMIT - weeklyCount;
+      
+      if (weeklyCount >= WEEKLY_LIMIT) {
+        return res.status(429).json({
+          success: false,
+          error: `Weekly limit of ${WEEKLY_LIMIT} products reached. Try again next week.`,
+          weeklyCount,
+          remaining: 0
+        });
+      }
+
+      if (limit && limit > remaining) {
+        return res.status(429).json({
+          success: false,
+          error: `You can only scrape ${remaining} more products this week (limit: ${WEEKLY_LIMIT} per week).`,
+          weeklyCount,
+          remaining
+        });
+      }
+
       let products;
       if (category === "all") {
         products = await discoverFromAllCategories(limit);
@@ -163,12 +185,16 @@ export async function registerRoutes(
         });
       }
       
+      const updatedWeeklyCount = await storage.getWeeklyProductCount(userId);
+      
       res.json({
         success: true,
         count: results.length,
         spreadsheetId,
         spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
         results,
+        weeklyCount: updatedWeeklyCount,
+        remaining: WEEKLY_LIMIT - updatedWeeklyCount,
       });
       
     } catch (error) {
@@ -252,7 +278,37 @@ export async function registerRoutes(
       }
 
       const automations = await storage.getAutomations(userId, 50);
-      res.json({ automations });
+      const weeklyCount = await storage.getWeeklyProductCount(userId);
+      const WEEKLY_LIMIT = 50;
+      
+      res.json({ 
+        automations,
+        weeklyCount,
+        remaining: WEEKLY_LIMIT - weeklyCount,
+        weeklyLimit: WEEKLY_LIMIT
+      });
+    } catch (error) {
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  app.get("/api/user/weekly-stats", async (req, res) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const weeklyCount = await storage.getWeeklyProductCount(userId);
+      const WEEKLY_LIMIT = 50;
+      
+      res.json({
+        weeklyCount,
+        remaining: WEEKLY_LIMIT - weeklyCount,
+        weeklyLimit: WEEKLY_LIMIT
+      });
     } catch (error) {
       res.status(500).json({
         error: error instanceof Error ? error.message : 'Unknown error',

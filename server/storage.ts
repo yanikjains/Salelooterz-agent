@@ -10,6 +10,7 @@ export interface IStorage {
   createAutomation(automation: InsertAutomation): Promise<Automation>;
   getAutomations(userId: string, limit?: number): Promise<Automation[]>;
   getAutomationById(id: number): Promise<Automation | undefined>;
+  getWeeklyProductCount(userId: string): Promise<number>;
 }
 
 export class MemStorage implements IStorage {
@@ -67,6 +68,17 @@ export class MemStorage implements IStorage {
 
   async getAutomationById(id: number): Promise<Automation | undefined> {
     return this.automations.get(id);
+  }
+
+  async getWeeklyProductCount(userId: string): Promise<number> {
+    const now = new Date();
+    const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    
+    const userAutomations = Array.from(this.automations.values()).filter(
+      a => a.userId === userId && a.createdAt >= weekAgo
+    );
+    
+    return userAutomations.length;
   }
 }
 
