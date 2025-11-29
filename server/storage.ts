@@ -5,9 +5,10 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  updateUserSpreadsheet(userId: string, spreadsheetId: string): Promise<User>;
   
   createAutomation(automation: InsertAutomation): Promise<Automation>;
-  getAutomations(limit?: number): Promise<Automation[]>;
+  getAutomations(userId: string, limit?: number): Promise<Automation[]>;
   getAutomationById(id: number): Promise<Automation | undefined>;
 }
 
@@ -34,8 +35,16 @@ export class MemStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const user: User = { ...insertUser, id };
+    const user: User = { ...insertUser, id, spreadsheetId: null };
     this.users.set(id, user);
+    return user;
+  }
+
+  async updateUserSpreadsheet(userId: string, spreadsheetId: string): Promise<User> {
+    const user = this.users.get(userId);
+    if (!user) throw new Error('User not found');
+    user.spreadsheetId = spreadsheetId;
+    this.users.set(userId, user);
     return user;
   }
 
@@ -51,8 +60,8 @@ export class MemStorage implements IStorage {
     return automation;
   }
 
-  async getAutomations(limit: number = 50): Promise<Automation[]> {
-    const all = Array.from(this.automations.values());
+  async getAutomations(userId: string, limit: number = 50): Promise<Automation[]> {
+    const all = Array.from(this.automations.values()).filter(a => a.userId === userId);
     return all.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, limit);
   }
 

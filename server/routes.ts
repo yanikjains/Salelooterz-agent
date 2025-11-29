@@ -21,7 +21,16 @@ const automationRequestSchema = z.object({
 const discoveryRequestSchema = z.object({
   category: z.string(),
   affiliateTag: z.string().min(1),
-  limit: z.number().min(1).max(10).optional().default(5),
+  limit: z.number().min(1).optional().default(5),
+});
+
+const authSchema = z.object({
+  username: z.string().min(3),
+  password: z.string().min(6),
+});
+
+const sheetsSchema = z.object({
+  userId: z.string(),
 });
 
 export async function registerRoutes(
@@ -29,6 +38,55 @@ export async function registerRoutes(
   app: Express
 ): Promise<Server> {
   
+  app.post("/api/auth/signup", async (req, res) => {
+    try {
+      const { username, password } = authSchema.parse(req.body);
+      const existingUser = await storage.getUserByUsername(username);
+      
+      if (existingUser) {
+        return res.status(400).json({ error: "Username already exists" });
+      }
+
+      const user = await storage.createUser({ username, password });
+      res.json({ userId: user.id, username: user.username });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : "Signup failed" });
+    }
+  });
+
+  app.post("/api/auth/login", async (req, res) => {
+    try {
+      const { username, password } = authSchema.parse(req.body);
+      const user = await storage.getUserByUsername(username);
+      
+      if (!user || user.password !== password) {
+        return res.status(400).json({ error: "Invalid credentials" });
+      }
+
+      res.json({ userId: user.id, username: user.username });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : "Login failed" });
+    }
+  });
+
+  app.post("/api/sheets/connect", async (req, res) => {
+    try {
+      const { userId } = sheetsSchema.parse(req.body);
+      const user = await storage.getUser(userId);
+      
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const spreadsheetId = await getOrCreateSheet(`Affiliate Bot - ${user.username}`);
+      await storage.updateUserSpreadsheet(userId, spreadsheetId);
+      
+      res.json({ spreadsheetId, success: true });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : "Connection failed" });
+    }
+  });
+
   app.get("/api/categories", async (req, res) => {
     res.json({ categories });
   });
@@ -36,7 +94,17 @@ export async function registerRoutes(
   app.post("/api/discover", async (req, res) => {
     try {
       const { category, affiliateTag, limit } = discoveryRequestSchema.parse(req.body);
+      const userId = req.headers["x-user-id"] as string;
       
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
       let products;
       if (category === "all") {
         products = await discoverFromAllCategories(limit);
@@ -53,7 +121,10 @@ export async function registerRoutes(
         });
       }
 
-      const spreadsheetId = await getOrCreateSheet('AmzViral - Amazon India Deals');
+      const spreadsheetId = user.spreadsheetId || (await getOrCreateSheet(`Affiliate Bot - ${user.username}`));
+      if (!user.spreadsheetId) {
+        await storage.updateUserSpreadsheet(userId, spreadsheetId);
+      }
       
       const results = [];
       
@@ -73,6 +144,7 @@ export async function registerRoutes(
         });
         
         const automation = await storage.createAutomation({
+          userId,
           productUrl: product.url,
           productTitle: product.title,
           price: product.price,
@@ -110,6 +182,16 @@ export async function registerRoutes(
 
   app.post("/api/automate", async (req, res) => {
     try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
       const { url, affiliateTag, spreadsheetId } = automationRequestSchema.parse(req.body);
       
       const product = await scrapeAmazonProduct(url);
@@ -117,9 +199,10 @@ export async function registerRoutes(
       const whatsappMessage = generateWhatsAppMessage(product, affiliateTag);
       const telegramMessage = generateTelegramMessage(product, affiliateTag);
       
-      let finalSpreadsheetId = spreadsheetId;
+      let finalSpreadsheetId = spreadsheetId || user.spreadsheetId;
       if (!finalSpreadsheetId) {
-        finalSpreadsheetId = await getOrCreateSheet('AmzViral - Amazon India Deals');
+        finalSpreadsheetId = await getOrCreateSheet(`Affiliate Bot - ${user.username}`);
+        await storage.updateUserSpreadsheet(userId, finalSpreadsheetId);
       }
       
       await appendToSheet(finalSpreadsheetId, {
@@ -134,6 +217,7 @@ export async function registerRoutes(
       });
       
       const automation = await storage.createAutomation({
+        userId,
         productUrl: url,
         productTitle: product.title,
         price: product.price,
@@ -162,7 +246,12 @@ export async function registerRoutes(
 
   app.get("/api/automations", async (req, res) => {
     try {
-      const automations = await storage.getAutomations(50);
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const automations = await storage.getAutomations(userId, 50);
       res.json({ automations });
     } catch (error) {
       res.status(500).json({

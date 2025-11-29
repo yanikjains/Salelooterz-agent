@@ -7,6 +7,7 @@ export const users = pgTable("users", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
+  spreadsheetId: text("spreadsheet_id"),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
@@ -19,6 +20,7 @@ export type User = typeof users.$inferSelect;
 
 export const automations = pgTable("automations", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull(),
   productUrl: text("product_url").notNull(),
   productTitle: text("product_title").notNull(),
   price: text("price").notNull(),
