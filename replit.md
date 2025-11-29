@@ -1,8 +1,10 @@
-# AmzViral - Amazon Affiliate Automation Platform
+# India's First Smart Amazon Affiliate Bot
 
 ## Overview
 
-AmzViral is a web application that automates the creation and distribution of Amazon affiliate marketing messages. The platform scrapes Amazon product data, generates viral marketing content optimized for WhatsApp and Telegram, and automatically exports campaigns to Google Sheets for tracking. It features product discovery across multiple categories with Hindi-English hybrid messaging to target Indian markets.
+India's First Smart Amazon Affiliate Bot is a web application that automates the creation and distribution of Amazon affiliate marketing messages. The platform scrapes Amazon product data, generates viral marketing content optimized for WhatsApp and Telegram, and automatically exports campaigns to Google Sheets for tracking. It features product discovery across multiple categories with Hindi-English hybrid messaging to target Indian markets.
+
+**Creator:** Yanik Jain | **Email:** salelooterz@gmail.com
 
 ## User Preferences
 

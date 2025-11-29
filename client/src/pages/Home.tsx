@@ -125,8 +125,8 @@ export default function Home() {
               <ShoppingBag className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white tracking-tight">AmzViral</h1>
-              <p className="text-xs text-muted-foreground">Amazon India Affiliate Automation</p>
+              <h1 className="text-2xl font-bold text-white tracking-tight">India's First Smart Amazon Affiliate Bot</h1>
+              <p className="text-xs text-muted-foreground">Automated Message Generation & Google Sheets Export</p>
             </div>
           </div>
           <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 px-3 py-1">
@@ -416,6 +416,18 @@ export default function Home() {
             Scrapes real-time data from Amazon.in
           </div>
         </motion.div>
+
+        <motion.footer
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="border-t border-white/5 mt-16 pt-8 text-center text-xs text-muted-foreground space-y-2"
+        >
+          <p>Created by <span className="text-white font-semibold">Yanik Jain</span></p>
+          <p>
+            Contact: <a href="mailto:salelooterz@gmail.com" className="text-amber-400 hover:text-amber-300 transition-colors">salelooterz@gmail.com</a>
+          </p>
+        </motion.footer>
       </div>
     </div>
   );
