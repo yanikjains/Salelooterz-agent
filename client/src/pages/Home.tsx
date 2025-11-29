@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -8,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Sparkles, ExternalLink, Check, Loader2, FileSpreadsheet, 
   Zap, Copy, ArrowRight, ShoppingBag, IndianRupee, Star,
-  MessageCircle, Send
+  MessageCircle, Send, LogOut
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
@@ -42,14 +43,25 @@ interface DiscoveryResult {
 }
 
 export default function Home() {
+  const [, setLocation] = useLocation();
+  const [username, setUsername] = useState("");
   const [affiliateTag, setAffiliateTag] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("electronics");
   const [discoveryResult, setDiscoveryResult] = useState<DiscoveryResult | null>(null);
-  const [productLimit, setProductLimit] = useState(5);
 
   useEffect(() => {
+    const userId = localStorage.getItem("userId");
+    const storedUsername = localStorage.getItem("username");
+    
+    if (!userId) {
+      setLocation("/login");
+      return;
+    }
+
+    setUsername(storedUsername || "");
+
     fetch("/api/categories")
       .then(res => res.json())
       .then(data => {
@@ -59,7 +71,14 @@ export default function Home() {
         ]);
       })
       .catch(console.error);
-  }, []);
+  }, [setLocation]);
+
+  const handleLogout = () => {
+    localStorage.removeItem("userId");
+    localStorage.removeItem("username");
+    setLocation("/login");
+    toast({ title: "Logged out successfully" });
+  };
 
   const handleDiscover = async () => {
     if (!affiliateTag) {
@@ -71,17 +90,25 @@ export default function Home() {
       return;
     }
 
+    const userId = localStorage.getItem("userId");
+    if (!userId) {
+      setLocation("/login");
+      return;
+    }
+
     setIsLoading(true);
     setDiscoveryResult(null);
 
     try {
       const response = await fetch("/api/discover", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { 
+          "Content-Type": "application/json",
+          "x-user-id": userId
+        },
         body: JSON.stringify({ 
           category: selectedCategory, 
-          affiliateTag,
-          limit: productLimit
+          affiliateTag
         }),
       });
 
@@ -129,10 +156,26 @@ export default function Home() {
               <p className="text-xs text-muted-foreground">Automated Message Generation & Google Sheets Export</p>
             </div>
           </div>
-          <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 px-3 py-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-2" />
-            Live Scraping
-          </Badge>
+          <div className="flex items-center gap-4">
+            {username && (
+              <div className="text-right">
+                <p className="text-sm text-white">Welcome, <span className="font-semibold">{username}</span></p>
+              </div>
+            )}
+            <Button
+              onClick={handleLogout}
+              variant="outline"
+              className="border-white/20 text-white hover:bg-white/10"
+              data-testid="button-logout"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Logout
+            </Button>
+            <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 px-3 py-1">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse mr-2" />
+              Live Scraping
+            </Badge>
+          </div>
         </motion.header>
 
         <motion.div 
@@ -146,7 +189,7 @@ export default function Home() {
             <span className="gradient-text">Amazon.in</span>
           </h2>
           <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-            Select category → Auto-scrape trending products → Get viral WhatsApp & Telegram messages → Export to Google Sheets
+            Select category → Auto-scrape unlimited products → Get viral WhatsApp & Telegram messages → Export to Google Sheets
           </p>
         </motion.div>
 
@@ -157,39 +200,22 @@ export default function Home() {
         >
           <Card className="glass-card mb-8 overflow-hidden">
             <CardContent className="p-8">
-              <div className="grid md:grid-cols-3 gap-6 mb-8">
-                <div className="md:col-span-2">
-                  <label className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
-                    <IndianRupee className="w-4 h-4" />
-                    Your Amazon India Affiliate Tag
-                  </label>
-                  <Input
-                    value={affiliateTag}
-                    onChange={(e) => setAffiliateTag(e.target.value)}
-                    placeholder="yourtag-21"
-                    className="h-14 text-lg bg-background/50 border-white/10 placeholder:text-muted-foreground/50"
-                    disabled={isLoading}
-                    data-testid="input-affiliate-tag"
-                  />
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Find your tag at affiliate-program.amazon.in
-                  </p>
-                </div>
-                <div>
-                  <label className="text-sm font-medium text-muted-foreground mb-3 block">
-                    Products to Fetch
-                  </label>
-                  <Input
-                    type="number"
-                    value={productLimit}
-                    onChange={(e) => setProductLimit(Math.min(10, Math.max(1, parseInt(e.target.value) || 1)))}
-                    min={1}
-                    max={10}
-                    className="h-14 text-lg bg-background/50 border-white/10 text-center"
-                    disabled={isLoading}
-                    data-testid="input-limit"
-                  />
-                </div>
+              <div className="mb-8">
+                <label className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
+                  <IndianRupee className="w-4 h-4" />
+                  Your Amazon India Affiliate Tag
+                </label>
+                <Input
+                  value={affiliateTag}
+                  onChange={(e) => setAffiliateTag(e.target.value)}
+                  placeholder="yourtag-21"
+                  className="h-14 text-lg bg-background/50 border-white/10 placeholder:text-muted-foreground/50"
+                  disabled={isLoading}
+                  data-testid="input-affiliate-tag"
+                />
+                <p className="text-xs text-muted-foreground mt-2">
+                  Find your tag at affiliate-program.amazon.in
+                </p>
               </div>
 
               <div className="mb-8">
@@ -236,7 +262,7 @@ export default function Home() {
                 ) : (
                   <span className="flex items-center gap-3">
                     <Zap className="w-6 h-6" />
-                    Scrape & Generate Viral Messages
+                    Scrape & Generate Viral Messages (Unlimited)
                     <ArrowRight className="w-5 h-5" />
                   </span>
                 )}
@@ -413,7 +439,7 @@ export default function Home() {
         >
           <div className="inline-flex items-center gap-3 bg-card/40 border border-white/5 rounded-full px-6 py-3 text-sm text-muted-foreground">
             <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-            Scrapes real-time data from Amazon.in
+            Scrapes real-time data from Amazon.in • Unlimited products • No rate limits
           </div>
         </motion.div>
 
