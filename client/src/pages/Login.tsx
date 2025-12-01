@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "framer-motion";
 import { ShoppingBag, ArrowRight, Chrome } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import logoImg from "@/assets/salelooterz-logo.png";
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -201,40 +202,19 @@ export default function Login() {
             <div className="absolute inset-0 bg-gradient-to-br from-yellow-400 to-transparent mix-blend-screen"></div>
           </div>
           
-          <div className="relative z-10 max-w-md text-center">
-            <div className="mb-8 inline-block">
-              <div className="text-6xl mb-6">🎯</div>
-              <h2 className="text-3xl font-bold text-yellow-400 mb-4">Unlimited Earnings</h2>
-              <div className="space-y-4 text-left">
-                <div className="flex gap-4 items-start">
-                  <span className="text-yellow-400 text-xl mt-1">✓</span>
-                  <div>
-                    <p className="font-semibold">50 Products Daily</p>
-                    <p className="text-gray-400 text-sm">Scrape Amazon India data automatically</p>
-                  </div>
-                </div>
-                <div className="flex gap-4 items-start">
-                  <span className="text-yellow-400 text-xl mt-1">✓</span>
-                  <div>
-                    <p className="font-semibold">Viral Messages</p>
-                    <p className="text-gray-400 text-sm">Hindi-English messages for WhatsApp & Telegram</p>
-                  </div>
-                </div>
-                <div className="flex gap-4 items-start">
-                  <span className="text-yellow-400 text-xl mt-1">✓</span>
-                  <div>
-                    <p className="font-semibold">Auto Export</p>
-                    <p className="text-gray-400 text-sm">Get products in Google Sheets instantly</p>
-                  </div>
-                </div>
-                <div className="flex gap-4 items-start">
-                  <span className="text-yellow-400 text-xl mt-1">✓</span>
-                  <div>
-                    <p className="font-semibold">₹3,999 Lifetime</p>
-                    <p className="text-gray-400 text-sm">One-time payment, unlimited access</p>
-                  </div>
-                </div>
-              </div>
+          <div className="relative z-10 flex flex-col items-center justify-center max-w-md">
+            <motion.img
+              src={logoImg}
+              alt="SaleLooterz Amazon Affiliate Bot"
+              initial={{ scale: 0.8, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ delay: 0.3, duration: 0.5 }}
+              className="w-full max-w-sm mb-8 drop-shadow-2xl"
+            />
+            
+            <div className="mt-8 text-center space-y-4">
+              <h2 className="text-2xl font-bold text-white">Powered by SaleLooterz</h2>
+              <p className="text-gray-400 text-sm">India's #1 Amazon Affiliate Automation Platform</p>
             </div>
           </div>
         </motion.div>
