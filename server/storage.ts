@@ -63,6 +63,8 @@ export class MemStorage implements IStorage {
       freeTrialEndsAt,
       failedLoginAttempts: 0,
       lockedUntil: null,
+      resetToken: null,
+      resetTokenExpiry: null,
       createdAt: now,
     };
     this.users.set(id, user);
@@ -93,6 +95,8 @@ export class MemStorage implements IStorage {
       freeTrialEndsAt,
       failedLoginAttempts: 0,
       lockedUntil: null,
+      resetToken: null,
+      resetTokenExpiry: null,
       createdAt: now,
     };
     this.users.set(id, newUser);

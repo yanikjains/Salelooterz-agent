@@ -9,7 +9,7 @@ import { toast } from "@/hooks/use-toast";
 
 export default function Login() {
   const [, setLocation] = useLocation();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
@@ -20,8 +20,8 @@ export default function Login() {
     setIsLoading(true);
 
     try {
-      if (!username || !password) {
-        setError("Username and password are required");
+      if (!email || !password) {
+        setError("Email and password are required");
         setIsLoading(false);
         return;
       }
@@ -29,7 +29,7 @@ export default function Login() {
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ email, password }),
       });
 
       const data = await response.json();
@@ -89,14 +89,15 @@ export default function Login() {
 
               <form onSubmit={handleLogin} className="space-y-5">
                 <div>
-                  <label className="text-sm font-medium text-gray-300 mb-2 block">Username</label>
+                  <label className="text-sm font-medium text-gray-300 mb-2 block">Email</label>
                   <Input
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value)}
-                    placeholder="john_affiliate"
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="your.email@example.com"
                     className="h-12 bg-gray-900 border-gray-700 text-white placeholder:text-gray-500 focus:border-yellow-400"
                     required
-                    data-testid="input-username"
+                    data-testid="input-email"
                   />
                 </div>
 
