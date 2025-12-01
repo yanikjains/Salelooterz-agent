@@ -447,68 +447,6 @@ export default function Home() {
                     </Card>
                   </motion.div>
                 ))}
-
-                          <div className="lg:w-3/5">
-                            <Tabs defaultValue="whatsapp" className="h-full">
-                              <div className="px-4 pt-4 border-b border-white/5">
-                                <TabsList className="bg-background/50 w-full">
-                                  <TabsTrigger 
-                                    value="whatsapp" 
-                                    className="flex-1 gap-2 data-[state=active]:bg-emerald-600 data-[state=active]:text-white"
-                                  >
-                                    <MessageCircle className="w-4 h-4" />
-                                    WhatsApp
-                                  </TabsTrigger>
-                                  <TabsTrigger 
-                                    value="telegram" 
-                                    className="flex-1 gap-2 data-[state=active]:bg-blue-500 data-[state=active]:text-white"
-                                  >
-                                    <Send className="w-4 h-4" />
-                                    Telegram
-                                  </TabsTrigger>
-                                </TabsList>
-                              </div>
-                              
-                              <TabsContent value="whatsapp" className="p-4 m-0">
-                                <div className="relative">
-                                  <pre className="bg-background/60 p-4 rounded-xl text-xs text-gray-300 whitespace-pre-wrap font-mono border border-white/5 max-h-40 overflow-y-auto">
-                                    {result.whatsappMessage}
-                                  </pre>
-                                  <Button
-                                    size="sm"
-                                    className="absolute top-2 right-2 bg-emerald-600 hover:bg-emerald-700"
-                                    onClick={() => copyToClipboard(result.whatsappMessage, "WhatsApp")}
-                                    data-testid={`button-copy-whatsapp-${index}`}
-                                  >
-                                    <Copy className="w-4 h-4 mr-1" />
-                                    Copy
-                                  </Button>
-                                </div>
-                              </TabsContent>
-                              
-                              <TabsContent value="telegram" className="p-4 m-0">
-                                <div className="relative">
-                                  <pre className="bg-background/60 p-4 rounded-xl text-xs text-gray-300 whitespace-pre-wrap font-mono border border-white/5 max-h-40 overflow-y-auto">
-                                    {result.telegramMessage}
-                                  </pre>
-                                  <Button
-                                    size="sm"
-                                    className="absolute top-2 right-2 bg-blue-500 hover:bg-blue-600"
-                                    onClick={() => copyToClipboard(result.telegramMessage, "Telegram")}
-                                    data-testid={`button-copy-telegram-${index}`}
-                                  >
-                                    <Copy className="w-4 h-4 mr-1" />
-                                    Copy
-                                  </Button>
-                                </div>
-                              </TabsContent>
-                            </Tabs>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                ))}
               </div>
             </motion.div>
           )}
