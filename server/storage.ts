@@ -11,6 +11,8 @@ export interface IStorage {
   getAutomations(userId: string, limit?: number): Promise<Automation[]>;
   getAutomationById(id: number): Promise<Automation | undefined>;
   getWeeklyProductCount(userId: string): Promise<number>;
+  getDailyProductCount(userId: string): Promise<number>;
+  markUserAsPaid(userId: string): Promise<User>;
 }
 
 export class MemStorage implements IStorage {
@@ -36,7 +38,7 @@ export class MemStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const user: User = { ...insertUser, id, spreadsheetId: null };
+    const user: User = { ...insertUser, id, spreadsheetId: null, isPaid: "false", paidAt: null };
     this.users.set(id, user);
     return user;
   }
@@ -79,6 +81,26 @@ export class MemStorage implements IStorage {
     );
     
     return userAutomations.length;
+  }
+
+  async getDailyProductCount(userId: string): Promise<number> {
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    
+    const userAutomations = Array.from(this.automations.values()).filter(
+      a => a.userId === userId && a.createdAt >= today
+    );
+    
+    return userAutomations.length;
+  }
+
+  async markUserAsPaid(userId: string): Promise<User> {
+    const user = this.users.get(userId);
+    if (!user) throw new Error('User not found');
+    user.isPaid = "true";
+    user.paidAt = new Date();
+    this.users.set(userId, user);
+    return user;
   }
 }
 

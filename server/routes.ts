@@ -105,26 +105,44 @@ export async function registerRoutes(
         return res.status(404).json({ error: "User not found" });
       }
 
-      const weeklyCount = await storage.getWeeklyProductCount(userId);
-      const WEEKLY_LIMIT = 50;
-      const remaining = WEEKLY_LIMIT - weeklyCount;
+      const isPaid = user.isPaid === "true";
+      const OWNER_USERNAMES = ["Yanik Jain", "yanik"];
+      const isOwner = OWNER_USERNAMES.some(name => user.username.toLowerCase().includes(name.toLowerCase()));
       
-      if (weeklyCount >= WEEKLY_LIMIT) {
-        return res.status(429).json({
+      let dailyCount = 0;
+      let dailyLimit = 50;
+      
+      if (!isOwner && !isPaid) {
+        return res.status(403).json({
           success: false,
-          error: `Weekly limit of ${WEEKLY_LIMIT} products reached. Try again next week.`,
-          weeklyCount,
-          remaining: 0
+          error: "Payment Required",
+          requiresPayment: true,
+          price: 3999,
+          message: "₹3,999 lifetime access required to use this bot"
         });
       }
 
-      if (limit && limit > remaining) {
-        return res.status(429).json({
-          success: false,
-          error: `You can only scrape ${remaining} more products this week (limit: ${WEEKLY_LIMIT} per week).`,
-          weeklyCount,
-          remaining
-        });
+      if (!isOwner && isPaid) {
+        dailyCount = await storage.getDailyProductCount(userId);
+        dailyLimit = 50;
+        
+        if (dailyCount >= dailyLimit) {
+          return res.status(429).json({
+            success: false,
+            error: `Daily limit of ${dailyLimit} products reached. Come back tomorrow!`,
+            dailyCount,
+            remaining: 0
+          });
+        }
+
+        if (limit && limit > (dailyLimit - dailyCount)) {
+          return res.status(429).json({
+            success: false,
+            error: `You can only scrape ${dailyLimit - dailyCount} more products today (limit: ${dailyLimit} per day).`,
+            dailyCount,
+            remaining: dailyLimit - dailyCount
+          });
+        }
       }
 
       let products;
@@ -185,7 +203,7 @@ export async function registerRoutes(
         });
       }
       
-      const updatedWeeklyCount = await storage.getWeeklyProductCount(userId);
+      const updatedDailyCount = !isOwner && isPaid ? await storage.getDailyProductCount(userId) : 0;
       
       res.json({
         success: true,
@@ -193,8 +211,8 @@ export async function registerRoutes(
         spreadsheetId,
         spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
         results,
-        weeklyCount: updatedWeeklyCount,
-        remaining: WEEKLY_LIMIT - updatedWeeklyCount,
+        dailyCount: updatedDailyCount,
+        remaining: !isOwner && isPaid ? dailyLimit - updatedDailyCount : -1,
       });
       
     } catch (error) {
@@ -278,14 +296,21 @@ export async function registerRoutes(
       }
 
       const automations = await storage.getAutomations(userId, 50);
-      const weeklyCount = await storage.getWeeklyProductCount(userId);
-      const WEEKLY_LIMIT = 50;
+      const user = await storage.getUser(userId);
+      const isPaid = user?.isPaid === "true";
+      const OWNER_USERNAMES = ["Yanik Jain", "yanik"];
+      const isOwner = user && OWNER_USERNAMES.some(name => user.username.toLowerCase().includes(name.toLowerCase()));
+      
+      const dailyCount = !isOwner && isPaid ? await storage.getDailyProductCount(userId) : 0;
+      const DAILY_LIMIT = 50;
       
       res.json({ 
         automations,
-        weeklyCount,
-        remaining: WEEKLY_LIMIT - weeklyCount,
-        weeklyLimit: WEEKLY_LIMIT
+        dailyCount,
+        remaining: !isOwner && isPaid ? DAILY_LIMIT - dailyCount : -1,
+        dailyLimit: DAILY_LIMIT,
+        isPaid,
+        isOwner: !!isOwner
       });
     } catch (error) {
       res.status(500).json({
@@ -294,21 +319,49 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/user/weekly-stats", async (req, res) => {
+  app.get("/api/user/status", async (req, res) => {
     try {
       const userId = req.headers["x-user-id"] as string;
       if (!userId) {
         return res.status(401).json({ error: "Unauthorized" });
       }
 
-      const weeklyCount = await storage.getWeeklyProductCount(userId);
-      const WEEKLY_LIMIT = 50;
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      const isPaid = user.isPaid === "true";
+      const OWNER_USERNAMES = ["Yanik Jain", "yanik"];
+      const isOwner = OWNER_USERNAMES.some(name => user.username.toLowerCase().includes(name.toLowerCase()));
+      
+      const dailyCount = await storage.getDailyProductCount(userId);
+      const DAILY_LIMIT = 50;
       
       res.json({
-        weeklyCount,
-        remaining: WEEKLY_LIMIT - weeklyCount,
-        weeklyLimit: WEEKLY_LIMIT
+        isPaid,
+        isOwner,
+        dailyCount,
+        remaining: isOwner || isPaid ? DAILY_LIMIT - dailyCount : 0,
+        dailyLimit: DAILY_LIMIT,
+        price: 3999
       });
+    } catch (error) {
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  app.post("/api/payment/complete", async (req, res) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const user = await storage.markUserAsPaid(userId);
+      res.json({ success: true, user });
     } catch (error) {
       res.status(500).json({
         error: error instanceof Error ? error.message : 'Unknown error',

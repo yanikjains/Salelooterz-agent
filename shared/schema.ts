@@ -8,6 +8,8 @@ export const users = pgTable("users", {
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   spreadsheetId: text("spreadsheet_id"),
+  isPaid: text("is_paid").default("false").notNull(),
+  paidAt: timestamp("paid_at"),
 });
 
 export const insertUserSchema = createInsertSchema(users).pick({
