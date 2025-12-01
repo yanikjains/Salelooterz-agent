@@ -88,7 +88,6 @@ export async function registerRoutes(
 
       // Add email to marketing sheet
       try {
-        const marketingSheetId = "1" + Date.now().toString().slice(0, 10);
         await appendToMarketingSheet(email, name);
       } catch (err) {
         console.error('Failed to add to marketing sheet:', err);

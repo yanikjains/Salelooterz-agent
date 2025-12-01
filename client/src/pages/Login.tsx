@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "framer-motion";
-import { Chrome, ShoppingBag, ArrowRight } from "lucide-react";
+import { ShoppingBag, ArrowRight } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 export default function Login() {
@@ -53,8 +53,7 @@ export default function Login() {
   const handleGoogleLogin = async () => {
     setIsLoading(true);
     try {
-      // Simulate Google OAuth - in production, use Google Sign-In SDK
-      const email = prompt("Enter your Google email:");
+      const email = prompt("Enter your email:");
       const name = prompt("Enter your name:");
       
       if (!email || !name) {
