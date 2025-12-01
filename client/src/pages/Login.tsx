@@ -4,9 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "framer-motion";
-import { ShoppingBag, ArrowRight, Chrome } from "lucide-react";
+import { ShoppingBag, ArrowRight, Chrome, Zap, TrendingUp } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import logoImg from "@/assets/salelooterz-logo.png";
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -203,18 +202,32 @@ export default function Login() {
           </div>
           
           <div className="relative z-10 flex flex-col items-center justify-center max-w-md">
-            <motion.img
-              src={logoImg}
-              alt="SaleLooterz Amazon Affiliate Bot"
-              initial={{ scale: 0.8, opacity: 0 }}
+            <motion.div
+              initial={{ scale: 0.5, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.3, duration: 0.5 }}
-              className="w-full max-w-sm mb-8 drop-shadow-2xl"
-            />
+              transition={{ delay: 0.2, duration: 0.6 }}
+              className="mb-8 text-center"
+            >
+              <div className="inline-block bg-gradient-to-br from-yellow-400 to-orange-500 p-6 rounded-3xl shadow-2xl mb-6">
+                <Zap className="w-16 h-16 text-black" />
+              </div>
+              <h2 className="text-4xl font-bold text-white mb-2">SaleLooterz</h2>
+              <div className="flex items-center justify-center gap-2 text-yellow-400 text-lg font-bold">
+                <TrendingUp className="w-5 h-5" />
+                <span>Amazon Affiliate Bot</span>
+              </div>
+            </motion.div>
             
             <div className="mt-8 text-center space-y-4">
-              <h2 className="text-2xl font-bold text-white">Powered by SaleLooterz</h2>
-              <p className="text-gray-400 text-sm">India's #1 Amazon Affiliate Automation Platform</p>
+              <p className="text-gray-300 text-sm font-medium">🇮🇳 India's #1 Affiliate Automation</p>
+              <div className="flex justify-center gap-3">
+                <div className="bg-yellow-500/20 px-3 py-1 rounded-full text-xs text-yellow-300">
+                  ₹3,999 Lifetime
+                </div>
+                <div className="bg-green-500/20 px-3 py-1 rounded-full text-xs text-green-300">
+                  50 Products/Day
+                </div>
+              </div>
             </div>
           </div>
         </motion.div>
