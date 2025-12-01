@@ -9,6 +9,7 @@ export interface IStorage {
   createUser(user: InsertUser): Promise<User>;
   createOrUpdateUserWithEmail(username: string, email: string): Promise<User>;
   updateUserSpreadsheet(userId: string, spreadsheetId: string): Promise<User>;
+  updateUser(userId: string, updates: Partial<User>): Promise<User>;
   setResetToken(userId: string, resetToken: string, expiresIn: number): Promise<User>;
   resetPassword(resetToken: string, newPassword: string): Promise<User>;
   
@@ -116,6 +117,14 @@ export class MemStorage implements IStorage {
     user.spreadsheetId = spreadsheetId;
     this.users.set(userId, user);
     return user;
+  }
+
+  async updateUser(userId: string, updates: Partial<User>): Promise<User> {
+    const user = this.users.get(userId);
+    if (!user) throw new Error('User not found');
+    const updatedUser = { ...user, ...updates };
+    this.users.set(userId, updatedUser);
+    return updatedUser;
   }
 
   async createAutomation(insertAutomation: InsertAutomation): Promise<Automation> {

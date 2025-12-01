@@ -48,8 +48,10 @@ export default function Home() {
   const [affiliateTag, setAffiliateTag] = useState("");
   const [productLimit, setProductLimit] = useState(5);
   const [isLoading, setIsLoading] = useState(false);
-  const [sheetsConnected, setSheetsConnected] = useState(false);
+  const [sheetsId, setSheetsId] = useState("");
+  const [tempSheetsId, setTempSheetsId] = useState("");
   const [sheetsLoading, setSheetsLoading] = useState(false);
+  const [showSheetsForm, setShowSheetsForm] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("electronics");
   const [discoveryResult, setDiscoveryResult] = useState<DiscoveryResult | null>(null);
@@ -82,18 +84,27 @@ export default function Home() {
         .then(data => {
           setWeeklyStats(data);
         }),
-      fetch("/api/sheets/status", {
+      fetch("/api/user/sheets-id", {
         headers: { "x-user-id": userId }
       })
         .then(res => res.json())
         .then(data => {
-          setSheetsConnected(data.connected || false);
+          setSheetsId(data.sheetsId || "");
         })
-        .catch(() => setSheetsConnected(false))
+        .catch(() => setSheetsId(""))
     ]).catch(console.error);
   }, [setLocation]);
 
-  const handleConnectSheets = async () => {
+  const handleSaveSheets = async () => {
+    if (!tempSheetsId.trim()) {
+      toast({
+        title: "Invalid Sheet ID",
+        description: "Please paste your Google Sheet ID",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSheetsLoading(true);
     try {
       const userId = localStorage.getItem("userId");
@@ -102,29 +113,31 @@ export default function Home() {
         return;
       }
 
-      const response = await fetch("/api/sheets/connect", {
+      const response = await fetch("/api/user/sheets-id", {
         method: "POST",
         headers: { 
           "Content-Type": "application/json",
           "x-user-id": userId
         },
+        body: JSON.stringify({ sheetsId: tempSheetsId })
       });
 
       if (response.ok) {
-        setSheetsConnected(true);
-        toast({ title: "Google Sheets connected successfully!" });
+        setSheetsId(tempSheetsId);
+        setShowSheetsForm(false);
+        toast({ title: "Google Sheet saved successfully!" });
       } else {
         const data = await response.json();
         toast({
-          title: "Connection Failed",
-          description: data.error || "Could not connect Google Sheets",
+          title: "Failed",
+          description: data.error || "Could not save sheet",
           variant: "destructive",
         });
       }
     } catch (error) {
       toast({
         title: "Error",
-        description: "Failed to connect Google Sheets",
+        description: "Failed to save Google Sheet",
         variant: "destructive",
       });
     } finally {
@@ -277,35 +290,84 @@ export default function Home() {
           transition={{ delay: 0.2 }}
           className="mb-8"
         >
-          <Card className={`glass-card overflow-hidden border-2 ${sheetsConnected ? "border-emerald-500/30" : "border-amber-500/30"}`}>
-            <CardContent className="p-6 flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${sheetsConnected ? "bg-emerald-500/20" : "bg-amber-500/20"}`}>
-                  <FileSpreadsheet className={`w-6 h-6 ${sheetsConnected ? "text-emerald-400" : "text-amber-400"}`} />
-                </div>
-                <div>
-                  <p className="font-semibold text-white">Google Sheets Export</p>
-                  <p className={`text-sm ${sheetsConnected ? "text-emerald-400" : "text-amber-400"}`}>
-                    {sheetsConnected ? "✓ Connected & Ready" : "Authorize to export products"}
-                  </p>
+          <Card className={`glass-card overflow-hidden border-2 ${sheetsId ? "border-emerald-500/30" : "border-amber-500/30"}`}>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${sheetsId ? "bg-emerald-500/20" : "bg-amber-500/20"}`}>
+                    <FileSpreadsheet className={`w-6 h-6 ${sheetsId ? "text-emerald-400" : "text-amber-400"}`} />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-white">Google Sheets Export</p>
+                    <p className={`text-sm ${sheetsId ? "text-emerald-400" : "text-amber-400"}`}>
+                      {sheetsId ? "✓ Sheet Connected" : "Add your Google Sheet ID"}
+                    </p>
+                  </div>
                 </div>
               </div>
-              {!sheetsConnected && (
+
+              {!showSheetsForm && !sheetsId && (
                 <Button
-                  onClick={handleConnectSheets}
-                  disabled={sheetsLoading}
-                  className="bg-amber-500 hover:bg-amber-600 text-black font-semibold"
-                  data-testid="button-connect-sheets"
+                  onClick={() => setShowSheetsForm(true)}
+                  className="mt-4 w-full bg-amber-500 hover:bg-amber-600 text-black font-semibold"
+                  data-testid="button-add-sheets"
                 >
-                  {sheetsLoading ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Connecting...
-                    </span>
-                  ) : (
-                    "Connect Google Sheets"
-                  )}
+                  Add Sheet ID
                 </Button>
+              )}
+
+              {!showSheetsForm && sheetsId && (
+                <Button
+                  onClick={() => {
+                    setTempSheetsId(sheetsId);
+                    setShowSheetsForm(true);
+                  }}
+                  variant="outline"
+                  className="mt-4 w-full"
+                  data-testid="button-edit-sheets"
+                >
+                  Edit Sheet ID
+                </Button>
+              )}
+
+              {showSheetsForm && (
+                <div className="mt-4 space-y-3">
+                  <div className="text-xs text-muted-foreground bg-blue-500/10 p-3 rounded border border-blue-500/20">
+                    <p className="font-semibold mb-1">📝 How to get your Sheet ID:</p>
+                    <ol className="list-decimal list-inside space-y-1">
+                      <li>Create a Google Sheet at sheets.google.com</li>
+                      <li>Share it (Anyone with link can edit)</li>
+                      <li>Copy ID from URL: sheets.google.com/d/<span className="text-blue-400 font-mono">YOUR_ID_HERE</span>/edit</li>
+                    </ol>
+                  </div>
+                  <Input
+                    value={tempSheetsId}
+                    onChange={(e) => setTempSheetsId(e.target.value)}
+                    placeholder="Paste Google Sheet ID here"
+                    className="h-10 bg-gray-900 border-gray-700 text-white"
+                    data-testid="input-sheets-id"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleSaveSheets}
+                      disabled={sheetsLoading || !tempSheetsId.trim()}
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                      data-testid="button-save-sheets"
+                    >
+                      {sheetsLoading ? "Saving..." : "Save Sheet"}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setShowSheetsForm(false);
+                        setTempSheetsId("");
+                      }}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
               )}
             </CardContent>
           </Card>
