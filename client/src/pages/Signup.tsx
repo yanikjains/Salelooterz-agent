@@ -10,17 +10,36 @@ import { toast } from "@/hooks/use-toast";
 export default function Signup() {
   const [, setLocation] = useLocation();
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    if (username.length < 3) newErrors.username = "Username must be at least 3 characters";
+    if (!/^[a-zA-Z0-9_]+$/.test(username)) newErrors.username = "Username can only contain letters, numbers, and underscores";
+    if (!email.includes("@")) newErrors.email = "Please enter a valid email";
+    if (password.length < 8) newErrors.password = "Password must be at least 8 characters";
+    if (!/[A-Z]/.test(password)) newErrors.password = "Password must contain an uppercase letter";
+    if (!/[a-z]/.test(password)) newErrors.password = "Password must contain a lowercase letter";
+    if (!/[0-9]/.test(password)) newErrors.password = "Password must contain a number";
+    if (!/[^a-zA-Z0-9]/.test(password)) newErrors.password = "Password must contain a special character";
+    if (password !== confirmPassword) newErrors.confirm = "Passwords don't match";
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (password !== confirmPassword) {
+    if (!validateForm()) {
       toast({
-        title: "Error",
-        description: "Passwords don't match",
+        title: "Validation Error",
+        description: Object.values(errors)[0] || "Please fix the errors above",
         variant: "destructive",
       });
       return;
@@ -32,7 +51,7 @@ export default function Signup() {
       const response = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ username, email, password }),
       });
 
       const data = await response.json();
@@ -40,8 +59,9 @@ export default function Signup() {
       if (response.ok) {
         localStorage.setItem("userId", data.userId);
         localStorage.setItem("username", data.username);
-        setLocation("/connect-sheets");
-        toast({ title: "Account created! Now connect your Google Sheets." });
+        localStorage.setItem("email", data.email);
+        setLocation("/");
+        toast({ title: "Account created successfully! Welcome!" });
       } else {
         toast({
           title: "Signup Failed",
@@ -82,7 +102,7 @@ export default function Signup() {
         >
           <Card className="glass-card">
             <CardContent className="p-8">
-              <form onSubmit={handleSignup} className="space-y-6">
+              <form onSubmit={handleSignup} className="space-y-4">
                 <div>
                   <label className="text-sm font-medium text-muted-foreground mb-2 block">
                     Username
@@ -91,27 +111,46 @@ export default function Signup() {
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
                     placeholder="Choose a username"
-                    className="h-12 bg-background/50 border-white/10"
+                    className={`h-12 bg-background/50 border-white/10 ${errors.username ? 'border-red-500' : ''}`}
                     required
                     minLength={3}
+                    maxLength={20}
                     data-testid="input-signup-username"
                   />
+                  {errors.username && <p className="text-xs text-red-400 mt-1">{errors.username}</p>}
                 </div>
 
                 <div>
                   <label className="text-sm font-medium text-muted-foreground mb-2 block">
-                    Password
+                    Email
+                  </label>
+                  <Input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="your.email@example.com"
+                    className={`h-12 bg-background/50 border-white/10 ${errors.email ? 'border-red-500' : ''}`}
+                    required
+                    data-testid="input-signup-email"
+                  />
+                  {errors.email && <p className="text-xs text-red-400 mt-1">{errors.email}</p>}
+                </div>
+
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground mb-2 block">
+                    Password (min 8 chars: uppercase, lowercase, number, special)
                   </label>
                   <Input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Create a password"
-                    className="h-12 bg-background/50 border-white/10"
+                    placeholder="Create a secure password"
+                    className={`h-12 bg-background/50 border-white/10 ${errors.password ? 'border-red-500' : ''}`}
                     required
-                    minLength={6}
+                    minLength={8}
                     data-testid="input-password"
                   />
+                  {errors.password && <p className="text-xs text-red-400 mt-1">{errors.password}</p>}
                 </div>
 
                 <div>
@@ -123,10 +162,11 @@ export default function Signup() {
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="Confirm your password"
-                    className="h-12 bg-background/50 border-white/10"
+                    className={`h-12 bg-background/50 border-white/10 ${errors.confirm ? 'border-red-500' : ''}`}
                     required
                     data-testid="input-confirm-password"
                   />
+                  {errors.confirm && <p className="text-xs text-red-400 mt-1">{errors.confirm}</p>}
                 </div>
 
                 <Button

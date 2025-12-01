@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "framer-motion";
-import { ShoppingBag, ArrowRight } from "lucide-react";
+import { ShoppingBag, ArrowRight, AlertCircle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 export default function Login() {
@@ -12,12 +12,20 @@ export default function Login() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError("");
     setIsLoading(true);
 
     try {
+      if (!username || !password) {
+        setError("Username and password are required");
+        setIsLoading(false);
+        return;
+      }
+
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -33,6 +41,7 @@ export default function Login() {
         setLocation("/");
         toast({ title: "Login successful!" });
       } else {
+        setError(data.error || "Invalid credentials. Please try again.");
         toast({
           title: "Login Failed",
           description: data.error || "Invalid credentials",
@@ -40,6 +49,7 @@ export default function Login() {
         });
       }
     } catch (error) {
+      setError("Failed to login. Please try again.");
       toast({
         title: "Error",
         description: "Failed to login",
@@ -69,6 +79,13 @@ export default function Login() {
             <div className="max-w-sm">
               <h1 className="text-4xl font-bold mb-3">Login to your account</h1>
               <p className="text-gray-400 mb-8">Scrape 50 Amazon products daily. Generate viral messages. Earn commissions.</p>
+
+              {error && (
+                <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
+                  <p className="text-sm text-red-400">{error}</p>
+                </div>
+              )}
 
               <form onSubmit={handleLogin} className="space-y-5">
                 <div>

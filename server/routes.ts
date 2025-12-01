@@ -24,9 +24,20 @@ const discoveryRequestSchema = z.object({
   limit: z.number().min(1).optional().default(5),
 });
 
-const authSchema = z.object({
-  username: z.string().min(3),
-  password: z.string().min(6),
+const loginSchema = z.object({
+  username: z.string().min(1, "Username is required"),
+  password: z.string().min(1, "Password is required"),
+});
+
+const signupSchemaServer = z.object({
+  username: z.string().min(3, "Username must be at least 3 characters").max(20).regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores"),
+  email: z.string().email("Please enter a valid email"),
+  password: z.string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(/[A-Z]/, "Password must contain an uppercase letter")
+    .regex(/[a-z]/, "Password must contain a lowercase letter")
+    .regex(/[0-9]/, "Password must contain a number")
+    .regex(/[^a-zA-Z0-9]/, "Password must contain a special character"),
 });
 
 const sheetsSchema = z.object({
@@ -45,15 +56,20 @@ export async function registerRoutes(
   
   app.post("/api/auth/signup", async (req, res) => {
     try {
-      const { username, password } = authSchema.parse(req.body);
+      const { username, email, password } = signupSchemaServer.parse(req.body);
       const existingUser = await storage.getUserByUsername(username);
+      const existingEmail = await storage.getUserByEmail(email);
       
       if (existingUser) {
         return res.status(400).json({ error: "Username already exists" });
       }
+      
+      if (existingEmail) {
+        return res.status(400).json({ error: "Email already registered" });
+      }
 
-      const user = await storage.createUser({ username, password });
-      res.json({ userId: user.id, username: user.username });
+      const user = await storage.createUser({ username, email, password });
+      res.json({ userId: user.id, username: user.username, email: user.email });
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : "Signup failed" });
     }
@@ -61,10 +77,21 @@ export async function registerRoutes(
 
   app.post("/api/auth/login", async (req, res) => {
     try {
-      const { username, password } = authSchema.parse(req.body);
+      const { username, password } = loginSchema.parse(req.body);
       const user = await storage.getUserByUsername(username);
       
-      if (!user || user.password !== password) {
+      if (!user) {
+        return res.status(400).json({ error: "Invalid credentials" });
+      }
+
+      if (!user.password) {
+        return res.status(400).json({ error: "Account has no password. Please use registration." });
+      }
+
+      const bcrypt = await import("bcrypt");
+      const isPasswordValid = await bcrypt.compare(password, user.password);
+      
+      if (!isPasswordValid) {
         return res.status(400).json({ error: "Invalid credentials" });
       }
 
