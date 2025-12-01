@@ -33,6 +33,11 @@ const sheetsSchema = z.object({
   userId: z.string(),
 });
 
+const googleAuthSchema = z.object({
+  email: z.string().email(),
+  name: z.string(),
+});
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -63,9 +68,35 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Invalid credentials" });
       }
 
-      res.json({ userId: user.id, username: user.username });
+      res.json({ userId: user.id, username: user.username, email: user.email });
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : "Login failed" });
+    }
+  });
+
+  app.post("/api/auth/google", async (req, res) => {
+    try {
+      const { email, name } = googleAuthSchema.parse(req.body);
+      
+      let user = await storage.getUserByUsername(email);
+      
+      if (!user) {
+        user = await storage.createOrUpdateUserWithEmail(email, email);
+      } else {
+        user = await storage.createOrUpdateUserWithEmail(user.username, email);
+      }
+
+      // Add email to marketing sheet
+      try {
+        const marketingSheetId = "1" + Date.now().toString().slice(0, 10);
+        await appendToMarketingSheet(email, name);
+      } catch (err) {
+        console.error('Failed to add to marketing sheet:', err);
+      }
+
+      res.json({ userId: user.id, username: user.username || email, email: user.email });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : "Google login failed" });
     }
   });
 

@@ -123,6 +123,25 @@ export async function createNewSheet(title: string) {
   return response.data.spreadsheetId!;
 }
 
+export async function appendToMarketingSheet(email: string, name: string) {
+  const sheets = await getUncachableGoogleSheetClient();
+  
+  try {
+    // Try to append to existing "Marketing Leads" sheet
+    await sheets.spreadsheets.values.append({
+      spreadsheetId: process.env.MARKETING_SHEET_ID || "marketing-leads",
+      range: 'Sheet1!A:B',
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: [[email, name]]
+      },
+    });
+  } catch (err) {
+    console.error('Marketing sheet append error:', err);
+    throw err;
+  }
+}
+
 export async function getOrCreateSheet(sheetName: string = 'AmzViral Automation'): Promise<string> {
   const sheets = await getUncachableGoogleSheetClient();
   

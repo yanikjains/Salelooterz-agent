@@ -5,6 +5,7 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  createOrUpdateUserWithEmail(username: string, email: string): Promise<User>;
   updateUserSpreadsheet(userId: string, spreadsheetId: string): Promise<User>;
   
   createAutomation(automation: InsertAutomation): Promise<Automation>;
@@ -38,9 +39,24 @@ export class MemStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const user: User = { ...insertUser, id, spreadsheetId: null, isPaid: "false", paidAt: null };
+    const user: User = { ...insertUser, id, spreadsheetId: null, isPaid: "false", paidAt: null, email: null, createdAt: new Date() };
     this.users.set(id, user);
     return user;
+  }
+
+  async createOrUpdateUserWithEmail(username: string, email: string): Promise<User> {
+    let user = Array.from(this.users.values()).find(u => u.username === username || u.email === email);
+    
+    if (user) {
+      user.email = email;
+      this.users.set(user.id, user);
+      return user;
+    }
+
+    const id = randomUUID();
+    const newUser: User = { id, username, password: null, email, spreadsheetId: null, isPaid: "false", paidAt: null, createdAt: new Date() };
+    this.users.set(id, newUser);
+    return newUser;
   }
 
   async updateUserSpreadsheet(userId: string, spreadsheetId: string): Promise<User> {

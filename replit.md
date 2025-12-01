@@ -6,6 +6,16 @@ India's First Smart Amazon Affiliate Bot is a web application that automates the
 
 **Creator:** Yanik Jain | **Email:** salelooterz@gmail.com
 
+## Recent Updates (December 1, 2025)
+
+### Latest Features
+- **Pricing Model**: ₹3,999 lifetime access with owner exemption
+- **Daily Limits**: 50 products per day (previously 50/week)
+- **Google OAuth**: Users can login with Google email and auto-export to marketing sheet
+- **Email Marketing**: All Google login emails automatically stored in marketing sheet
+- **Payment Tracking**: Users marked as paid after completing ₹3,999 payment
+- **Owner Exemption**: "Yanik Jain" account has no payment requirement and unlimited daily limit
+
 ## User Preferences
 
 Preferred communication style: Simple, everyday language.
@@ -21,6 +31,12 @@ Preferred communication style: Simple, everyday language.
 - UI built with Radix UI primitives and shadcn/ui components
 - Styling with Tailwind CSS v4 (using @tailwindcss/vite plugin)
 - Animations powered by Framer Motion
+
+**Pages:**
+- Login.tsx: Traditional login + Google OAuth option
+- Signup.tsx: User registration
+- Home.tsx: Main dashboard with product scraping
+- Pricing.tsx: ₹3,999 lifetime access page (for unpaid users)
 
 **Design System:**
 - Custom design tokens defined in CSS variables for theming
@@ -46,23 +62,30 @@ Preferred communication style: Simple, everyday language.
 **API Design:**
 - RESTful endpoints under /api prefix
 - Zod schemas for request validation
-- Endpoints for product scraping, discovery, and automation creation
+- Endpoints for product scraping, discovery, automation creation, and authentication
 - Category-based product discovery with configurable limits
+- Payment tracking and daily limit enforcement
 
 **Core Services:**
 
-1. **Web Scraper (server/scraper.ts)**
+1. **Authentication (server/routes.ts)**
+   - Traditional username/password login
+   - Google OAuth login with email capture
+   - User email auto-export to marketing sheet
+   - Owner exemption for Yanik Jain account
+
+2. **Web Scraper (server/scraper.ts)**
    - Scrapes Amazon India product pages using Axios and Cheerio
    - Extracts: title, price, original price, discount, rating, reviews, images, features, ASIN
    - Bot detection avoidance: rotating user agents, delays between requests
    - Fallback mechanisms for blocked responses
 
-2. **Product Discovery (server/productDiscovery.ts)**
+3. **Product Discovery (server/productDiscovery.ts)**
    - Pre-configured search terms across 6 categories: electronics, mobile, home, fashion, beauty, fitness
    - Support for "all categories" and "hot deals" discovery modes
    - Amazon India search integration
 
-3. **Message Generator (server/messageGenerator.ts)**
+4. **Message Generator (server/messageGenerator.ts)**
    - Generates platform-specific marketing messages (WhatsApp & Telegram)
    - Viral hooks library in Hindi/English hybrid format
    - Automatic affiliate tag injection
@@ -75,7 +98,7 @@ Preferred communication style: Simple, everyday language.
 - PostgreSQL via Neon serverless driver (@neondatabase/serverless)
 - Drizzle ORM for type-safe database operations
 - Schema defined in shared/schema.ts with two main tables:
-  - `users`: Basic authentication (id, username, password)
+  - `users`: Extended user model with email, isPaid, paidAt, createdAt
   - `automations`: Campaign tracking (product details, messages, timestamps, spreadsheet references)
 
 **Development Storage:**
@@ -94,8 +117,20 @@ Preferred communication style: Simple, everyday language.
 - Uses official Google APIs Node.js client
 - Replit Connectors system for OAuth authentication
 - Auto-token refresh handling
-- Functions to create/append to spreadsheets for campaign tracking
-- Stores: timestamp, product URL, title, price, rating, generated messages, affiliate tag
+- Functions:
+  - `getOrCreateSheet()`: Creates per-user product automation sheet
+  - `appendToSheet()`: Logs scrapped products with messages
+  - `appendToMarketingSheet()`: Stores user emails for marketing campaigns
+
+**Google OAuth:**
+- Email-based login without password requirement
+- Automatic user creation from email
+- Marketing email auto-export to tracking sheet
+
+**Payment Processing:**
+- Razorpay integration ready (backend payment endpoint exists)
+- ₹3,999 lifetime access model
+- Owner exemption: Yanik Jain (any username containing "Yanik" case-insensitive)
 
 **Amazon Web Scraping:**
 - Axios HTTP client with custom headers and retry logic
@@ -120,3 +155,29 @@ Preferred communication style: Simple, everyday language.
 - PostCSS with Tailwind and Autoprefixer
 - TypeScript with strict mode and bundler module resolution
 - Conditional bundling of server dependencies (allowlist approach)
+
+## Technical Details
+
+### Daily Limit System
+- Counts products scraped in the current day (UTC midnight reset)
+- Paid users: 50 products/day
+- Owner: Unlimited
+- Free users: No scraping allowed
+
+### Payment Flow
+- Unpaid users redirected to /pricing page
+- Users click "Pay ₹3,999 Now"
+- Backend endpoint `/api/payment/complete` marks user as paid
+- Lifetime access granted immediately
+
+### Email Marketing System
+- Google OAuth login captures email address
+- Emails automatically appended to marketing sheet
+- Format: [email, name]
+- Ready for outreach campaigns
+
+### Owner Features
+- Username detection: "Yanik Jain" (case-insensitive partial match)
+- No payment required
+- No daily limit on scraping
+- Full bot access
