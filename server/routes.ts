@@ -10,6 +10,7 @@ import {
 } from "./messageGenerator";
 import { appendToSheet, getOrCreateSheet, appendToMarketingSheet } from "./sheets";
 import { discoverProducts, discoverFromAllCategories, discoverHotDeals, categories } from "./productDiscovery";
+import { sendPasswordResetEmail } from "./email";
 import { z } from "zod";
 
 const automationRequestSchema = z.object({
@@ -149,14 +150,26 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Email not found" });
       }
 
-      // Generate a simple reset code (for demo, in production use cryptographic tokens)
+      // Generate a simple reset code
       const resetCode = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
       
       // Store reset token (expires in 1 hour)
       await storage.setResetToken(user.id, resetCode, 60 * 60 * 1000);
 
-      // In production, send this via email. For demo, return it to client.
-      res.json({ resetCode, message: "Recovery code generated. Check the code above." });
+      // Send reset code via email
+      const emailSent = await sendPasswordResetEmail(email, resetCode);
+
+      if (emailSent) {
+        res.json({ success: true, message: "Password reset code sent to your email. Check your inbox." });
+      } else {
+        // Email sending not configured, but token is stored
+        res.json({ 
+          success: true, 
+          message: "Recovery code generated.",
+          resetCode, // Return code only if email service not configured
+          note: "Email service not configured. Please contact support or use the code shown." 
+        });
+      }
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : "Failed to process forgot password" });
     }

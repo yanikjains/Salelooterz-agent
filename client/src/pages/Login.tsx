@@ -37,7 +37,7 @@ export default function Login() {
       if (response.ok) {
         localStorage.setItem("userId", data.userId);
         localStorage.setItem("username", data.username);
-        localStorage.setItem("email", data.email || username);
+        localStorage.setItem("email", data.email || email);
         setLocation("/");
         toast({ title: "Login successful!" });
       } else {
