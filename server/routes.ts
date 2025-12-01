@@ -148,8 +148,8 @@ export async function registerRoutes(
           success: false,
           error: "Payment Required",
           requiresPayment: true,
-          price: 3999,
-          message: "₹3,999 lifetime access required to use this bot"
+          price: 1299,
+          message: "₹1,299 lifetime access required to use this bot. Enjoy 10 days free!"
         });
       }
 
@@ -375,7 +375,7 @@ export async function registerRoutes(
         dailyCount,
         remaining: isOwner || isPaid ? DAILY_LIMIT - dailyCount : 0,
         dailyLimit: DAILY_LIMIT,
-        price: 3999
+        price: 1299
       });
     } catch (error) {
       res.status(500).json({

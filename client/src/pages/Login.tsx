@@ -235,8 +235,8 @@ export default function Login() {
                 <div className="flex gap-4 items-start">
                   <span className="text-yellow-400 text-xl mt-1">✓</span>
                   <div>
-                    <p className="font-semibold">₹3,999 Lifetime</p>
-                    <p className="text-gray-400 text-sm">One-time payment, unlimited access</p>
+                    <p className="font-semibold">₹1,299 Lifetime</p>
+                    <p className="text-gray-400 text-sm">One-time payment, 10 days free trial</p>
                   </div>
                 </div>
               </div>

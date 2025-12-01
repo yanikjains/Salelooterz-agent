@@ -9,12 +9,13 @@ India's First Smart Amazon Affiliate Bot is a web application that automates the
 ## Recent Updates (December 1, 2025)
 
 ### Latest Features
-- **Pricing Model**: ₹3,999 lifetime access with owner exemption
+- **Pricing Model**: ₹1,299 lifetime access with 10 days free trial and owner exemption
 - **Daily Limits**: 50 products per day (previously 50/week)
 - **Google OAuth**: Users can login with Google email and auto-export to marketing sheet
 - **Email Marketing**: All Google login emails automatically stored in marketing sheet
-- **Payment Tracking**: Users marked as paid after completing ₹3,999 payment
+- **Payment Tracking**: Users marked as paid after completing ₹1,299 payment
 - **Owner Exemption**: "Yanik Jain" account has no payment requirement and unlimited daily limit
+- **Free Trial**: All new users get 10 days free access before requiring payment
 
 ## User Preferences
 
@@ -162,11 +163,12 @@ Preferred communication style: Simple, everyday language.
 - Counts products scraped in the current day (UTC midnight reset)
 - Paid users: 50 products/day
 - Owner: Unlimited
-- Free users: No scraping allowed
+- Free trial users: 50 products/day for first 10 days
 
 ### Payment Flow
-- Unpaid users redirected to /pricing page
-- Users click "Pay ₹3,999 Now"
+- New users get 10 days free trial automatically
+- After 10 days, unpaid users redirected to /pricing page
+- Users click "Pay ₹1,299 Now" for lifetime access
 - Backend endpoint `/api/payment/complete` marks user as paid
 - Lifetime access granted immediately
 

@@ -11,6 +11,7 @@ export const users = pgTable("users", {
   spreadsheetId: text("spreadsheet_id"),
   isPaid: text("is_paid").default("false").notNull(),
   paidAt: timestamp("paid_at"),
+  freeTrialEndsAt: timestamp("free_trial_ends_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

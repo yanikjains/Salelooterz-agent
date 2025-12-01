@@ -40,6 +40,13 @@ export default function Pricing() {
           description: "You now have lifetime access. Enjoy scraping 50 products per day!",
         });
         setLocation("/");
+      } else {
+        const data = await response.json();
+        toast({
+          title: "Payment Failed",
+          description: data.error || "Failed to process payment",
+          variant: "destructive"
+        });
       }
     } catch (error) {
       toast({
@@ -71,7 +78,10 @@ export default function Pricing() {
 
         <Card className="glass-card border-white/10">
           <CardHeader>
-            <CardTitle className="text-4xl text-center">₹3,999</CardTitle>
+            <div className="flex items-center justify-center gap-3 mb-4">
+              <Badge className="bg-emerald-500 text-white">10 Days Free!</Badge>
+            </div>
+            <CardTitle className="text-4xl text-center">₹1,299</CardTitle>
             <CardDescription className="text-center text-lg mt-2">Lifetime Access</CardDescription>
           </CardHeader>
           <CardContent className="space-y-8">
@@ -102,11 +112,14 @@ export default function Pricing() {
               className="w-full h-14 text-lg font-bold bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-xl"
               data-testid="button-pay"
             >
-              {isLoading ? "Processing..." : "Pay ₹3,999 Now"}
+              {isLoading ? "Processing..." : "Pay ₹1,299 Now"}
             </Button>
 
             <p className="text-center text-sm text-muted-foreground">
               One-time payment. Never pay again. Lifetime access guaranteed.
+            </p>
+            <p className="text-center text-sm text-emerald-400 font-medium">
+              ✓ Try free for 10 days • No credit card required
             </p>
           </CardContent>
         </Card>
