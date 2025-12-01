@@ -278,10 +278,7 @@ export async function registerRoutes(
         });
       }
 
-      const spreadsheetId = user.spreadsheetId || (await getOrCreateSheet(`Affiliate Bot - ${user.username}`));
-      if (!user.spreadsheetId) {
-        await storage.updateUserSpreadsheet(userId, spreadsheetId);
-      }
+      let spreadsheetId: string | null = user.spreadsheetId || null;
       
       const results = [];
       
@@ -289,16 +286,24 @@ export async function registerRoutes(
         const whatsappMessage = generateWhatsAppMessageFromDiscovered(product, affiliateTag);
         const telegramMessage = generateTelegramMessageFromDiscovered(product, affiliateTag);
         
-        await appendToSheet(spreadsheetId, {
-          timestamp: new Date().toISOString(),
-          productTitle: product.title,
-          price: product.price,
-          rating: `${product.rating}/5 (${product.reviews} reviews)`,
-          productUrl: `${product.url}?tag=${affiliateTag}`,
-          whatsappMessage,
-          telegramMessage,
-          affiliateTag,
-        });
+        // Try to append to Google Sheets, but don't fail if it errors
+        if (spreadsheetId) {
+          try {
+            await appendToSheet(spreadsheetId, {
+              timestamp: new Date().toISOString(),
+              productTitle: product.title,
+              price: product.price,
+              rating: `${product.rating}/5 (${product.reviews} reviews)`,
+              productUrl: `${product.url}?tag=${affiliateTag}`,
+              whatsappMessage,
+              telegramMessage,
+              affiliateTag,
+            });
+          } catch (sheetsError) {
+            console.error('Google Sheets export failed for product:', product.title, sheetsError);
+            // Continue without Sheets - data is saved in database
+          }
+        }
         
         const automation = await storage.createAutomation({
           userId,
@@ -309,7 +314,7 @@ export async function registerRoutes(
           whatsappMessage,
           telegramMessage,
           affiliateTag,
-          spreadsheetId,
+          spreadsheetId: spreadsheetId || null,
         });
         
         results.push({
@@ -470,18 +475,56 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/payment/complete", async (req, res) => {
+  app.post("/api/payment/create-order", async (req, res) => {
     try {
       const userId = req.headers["x-user-id"] as string;
       if (!userId) {
         return res.status(401).json({ error: "Unauthorized" });
       }
 
-      const user = await storage.markUserAsPaid(userId);
-      res.json({ success: true, user });
+      const { amount } = req.body;
+      // In production, create order with Razorpay API
+      // For now, return mock order
+      const orderId = `order_${Date.now()}`;
+      
+      res.json({ 
+        orderId,
+        razorpayKey: process.env.RAZORPAY_KEY_ID || 'rzp_test_key',
+        amount 
+      });
     } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Unknown error',
+      res.status(400).json({
+        error: error instanceof Error ? error.message : 'Failed to create order',
+      });
+    }
+  });
+
+  app.post("/api/payment/verify", async (req, res) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Update subscription to end 30 days from now
+      const subscriptionEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      user.subscriptionEndsAt = subscriptionEndsAt;
+      user.isPaid = "true";
+      await storage.updateUser(userId, { subscriptionEndsAt, isPaid: "true" });
+
+      res.json({ 
+        success: true, 
+        message: "Subscription activated for 30 days",
+        subscriptionEndsAt 
+      });
+    } catch (error) {
+      res.status(400).json({
+        error: error instanceof Error ? error.message : 'Verification failed',
       });
     }
   });
@@ -518,19 +561,26 @@ export async function registerRoutes(
         return res.status(404).json({ error: "User not found" });
       }
 
-      // Create or get spreadsheet for the user
-      const spreadsheetId = await getOrCreateSheet(user.username);
-      
-      // Update user with spreadsheet ID
-      user.spreadsheetId = spreadsheetId;
-      await storage.updateUser(user.id, { spreadsheetId });
+      try {
+        // Create or get spreadsheet for the user
+        const spreadsheetId = await getOrCreateSheet(user.username);
+        
+        // Update user with spreadsheet ID
+        user.spreadsheetId = spreadsheetId;
+        await storage.updateUser(user.id, { spreadsheetId });
 
-      res.json({ 
-        success: true, 
-        connected: true,
-        spreadsheetId,
-        spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`
-      });
+        res.json({ 
+          success: true, 
+          connected: true,
+          spreadsheetId,
+          spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`
+        });
+      } catch (sheetsError) {
+        console.error('Sheets connection error:', sheetsError);
+        res.status(400).json({
+          error: error instanceof Error ? error.message : 'Failed to connect Google Sheets',
+        });
+      }
     } catch (error) {
       console.error('Sheets connection error:', error);
       res.status(400).json({

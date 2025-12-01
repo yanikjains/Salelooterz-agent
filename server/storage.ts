@@ -50,7 +50,7 @@ export class MemStorage implements IStorage {
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
     const now = new Date();
-    const freeTrialEndsAt = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000);
+    const subscriptionEndsAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     
     // Hash password if provided
     let hashedPassword: string | null = null;
@@ -66,8 +66,8 @@ export class MemStorage implements IStorage {
       email: insertUser.email || null,
       spreadsheetId: null,
       isPaid: "false",
-      paidAt: null,
-      freeTrialEndsAt,
+      subscriptionEndsAt,
+      razorpayOrderId: null,
       failedLoginAttempts: 0,
       lockedUntil: null,
       resetToken: null,
@@ -89,7 +89,7 @@ export class MemStorage implements IStorage {
 
     const id = randomUUID();
     const now = new Date();
-    const freeTrialEndsAt = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000);
+    const subscriptionEndsAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     
     const newUser: User = {
       id,
@@ -98,8 +98,8 @@ export class MemStorage implements IStorage {
       email,
       spreadsheetId: null,
       isPaid: "false",
-      paidAt: null,
-      freeTrialEndsAt,
+      subscriptionEndsAt,
+      razorpayOrderId: null,
       failedLoginAttempts: 0,
       lockedUntil: null,
       resetToken: null,

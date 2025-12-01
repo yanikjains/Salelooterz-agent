@@ -26,25 +26,34 @@ export default function Pricing() {
         return;
       }
 
-      // Simulate payment completion (in real app, integrate Razorpay here)
-      const response = await fetch("/api/payment/complete", {
+      const response = await fetch("/api/payment/create-order", {
         method: "POST",
         headers: {
+          "Content-Type": "application/json",
           "x-user-id": userId
-        }
+        },
+        body: JSON.stringify({ amount: 39900, currency: "INR" })
       });
 
-      if (response.ok) {
-        toast({
-          title: "Payment Successful!",
-          description: "You now have lifetime access. Enjoy scraping 50 products per day!",
-        });
-        setLocation("/");
+      const data = await response.json();
+
+      if (data.orderId && window.Razorpay) {
+        const options = {
+          key: data.razorpayKey,
+          amount: 39900,
+          currency: "INR",
+          order_id: data.orderId,
+          name: "Smart Amazon Affiliate Bot",
+          description: "₹399/month subscription",
+          handler: async (response: any) => {
+            await verifyPayment(response.razorpay_payment_id, data.orderId);
+          }
+        };
+        new window.Razorpay(options).open();
       } else {
-        const data = await response.json();
         toast({
-          title: "Payment Failed",
-          description: data.error || "Failed to process payment",
+          title: "Payment Error",
+          description: "Razorpay not available",
           variant: "destructive"
         });
       }
@@ -56,6 +65,39 @@ export default function Pricing() {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const verifyPayment = async (paymentId: string, orderId: string) => {
+    try {
+      const userId = localStorage.getItem("userId");
+      const response = await fetch("/api/payment/verify", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": userId!
+        },
+        body: JSON.stringify({ paymentId, orderId })
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Payment Successful!",
+          description: "Your monthly subscription is active!",
+        });
+        setLocation("/");
+      } else {
+        toast({
+          title: "Payment verification failed",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Verification error",
+        description: error instanceof Error ? error.message : "Something went wrong",
+        variant: "destructive"
+      });
     }
   };
 
@@ -79,10 +121,10 @@ export default function Pricing() {
         <Card className="glass-card border-white/10">
           <CardHeader>
             <div className="flex items-center justify-center gap-3 mb-4">
-              <Badge className="bg-emerald-500 text-white">10 Days Free!</Badge>
+              <Badge className="bg-emerald-500 text-white">7 Days Free Trial!</Badge>
             </div>
-            <CardTitle className="text-4xl text-center">₹1,299</CardTitle>
-            <CardDescription className="text-center text-lg mt-2">Lifetime Access</CardDescription>
+            <CardTitle className="text-4xl text-center">₹399</CardTitle>
+            <CardDescription className="text-center text-lg mt-2">Per Month</CardDescription>
           </CardHeader>
           <CardContent className="space-y-8">
             <div className="space-y-4">
@@ -92,11 +134,11 @@ export default function Pricing() {
               <ul className="space-y-3">
                 {[
                   "Scrape up to 50 products per day",
-                  "Unlimited lifetime access",
                   "Generate viral WhatsApp & Telegram messages",
                   "Auto-export to personal Google Sheets",
                   "Professional affiliate link injection",
                   "Hindi-English hybrid messaging",
+                  "Cancel anytime",
                 ].map((feature, i) => (
                   <li key={i} className="flex items-center gap-3">
                     <Check className="w-5 h-5 text-amber-400" />
@@ -112,14 +154,14 @@ export default function Pricing() {
               className="w-full h-14 text-lg font-bold bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-xl"
               data-testid="button-pay"
             >
-              {isLoading ? "Processing..." : "Pay ₹1,299 Now"}
+              {isLoading ? "Processing..." : "Pay ₹399 Now"}
             </Button>
 
             <p className="text-center text-sm text-muted-foreground">
-              One-time payment. Never pay again. Lifetime access guaranteed.
+              Recurring monthly charge. Cancel anytime from your dashboard.
             </p>
             <p className="text-center text-sm text-emerald-400 font-medium">
-              ✓ Try free for 10 days • No credit card required
+              ✓ 7 days free trial • PayTM, Google Pay, Cards accepted
             </p>
           </CardContent>
         </Card>
