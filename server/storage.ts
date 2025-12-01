@@ -5,9 +5,12 @@ export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
+  getUserByResetToken(resetToken: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   createOrUpdateUserWithEmail(username: string, email: string): Promise<User>;
   updateUserSpreadsheet(userId: string, spreadsheetId: string): Promise<User>;
+  setResetToken(userId: string, resetToken: string, expiresIn: number): Promise<User>;
+  resetPassword(resetToken: string, newPassword: string): Promise<User>;
   
   createAutomation(automation: InsertAutomation): Promise<Automation>;
   getAutomations(userId: string, limit?: number): Promise<Automation[]>;
@@ -153,6 +156,36 @@ export class MemStorage implements IStorage {
     user.isPaid = "true";
     user.paidAt = new Date();
     this.users.set(userId, user);
+    return user;
+  }
+
+  async getUserByResetToken(resetToken: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(user => {
+      if (!user.resetToken || !user.resetTokenExpiry) return false;
+      return user.resetToken === resetToken && user.resetTokenExpiry > new Date();
+    });
+  }
+
+  async setResetToken(userId: string, resetToken: string, expiresIn: number): Promise<User> {
+    const user = this.users.get(userId);
+    if (!user) throw new Error('User not found');
+    user.resetToken = resetToken;
+    user.resetTokenExpiry = new Date(Date.now() + expiresIn);
+    this.users.set(userId, user);
+    return user;
+  }
+
+  async resetPassword(resetToken: string, newPassword: string): Promise<User> {
+    const user = await this.getUserByResetToken(resetToken);
+    if (!user) throw new Error('Invalid or expired reset token');
+    
+    const bcrypt = await import("bcrypt");
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+    
+    user.password = hashedPassword;
+    user.resetToken = null;
+    user.resetTokenExpiry = null;
+    this.users.set(user.id, user);
     return user;
   }
 }

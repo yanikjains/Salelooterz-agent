@@ -49,6 +49,20 @@ const googleAuthSchema = z.object({
   name: z.string(),
 });
 
+const forgotPasswordSchema = z.object({
+  email: z.string().email(),
+});
+
+const resetPasswordSchema = z.object({
+  resetCode: z.string(),
+  newPassword: z.string()
+    .min(8, "Password must be at least 8 characters")
+    .regex(/[A-Z]/, "Password must contain an uppercase letter")
+    .regex(/[a-z]/, "Password must contain a lowercase letter")
+    .regex(/[0-9]/, "Password must contain a number")
+    .regex(/[^a-zA-Z0-9]/, "Password must contain a special character"),
+});
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -123,6 +137,39 @@ export async function registerRoutes(
       res.json({ userId: user.id, username: user.username || email, email: user.email });
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : "Google login failed" });
+    }
+  });
+
+  app.post("/api/auth/forgot-password", async (req, res) => {
+    try {
+      const { email } = forgotPasswordSchema.parse(req.body);
+      const user = await storage.getUserByEmail(email);
+      
+      if (!user) {
+        return res.status(400).json({ error: "Email not found" });
+      }
+
+      // Generate a simple reset code (for demo, in production use cryptographic tokens)
+      const resetCode = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+      
+      // Store reset token (expires in 1 hour)
+      await storage.setResetToken(user.id, resetCode, 60 * 60 * 1000);
+
+      // In production, send this via email. For demo, return it to client.
+      res.json({ resetCode, message: "Recovery code generated. Check the code above." });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : "Failed to process forgot password" });
+    }
+  });
+
+  app.post("/api/auth/reset-password", async (req, res) => {
+    try {
+      const { resetCode, newPassword } = resetPasswordSchema.parse(req.body);
+      const user = await storage.resetPassword(resetCode, newPassword);
+      
+      res.json({ userId: user.id, username: user.username, message: "Password reset successfully" });
+    } catch (error) {
+      res.status(400).json({ error: error instanceof Error ? error.message : "Failed to reset password" });
     }
   });
 

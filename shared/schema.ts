@@ -12,6 +12,8 @@ export const users = pgTable("users", {
   isPaid: text("is_paid").default("false").notNull(),
   paidAt: timestamp("paid_at"),
   freeTrialEndsAt: timestamp("free_trial_ends_at"),
+  resetToken: text("reset_token"),
+  resetTokenExpiry: timestamp("reset_token_expiry"),
   failedLoginAttempts: integer("failed_login_attempts").default(0).notNull(),
   lockedUntil: timestamp("locked_until"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
