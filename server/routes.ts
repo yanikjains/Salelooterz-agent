@@ -8,7 +8,7 @@ import {
   generateWhatsAppMessageFromDiscovered,
   generateTelegramMessageFromDiscovered
 } from "./messageGenerator";
-import { appendToSheet, getOrCreateSheet } from "./sheets";
+import { appendToSheet, getOrCreateSheet, appendToMarketingSheet } from "./sheets";
 import { discoverProducts, discoverFromAllCategories, discoverHotDeals, categories } from "./productDiscovery";
 import { z } from "zod";
 

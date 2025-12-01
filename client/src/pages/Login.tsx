@@ -95,52 +95,46 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center">
-      <div className="container mx-auto px-4 max-w-md">
+    <div className="min-h-screen bg-black text-white overflow-hidden">
+      <div className="grid lg:grid-cols-2 h-screen">
         <motion.div
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="text-center mb-8"
+          initial={{ opacity: 0, x: -50 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="flex flex-col justify-between p-8 md:p-12 bg-black"
         >
-          <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl shadow-lg glow-amber flex items-center justify-center mx-auto mb-4">
-            <ShoppingBag className="w-8 h-8 text-white" />
-          </div>
-          <h1 className="text-3xl font-bold text-white mb-2">India's First Smart Amazon Affiliate Bot</h1>
-          <p className="text-muted-foreground">Login to your account</p>
-        </motion.div>
+          <div>
+            <div className="flex items-center gap-3 mb-12">
+              <div className="w-12 h-12 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-xl flex items-center justify-center shadow-lg">
+                <ShoppingBag className="w-6 h-6 text-black" />
+              </div>
+              <span className="font-bold text-xl">Amazon Affiliate Bot</span>
+            </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-        >
-          <Card className="glass-card">
-            <CardContent className="p-8">
-              <form onSubmit={handleLogin} className="space-y-6">
+            <div className="max-w-sm">
+              <h1 className="text-4xl font-bold mb-3">Login to your account</h1>
+              <p className="text-gray-400 mb-8">Scrape 50 Amazon products daily. Generate viral messages. Earn commissions.</p>
+
+              <form onSubmit={handleLogin} className="space-y-5">
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground mb-2 block">
-                    Username
-                  </label>
+                  <label className="text-sm font-medium text-gray-300 mb-2 block">Username</label>
                   <Input
                     value={username}
                     onChange={(e) => setUsername(e.target.value)}
-                    placeholder="Enter your username"
-                    className="h-12 bg-background/50 border-white/10"
+                    placeholder="john_affiliate"
+                    className="h-12 bg-gray-900 border-gray-700 text-white placeholder:text-gray-500 focus:border-yellow-400"
                     required
                     data-testid="input-username"
                   />
                 </div>
 
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground mb-2 block">
-                    Password
-                  </label>
+                  <label className="text-sm font-medium text-gray-300 mb-2 block">Password</label>
                   <Input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Enter your password"
-                    className="h-12 bg-background/50 border-white/10"
+                    placeholder="••••••••"
+                    className="h-12 bg-gray-900 border-gray-700 text-white placeholder:text-gray-500 focus:border-yellow-400"
                     required
                     data-testid="input-password"
                   />
@@ -149,10 +143,10 @@ export default function Login() {
                 <Button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full h-12 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-bold shadow-lg"
+                  className="w-full h-12 bg-yellow-400 hover:bg-yellow-500 text-black font-bold shadow-lg rounded-lg"
                   data-testid="button-login"
                 >
-                  {isLoading ? "Logging in..." : "Login"}
+                  {isLoading ? "Logging in..." : "Login to Dashboard"}
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               </form>
@@ -160,10 +154,10 @@ export default function Login() {
               <div className="mt-6">
                 <div className="relative">
                   <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-white/10" />
+                    <div className="w-full border-t border-gray-700" />
                   </div>
                   <div className="relative flex justify-center text-sm">
-                    <span className="px-2 bg-slate-900 text-muted-foreground">Or continue with</span>
+                    <span className="px-3 bg-black text-gray-400">Or continue with</span>
                   </div>
                 </div>
 
@@ -171,7 +165,7 @@ export default function Login() {
                   type="button"
                   onClick={() => handleGoogleLogin()}
                   disabled={isLoading}
-                  className="w-full mt-4 h-12 bg-white hover:bg-gray-100 text-slate-900 font-semibold"
+                  className="w-full mt-4 h-12 bg-gray-900 hover:bg-gray-800 text-white border border-gray-700 font-semibold rounded-lg"
                   data-testid="button-google-login"
                 >
                   <Chrome className="w-4 h-4 mr-2" />
@@ -179,18 +173,70 @@ export default function Login() {
                 </Button>
               </div>
 
-              <div className="mt-6 text-center text-sm text-muted-foreground">
-                Don't have an account?{" "}
+              <p className="text-gray-400 text-sm mt-8">
+                New here?{" "}
                 <button
                   onClick={() => setLocation("/signup")}
-                  className="text-amber-400 hover:text-amber-300 font-semibold"
+                  className="text-yellow-400 hover:text-yellow-300 font-semibold"
                   data-testid="link-signup"
                 >
-                  Sign up
+                  Create account
                 </button>
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-2 text-xs text-gray-500">
+            <p>© 2024 India's First Smart Amazon Affiliate Bot</p>
+            <p>Earn real commissions from Amazon India</p>
+          </div>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, x: 50 }}
+          animate={{ opacity: 1, x: 0 }}
+          className="hidden lg:flex flex-col justify-center items-center bg-gradient-to-br from-gray-900 via-black to-gray-900 p-12 relative overflow-hidden"
+        >
+          <div className="absolute inset-0 opacity-5">
+            <div className="absolute inset-0 bg-gradient-to-br from-yellow-400 to-transparent mix-blend-screen"></div>
+          </div>
+          
+          <div className="relative z-10 max-w-md text-center">
+            <div className="mb-8 inline-block">
+              <div className="text-6xl mb-6">🎯</div>
+              <h2 className="text-3xl font-bold text-yellow-400 mb-4">Unlimited Earnings</h2>
+              <div className="space-y-4 text-left">
+                <div className="flex gap-4 items-start">
+                  <span className="text-yellow-400 text-xl mt-1">✓</span>
+                  <div>
+                    <p className="font-semibold">50 Products Daily</p>
+                    <p className="text-gray-400 text-sm">Scrape Amazon India data automatically</p>
+                  </div>
+                </div>
+                <div className="flex gap-4 items-start">
+                  <span className="text-yellow-400 text-xl mt-1">✓</span>
+                  <div>
+                    <p className="font-semibold">Viral Messages</p>
+                    <p className="text-gray-400 text-sm">Hindi-English messages for WhatsApp & Telegram</p>
+                  </div>
+                </div>
+                <div className="flex gap-4 items-start">
+                  <span className="text-yellow-400 text-xl mt-1">✓</span>
+                  <div>
+                    <p className="font-semibold">Auto Export</p>
+                    <p className="text-gray-400 text-sm">Get products in Google Sheets instantly</p>
+                  </div>
+                </div>
+                <div className="flex gap-4 items-start">
+                  <span className="text-yellow-400 text-xl mt-1">✓</span>
+                  <div>
+                    <p className="font-semibold">₹3,999 Lifetime</p>
+                    <p className="text-gray-400 text-sm">One-time payment, unlimited access</p>
+                  </div>
+                </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </motion.div>
       </div>
     </div>

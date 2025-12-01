@@ -365,62 +365,88 @@ export default function Home() {
                 </CardContent>
               </Card>
 
-              <div className="grid gap-4">
+              <div className="grid gap-5 md:grid-cols-2">
                 {discoveryResult.results.map((result, index) => (
                   <motion.div
                     key={index}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: index * 0.1 }}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.08 }}
                   >
-                    <Card className="glass-card overflow-hidden hover:border-white/20 transition-colors">
+                    <Card className="overflow-hidden hover:shadow-2xl transition-all duration-300 bg-gradient-to-br from-slate-800 to-slate-900 border-amber-500/20 hover:border-amber-400/40">
                       <CardContent className="p-0">
-                        <div className="flex flex-col lg:flex-row">
-                          <div className="lg:w-2/5 p-6 border-b lg:border-b-0 lg:border-r border-white/5">
-                            <div className="flex items-start gap-4">
-                              {result.product.image && (
-                                <div className="w-20 h-20 rounded-xl bg-white/5 overflow-hidden flex-shrink-0">
-                                  <img 
-                                    src={result.product.image} 
-                                    alt={result.product.title}
-                                    className="w-full h-full object-contain"
-                                    onError={(e) => {
-                                      (e.target as HTMLImageElement).style.display = 'none';
-                                    }}
-                                  />
-                                </div>
-                              )}
-                              <div className="flex-1 min-w-0">
-                                <h4 className="font-semibold text-white leading-tight line-clamp-2 mb-2">
-                                  {result.product.title}
-                                </h4>
-                                <div className="flex flex-wrap items-center gap-2 mb-2">
-                                  <span className="text-xl font-bold text-amber-400">
-                                    {result.product.price}
-                                  </span>
-                                  {result.product.originalPrice && result.product.originalPrice !== result.product.price && (
-                                    <span className="text-sm text-muted-foreground line-through">
-                                      {result.product.originalPrice}
-                                    </span>
-                                  )}
-                                  {result.product.discount && (
-                                    <Badge className="bg-red-500/20 text-red-400 border-red-500/30">
-                                      {result.product.discount}
-                                    </Badge>
-                                  )}
-                                </div>
-                                {result.product.rating > 0 && (
-                                  <div className="flex items-center gap-1 text-sm text-muted-foreground">
-                                    <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                                    <span>{result.product.rating}/5</span>
-                                    {result.product.reviews > 0 && (
-                                      <span>({result.product.reviews.toLocaleString('en-IN')} reviews)</span>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
+                        <div className="relative group overflow-hidden h-48 bg-black/20">
+                          {result.product.image && (
+                            <img 
+                              src={result.product.image} 
+                              alt={result.product.title}
+                              className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-300 p-4"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).src = '🛍️';
+                              }}
+                            />
+                          )}
+                          {result.product.discount && (
+                            <div className="absolute top-3 right-3 bg-red-500 text-white px-3 py-1 rounded-full text-sm font-bold shadow-lg">
+                              {result.product.discount}
                             </div>
+                          )}
+                        </div>
+
+                        <div className="p-5">
+                          <h4 className="font-bold text-white leading-tight line-clamp-2 mb-3 text-base group-hover:text-amber-400 transition-colors">
+                            {result.product.title}
+                          </h4>
+                          
+                          <div className="flex items-end gap-2 mb-3">
+                            <span className="text-2xl font-bold text-amber-400">
+                              {result.product.price}
+                            </span>
+                            {result.product.originalPrice && result.product.originalPrice !== result.product.price && (
+                              <span className="text-sm text-gray-400 line-through">
+                                {result.product.originalPrice}
+                              </span>
+                            )}
                           </div>
+
+                          {result.product.rating > 0 && (
+                            <div className="flex items-center gap-2 mb-4 pb-4 border-b border-white/10">
+                              <div className="flex items-center gap-1">
+                                <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
+                                <span className="text-sm font-semibold text-white">{result.product.rating}</span>
+                              </div>
+                              {result.product.reviews > 0 && (
+                                <span className="text-xs text-gray-400">({result.product.reviews.toLocaleString('en-IN')} reviews)</span>
+                              )}
+                            </div>
+                          )}
+
+                          <div className="space-y-3">
+                            <button
+                              onClick={() => window.open(`${result.product.url}?tag=${affiliateTag}`, '_blank')}
+                              className="w-full bg-amber-400 hover:bg-amber-500 text-black font-bold py-2 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2 text-sm"
+                              data-testid={`button-amazon-${index}`}
+                            >
+                              <ExternalLink className="w-4 h-4" />
+                              View on Amazon India
+                            </button>
+                            <button
+                              onClick={() => {
+                                const message = `${result.whatsappMessage} ${result.product.url}?tag=${affiliateTag}`;
+                                const encoded = encodeURIComponent(message);
+                                window.open(`https://wa.me/?text=${encoded}`, '_blank');
+                              }}
+                              className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 text-sm"
+                              data-testid={`button-whatsapp-${index}`}
+                            >
+                              Share on WhatsApp
+                            </button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
 
                           <div className="lg:w-3/5">
                             <Tabs defaultValue="whatsapp" className="h-full">
