@@ -52,10 +52,17 @@ export class MemStorage implements IStorage {
     const now = new Date();
     const freeTrialEndsAt = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000);
     
+    // Hash password if provided
+    let hashedPassword: string | null = null;
+    if (insertUser.password) {
+      const bcrypt = await import("bcrypt");
+      hashedPassword = await bcrypt.hash(insertUser.password, 10);
+    }
+    
     const user: User = {
       id,
       username: insertUser.username,
-      password: insertUser.password || null,
+      password: hashedPassword,
       email: insertUser.email || null,
       spreadsheetId: null,
       isPaid: "false",
