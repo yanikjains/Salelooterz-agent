@@ -48,6 +48,8 @@ export default function Home() {
   const [affiliateTag, setAffiliateTag] = useState("");
   const [productLimit, setProductLimit] = useState(5);
   const [isLoading, setIsLoading] = useState(false);
+  const [sheetsConnected, setSheetsConnected] = useState(false);
+  const [sheetsLoading, setSheetsLoading] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("electronics");
   const [discoveryResult, setDiscoveryResult] = useState<DiscoveryResult | null>(null);
@@ -79,9 +81,56 @@ export default function Home() {
         .then(res => res.json())
         .then(data => {
           setWeeklyStats(data);
+        }),
+      fetch("/api/sheets/status", {
+        headers: { "x-user-id": userId }
+      })
+        .then(res => res.json())
+        .then(data => {
+          setSheetsConnected(data.connected || false);
         })
+        .catch(() => setSheetsConnected(false))
     ]).catch(console.error);
   }, [setLocation]);
+
+  const handleConnectSheets = async () => {
+    setSheetsLoading(true);
+    try {
+      const userId = localStorage.getItem("userId");
+      if (!userId) {
+        setLocation("/login");
+        return;
+      }
+
+      const response = await fetch("/api/sheets/connect", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json",
+          "x-user-id": userId
+        },
+      });
+
+      if (response.ok) {
+        setSheetsConnected(true);
+        toast({ title: "Google Sheets connected successfully!" });
+      } else {
+        const data = await response.json();
+        toast({
+          title: "Connection Failed",
+          description: data.error || "Could not connect Google Sheets",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to connect Google Sheets",
+        variant: "destructive",
+      });
+    } finally {
+      setSheetsLoading(false);
+    }
+  };
 
   const handleLogout = () => {
     localStorage.removeItem("userId");
@@ -226,6 +275,46 @@ export default function Home() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.2 }}
+          className="mb-8"
+        >
+          <Card className={`glass-card overflow-hidden border-2 ${sheetsConnected ? "border-emerald-500/30" : "border-amber-500/30"}`}>
+            <CardContent className="p-6 flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${sheetsConnected ? "bg-emerald-500/20" : "bg-amber-500/20"}`}>
+                  <FileSpreadsheet className={`w-6 h-6 ${sheetsConnected ? "text-emerald-400" : "text-amber-400"}`} />
+                </div>
+                <div>
+                  <p className="font-semibold text-white">Google Sheets Export</p>
+                  <p className={`text-sm ${sheetsConnected ? "text-emerald-400" : "text-amber-400"}`}>
+                    {sheetsConnected ? "✓ Connected & Ready" : "Authorize to export products"}
+                  </p>
+                </div>
+              </div>
+              {!sheetsConnected && (
+                <Button
+                  onClick={handleConnectSheets}
+                  disabled={sheetsLoading}
+                  className="bg-amber-500 hover:bg-amber-600 text-black font-semibold"
+                  data-testid="button-connect-sheets"
+                >
+                  {sheetsLoading ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      Connecting...
+                    </span>
+                  ) : (
+                    "Connect Google Sheets"
+                  )}
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3 }}
         >
           <Card className="glass-card mb-8 overflow-hidden">
             <CardContent className="p-8">

@@ -486,5 +486,58 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/sheets/status", async (req, res) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      res.json({ connected: !!user.spreadsheetId });
+    } catch (error) {
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  app.post("/api/sheets/connect", async (req, res) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      // Create or get spreadsheet for the user
+      const spreadsheetId = await getOrCreateSheet(user.username);
+      
+      // Update user with spreadsheet ID
+      user.spreadsheetId = spreadsheetId;
+      await storage.updateUser(user.id, { spreadsheetId });
+
+      res.json({ 
+        success: true, 
+        connected: true,
+        spreadsheetId,
+        spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`
+      });
+    } catch (error) {
+      console.error('Sheets connection error:', error);
+      res.status(400).json({
+        error: error instanceof Error ? error.message : 'Failed to connect Google Sheets',
+      });
+    }
+  });
+
   return httpServer;
 }
