@@ -4,6 +4,7 @@ import { randomUUID } from "crypto";
 export interface IStorage {
   getUser(id: string): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
+  getUserByEmail(email: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
   createOrUpdateUserWithEmail(username: string, email: string): Promise<User>;
   updateUserSpreadsheet(userId: string, spreadsheetId: string): Promise<User>;
@@ -37,9 +38,30 @@ export class MemStorage implements IStorage {
     );
   }
 
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    return Array.from(this.users.values()).find(
+      (user) => user.email === email,
+    );
+  }
+
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = randomUUID();
-    const user: User = { ...insertUser, id, spreadsheetId: null, isPaid: "false", paidAt: null, email: null, createdAt: new Date(), password: insertUser.password || null };
+    const now = new Date();
+    const freeTrialEndsAt = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000);
+    
+    const user: User = {
+      id,
+      username: insertUser.username,
+      password: insertUser.password || null,
+      email: insertUser.email || null,
+      spreadsheetId: null,
+      isPaid: "false",
+      paidAt: null,
+      freeTrialEndsAt,
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+      createdAt: now,
+    };
     this.users.set(id, user);
     return user;
   }
@@ -54,7 +76,22 @@ export class MemStorage implements IStorage {
     }
 
     const id = randomUUID();
-    const newUser: User = { id, username, password: null, email, spreadsheetId: null, isPaid: "false", paidAt: null, createdAt: new Date() };
+    const now = new Date();
+    const freeTrialEndsAt = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000);
+    
+    const newUser: User = {
+      id,
+      username,
+      password: null,
+      email,
+      spreadsheetId: null,
+      isPaid: "false",
+      paidAt: null,
+      freeTrialEndsAt,
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+      createdAt: now,
+    };
     this.users.set(id, newUser);
     return newUser;
   }
