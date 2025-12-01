@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "framer-motion";
-import { ShoppingBag, ArrowRight, Chrome, Zap, TrendingUp } from "lucide-react";
+import { Chrome, ShoppingBag, ArrowRight } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import loginDemoImg from "@/assets/login-demo.png";
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -195,41 +196,20 @@ export default function Login() {
         <motion.div
           initial={{ opacity: 0, x: 50 }}
           animate={{ opacity: 1, x: 0 }}
-          className="hidden lg:flex flex-col justify-center items-center bg-gradient-to-br from-gray-900 via-black to-gray-900 p-12 relative overflow-hidden"
+          className="hidden lg:flex items-center justify-center bg-gradient-to-br from-gray-900 via-black to-gray-900 p-12 relative overflow-hidden"
         >
           <div className="absolute inset-0 opacity-5">
             <div className="absolute inset-0 bg-gradient-to-br from-yellow-400 to-transparent mix-blend-screen"></div>
           </div>
           
-          <div className="relative z-10 flex flex-col items-center justify-center max-w-md">
-            <motion.div
-              initial={{ scale: 0.5, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.2, duration: 0.6 }}
-              className="mb-8 text-center"
-            >
-              <div className="inline-block bg-gradient-to-br from-yellow-400 to-orange-500 p-6 rounded-3xl shadow-2xl mb-6">
-                <Zap className="w-16 h-16 text-black" />
-              </div>
-              <h2 className="text-4xl font-bold text-white mb-2">SaleLooterz</h2>
-              <div className="flex items-center justify-center gap-2 text-yellow-400 text-lg font-bold">
-                <TrendingUp className="w-5 h-5" />
-                <span>Amazon Affiliate Bot</span>
-              </div>
-            </motion.div>
-            
-            <div className="mt-8 text-center space-y-4">
-              <p className="text-gray-300 text-sm font-medium">🇮🇳 India's #1 Affiliate Automation</p>
-              <div className="flex justify-center gap-3">
-                <div className="bg-yellow-500/20 px-3 py-1 rounded-full text-xs text-yellow-300">
-                  ₹3,999 Lifetime
-                </div>
-                <div className="bg-green-500/20 px-3 py-1 rounded-full text-xs text-green-300">
-                  50 Products/Day
-                </div>
-              </div>
-            </div>
-          </div>
+          <motion.img
+            src={loginDemoImg}
+            alt="Amazon Affiliate Bot Demo"
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.2, duration: 0.6 }}
+            className="relative z-10 w-full h-full object-cover rounded-lg"
+          />
         </motion.div>
       </div>
     </div>
