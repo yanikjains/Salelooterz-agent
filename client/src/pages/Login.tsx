@@ -50,49 +50,6 @@ export default function Login() {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    setIsLoading(true);
-    try {
-      const email = prompt("Enter your email:");
-      const name = prompt("Enter your name:");
-      
-      if (!email || !name) {
-        setIsLoading(false);
-        return;
-      }
-
-      const response = await fetch("/api/auth/google", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, name }),
-      });
-
-      const data = await response.json();
-
-      if (response.ok) {
-        localStorage.setItem("userId", data.userId);
-        localStorage.setItem("username", data.username);
-        localStorage.setItem("email", data.email);
-        setLocation("/");
-        toast({ title: "Google login successful! Added to marketing list." });
-      } else {
-        toast({
-          title: "Google Login Failed",
-          description: data.error || "Failed to login with Google",
-          variant: "destructive",
-        });
-      }
-    } catch (error) {
-      toast({
-        title: "Error",
-        description: "Failed to login with Google",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen bg-black text-white overflow-hidden">
       <div className="grid lg:grid-cols-2 h-screen">
@@ -149,28 +106,6 @@ export default function Login() {
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               </form>
-
-              <div className="mt-6">
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <div className="w-full border-t border-gray-700" />
-                  </div>
-                  <div className="relative flex justify-center text-sm">
-                    <span className="px-3 bg-black text-gray-400">Or continue with</span>
-                  </div>
-                </div>
-
-                <Button
-                  type="button"
-                  onClick={() => handleGoogleLogin()}
-                  disabled={isLoading}
-                  className="w-full mt-4 h-12 bg-gray-900 hover:bg-gray-800 text-white border border-gray-700 font-semibold rounded-lg"
-                  data-testid="button-google-login"
-                >
-                  <Chrome className="w-4 h-4 mr-2" />
-                  Sign in with Google
-                </Button>
-              </div>
 
               <p className="text-gray-400 text-sm mt-8">
                 New here?{" "}
