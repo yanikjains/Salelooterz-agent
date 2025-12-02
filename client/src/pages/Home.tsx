@@ -114,31 +114,24 @@ export default function Home() {
 
     setSheetsLoading(true);
     try {
+      // Save to localStorage (primary storage - works offline)
+      localStorage.setItem("sheetsId", sheetId);
+      setSheetsId(sheetId);
+      setShowSheetsForm(false);
+      toast({ title: "Google Sheet saved successfully!" });
+
+      // Also try to sync with backend (optional - doesn't block if fails)
       const userId = localStorage.getItem("userId");
-      if (!userId) {
-        setLocation("/login");
-        return;
-      }
-
-      const response = await fetch("/api/user/sheets-id", {
-        method: "POST",
-        headers: { 
-          "Content-Type": "application/json",
-          "x-user-id": userId
-        },
-        body: JSON.stringify({ sheetsId: sheetId })
-      });
-
-      if (response.ok) {
-        setSheetsId(sheetId);
-        setShowSheetsForm(false);
-        toast({ title: "Google Sheet saved successfully!" });
-      } else {
-        const data = await response.json();
-        toast({
-          title: "Failed",
-          description: data.error || "Could not save sheet",
-          variant: "destructive",
+      if (userId) {
+        fetch("/api/user/sheets-id", {
+          method: "POST",
+          headers: { 
+            "Content-Type": "application/json",
+            "x-user-id": userId
+          },
+          body: JSON.stringify({ sheetsId: sheetId })
+        }).catch(() => {
+          // Silently fail - localStorage backup is already saved
         });
       }
     } catch (error) {
