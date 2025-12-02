@@ -224,7 +224,8 @@ export async function registerRoutes(
 
       const isPaid = user.isPaid === "true";
       const OWNER_USERNAMES = ["Yanik Jain", "yanik"];
-      const isOwner = OWNER_USERNAMES.some(name => user.username.toLowerCase().includes(name.toLowerCase()));
+      const OWNER_EMAIL = "yaniikjain21@gmail.com";
+      const isOwner = OWNER_USERNAMES.some(name => user.username.toLowerCase().includes(name.toLowerCase())) || user.email?.toLowerCase() === OWNER_EMAIL.toLowerCase();
       
       let dailyCount = 0;
       let dailyLimit = 50;
@@ -421,7 +422,8 @@ export async function registerRoutes(
       const user = await storage.getUser(userId);
       const isPaid = user?.isPaid === "true";
       const OWNER_USERNAMES = ["Yanik Jain", "yanik"];
-      const isOwner = user && OWNER_USERNAMES.some(name => user.username.toLowerCase().includes(name.toLowerCase()));
+      const OWNER_EMAIL = "yaniikjain21@gmail.com";
+      const isOwner = user && (OWNER_USERNAMES.some(name => user.username.toLowerCase().includes(name.toLowerCase())) || user.email?.toLowerCase() === OWNER_EMAIL.toLowerCase());
       
       const dailyCount = !isOwner && isPaid ? await storage.getDailyProductCount(userId) : 0;
       const DAILY_LIMIT = 50;
@@ -455,7 +457,8 @@ export async function registerRoutes(
 
       const isPaid = user.isPaid === "true";
       const OWNER_USERNAMES = ["Yanik Jain", "yanik"];
-      const isOwner = OWNER_USERNAMES.some(name => user.username.toLowerCase().includes(name.toLowerCase()));
+      const OWNER_EMAIL = "yaniikjain21@gmail.com";
+      const isOwner = OWNER_USERNAMES.some(name => user.username.toLowerCase().includes(name.toLowerCase())) || user.email?.toLowerCase() === OWNER_EMAIL.toLowerCase();
       
       const dailyCount = await storage.getDailyProductCount(userId);
       const DAILY_LIMIT = 50;
