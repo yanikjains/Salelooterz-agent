@@ -32,24 +32,24 @@ export default function Pricing() {
           "Content-Type": "application/json",
           "x-user-id": userId
         },
-        body: JSON.stringify({ amount: 39900, currency: "INR" })
+        body: JSON.stringify({ amount: 199900, currency: "INR" })
       });
 
       const data = await response.json();
 
-      if (data.orderId && window.Razorpay) {
+      if (data.orderId && (window as any).Razorpay) {
         const options = {
           key: data.razorpayKey,
-          amount: 39900,
+          amount: 199900,
           currency: "INR",
           order_id: data.orderId,
           name: "Smart Amazon Affiliate Bot",
-          description: "₹399/month subscription",
+          description: "₹1,999 lifetime access",
           handler: async (response: any) => {
             await verifyPayment(response.razorpay_payment_id, data.orderId);
           }
         };
-        new window.Razorpay(options).open();
+        new (window as any).Razorpay(options).open();
       } else {
         toast({
           title: "Payment Error",
@@ -121,10 +121,10 @@ export default function Pricing() {
         <Card className="glass-card border-white/10">
           <CardHeader>
             <div className="flex items-center justify-center gap-3 mb-4">
-              <Badge className="bg-emerald-500 text-white">7 Days Free Trial!</Badge>
+              <Badge className="bg-emerald-500 text-white">3 Days Free Trial!</Badge>
             </div>
-            <CardTitle className="text-4xl text-center">₹399</CardTitle>
-            <CardDescription className="text-center text-lg mt-2">Per Month</CardDescription>
+            <CardTitle className="text-4xl text-center">₹1,999</CardTitle>
+            <CardDescription className="text-center text-lg mt-2">Lifetime Access</CardDescription>
           </CardHeader>
           <CardContent className="space-y-8">
             <div className="space-y-4">

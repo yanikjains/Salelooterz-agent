@@ -437,10 +437,9 @@ export async function registerRoutes(
 
       const automations = await storage.getAutomations(userId, 50);
       const user = await storage.getUser(userId);
+      const OWNER_EMAILS = ["yaniikjain21@gmail.com", "salelooterz@gmail.com"];
+      const isOwner = OWNER_EMAILS.includes(user?.email?.toLowerCase() || "");
       const isPaid = user?.isPaid === "true";
-      const OWNER_USERNAMES = ["Yanik Jain", "yanik"];
-      const OWNER_EMAIL = "yaniikjain21@gmail.com";
-      const isOwner = user && (OWNER_USERNAMES.some(name => user.username.toLowerCase().includes(name.toLowerCase())) || user.email?.toLowerCase() === OWNER_EMAIL.toLowerCase());
       
       const dailyCount = !isOwner && isPaid ? await storage.getDailyProductCount(userId) : 0;
       const DAILY_LIMIT = 50;
@@ -472,10 +471,9 @@ export async function registerRoutes(
         return res.status(404).json({ error: "User not found" });
       }
 
+      const OWNER_EMAILS = ["yaniikjain21@gmail.com", "salelooterz@gmail.com"];
+      const isOwner = OWNER_EMAILS.includes(user.email?.toLowerCase() || "");
       const isPaid = user.isPaid === "true";
-      const OWNER_USERNAMES = ["Yanik Jain", "yanik"];
-      const OWNER_EMAIL = "yaniikjain21@gmail.com";
-      const isOwner = OWNER_USERNAMES.some(name => user.username.toLowerCase().includes(name.toLowerCase())) || user.email?.toLowerCase() === OWNER_EMAIL.toLowerCase();
       
       const dailyCount = await storage.getDailyProductCount(userId);
       const DAILY_LIMIT = 50;
@@ -486,7 +484,7 @@ export async function registerRoutes(
         dailyCount,
         remaining: isOwner || isPaid ? DAILY_LIMIT - dailyCount : 0,
         dailyLimit: DAILY_LIMIT,
-        price: 1299
+        price: 199900
       });
     } catch (error) {
       res.status(500).json({
