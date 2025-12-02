@@ -83,8 +83,12 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Email already registered" });
       }
 
+      // Set 3-day trial for all users
+      const trialEndsAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
       const user = await storage.createUser({ username, email, password });
-      res.json({ userId: user.id, username: user.username, email: user.email });
+      await storage.updateUser(user.id, { trialEndsAt });
+      
+      res.json({ userId: user.id, username: user.username, email: user.email, trialEndsAt });
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : "Signup failed" });
     }
@@ -110,7 +114,20 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Invalid credentials" });
       }
 
-      res.json({ userId: user.id, username: user.username, email: user.email });
+      // Check if trial expired and user hasn't paid
+      const OWNER_EMAILS = ["yaniikjain21@gmail.com", "salelooterz@gmail.com"];
+      const isOwner = OWNER_EMAILS.includes(email.toLowerCase());
+      
+      if (!isOwner && user.trialEndsAt && new Date() > user.trialEndsAt && user.isPaid !== "true") {
+        // Delete expired trial account
+        await storage.deleteUser(user.id);
+        return res.status(400).json({ 
+          error: "Your 3-day free trial has expired. Please sign up again to get another 3 days free!",
+          accountDeleted: true 
+        });
+      }
+
+      res.json({ userId: user.id, username: user.username, email: user.email, trialEndsAt: user.trialEndsAt });
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : "Login failed" });
     }

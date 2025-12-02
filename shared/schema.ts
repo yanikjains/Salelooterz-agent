@@ -13,6 +13,7 @@ export const users = pgTable("users", {
   googleRefreshToken: text("google_refresh_token"),
   isPaid: text("is_paid").default("false").notNull(),
   subscriptionEndsAt: timestamp("subscription_ends_at"),
+  trialEndsAt: timestamp("trial_ends_at"),
   razorpayOrderId: text("razorpay_order_id"),
   resetToken: text("reset_token"),
   resetTokenExpiry: timestamp("reset_token_expiry"),
