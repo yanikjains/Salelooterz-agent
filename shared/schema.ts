@@ -9,6 +9,8 @@ export const users = pgTable("users", {
   password: text("password"),
   email: text("email").unique(),
   spreadsheetId: text("spreadsheet_id"),
+  googleAccessToken: text("google_access_token"),
+  googleRefreshToken: text("google_refresh_token"),
   isPaid: text("is_paid").default("false").notNull(),
   subscriptionEndsAt: timestamp("subscription_ends_at"),
   razorpayOrderId: text("razorpay_order_id"),
