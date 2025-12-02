@@ -99,10 +99,17 @@ export default function Home() {
     if (!tempSheetsId.trim()) {
       toast({
         title: "Invalid Sheet ID",
-        description: "Please paste your Google Sheet ID",
+        description: "Please paste your Google Sheet ID or full URL",
         variant: "destructive",
       });
       return;
+    }
+
+    // Extract Sheet ID from full URL if user pasted the entire URL
+    let sheetId = tempSheetsId.trim();
+    const urlMatch = sheetId.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+    if (urlMatch) {
+      sheetId = urlMatch[1];
     }
 
     setSheetsLoading(true);
@@ -119,11 +126,11 @@ export default function Home() {
           "Content-Type": "application/json",
           "x-user-id": userId
         },
-        body: JSON.stringify({ sheetsId: tempSheetsId })
+        body: JSON.stringify({ sheetsId: sheetId })
       });
 
       if (response.ok) {
-        setSheetsId(tempSheetsId);
+        setSheetsId(sheetId);
         setShowSheetsForm(false);
         toast({ title: "Google Sheet saved successfully!" });
       } else {
@@ -341,19 +348,31 @@ export default function Home() {
 
               {showSheetsForm && (
                 <div className="mt-4 space-y-3">
-                  <div className="text-xs text-muted-foreground bg-blue-500/10 p-3 rounded border border-blue-500/20">
-                    <p className="font-semibold mb-1">📝 How to get your Sheet ID:</p>
-                    <ol className="list-decimal list-inside space-y-1">
-                      <li>Create a Google Sheet at sheets.google.com</li>
-                      <li>Share it (Anyone with link can edit)</li>
-                      <li>Copy ID from URL: sheets.google.com/d/<span className="text-blue-400 font-mono">YOUR_ID_HERE</span>/edit</li>
-                    </ol>
+                  <div className="text-xs bg-blue-500/10 p-4 rounded border border-blue-500/20 space-y-2">
+                    <p className="font-semibold text-white">📝 What is a Google Sheet ID?</p>
+                    <p className="text-muted-foreground">
+                      A unique identifier for your Google Sheet found in the URL. It's a long string of letters and numbers.
+                    </p>
+                    <div className="bg-black/30 p-2 rounded border border-blue-500/30 mt-2">
+                      <p className="text-muted-foreground text-xs mb-1">Full URL example:</p>
+                      <p className="text-blue-300 font-mono text-xs break-all">
+                        https://docs.google.com/spreadsheets/d/<span className="text-amber-400">1a2b3c4d5e6f7g8h9i0j</span>/edit
+                      </p>
+                    </div>
+                    <div className="pt-2 border-t border-blue-500/20">
+                      <p className="font-semibold text-white text-xs mb-2">Steps:</p>
+                      <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                        <li>Create a Google Sheet at sheets.google.com</li>
+                        <li>Share it (Anyone with link can edit)</li>
+                        <li>Paste the full URL or just the ID below</li>
+                      </ol>
+                    </div>
                   </div>
                   <Input
                     value={tempSheetsId}
                     onChange={(e) => setTempSheetsId(e.target.value)}
-                    placeholder="Paste Google Sheet ID here"
-                    className="h-10 bg-gray-900 border-gray-700 text-white"
+                    placeholder="Paste full URL or just the Sheet ID"
+                    className="h-10 bg-gray-900 border-gray-700 text-white text-sm"
                     data-testid="input-sheets-id"
                   />
                   <div className="flex gap-2">
