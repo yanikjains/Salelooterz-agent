@@ -1,13 +1,17 @@
 import { google } from 'googleapis';
 
-let connectionSettings: any;
+let cachedConnectionSettings: any = null;
+let tokenExpiryTime = 0;
 
 async function getAccessToken() {
-  if (connectionSettings && connectionSettings.settings.expires_at && new Date(connectionSettings.settings.expires_at).getTime() > Date.now()) {
-    return connectionSettings.settings.access_token;
+  const now = Date.now();
+  
+  // Return cached token if still valid (with 5 minute buffer)
+  if (cachedConnectionSettings && tokenExpiryTime > (now + 5 * 60 * 1000)) {
+    return cachedConnectionSettings.settings.access_token;
   }
   
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME
+  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
   const xReplitToken = process.env.REPL_IDENTITY 
     ? 'repl ' + process.env.REPL_IDENTITY 
     : process.env.WEB_REPL_RENEWAL 
@@ -15,25 +19,51 @@ async function getAccessToken() {
     : null;
 
   if (!xReplitToken) {
-    throw new Error('X_REPLIT_TOKEN not found for repl/depl');
+    throw new Error('REPLIT_CONNECTORS not available');
   }
 
-  connectionSettings = await fetch(
-    'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=google-sheet',
-    {
-      headers: {
-        'Accept': 'application/json',
-        'X_REPLIT_TOKEN': xReplitToken
+  if (!hostname) {
+    throw new Error('REPLIT_CONNECTORS_HOSTNAME not configured');
+  }
+
+  try {
+    const response = await fetch(
+      'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=google-sheet',
+      {
+        headers: {
+          'Accept': 'application/json',
+          'X_REPLIT_TOKEN': xReplitToken
+        }
       }
+    );
+    
+    if (!response.ok) {
+      throw new Error(`Connectors API returned ${response.status}`);
     }
-  ).then(res => res.json()).then(data => data.items?.[0]);
 
-  const accessToken = connectionSettings?.settings?.access_token || connectionSettings.settings?.oauth?.credentials?.access_token;
+    const data = await response.json();
+    const connection = data.items?.[0];
 
-  if (!connectionSettings || !accessToken) {
-    throw new Error('Google Sheet not connected');
+    if (!connection) {
+      throw new Error('Google Sheets connector not configured. Please set it up in Replit first.');
+    }
+
+    const accessToken = connection.settings?.access_token || connection.settings?.oauth?.credentials?.access_token;
+    
+    if (!accessToken) {
+      throw new Error('No access token in connector configuration');
+    }
+
+    // Cache the connection and set expiry
+    cachedConnectionSettings = connection;
+    const expiresIn = connection.settings?.expires_in || 3600;
+    tokenExpiryTime = now + (expiresIn * 1000);
+
+    return accessToken;
+  } catch (error) {
+    console.error('Failed to get access token:', error);
+    throw error;
   }
-  return accessToken;
 }
 
 async function getUncachableGoogleSheetClient() {
@@ -59,29 +89,41 @@ export interface SheetRow {
 }
 
 export async function appendToSheet(spreadsheetId: string, row: SheetRow) {
-  const sheets = await getUncachableGoogleSheetClient();
-  
-  const values = [
-    [
-      row.timestamp,
-      row.productTitle,
-      row.price,
-      row.rating,
-      row.productUrl,
-      row.whatsappMessage,
-      row.telegramMessage,
-      row.affiliateTag
-    ]
-  ];
+  if (!spreadsheetId) {
+    throw new Error('No spreadsheet ID provided');
+  }
 
-  await sheets.spreadsheets.values.append({
-    spreadsheetId,
-    range: 'Sheet1!A:H',
-    valueInputOption: 'RAW',
-    requestBody: {
-      values,
-    },
-  });
+  try {
+    const sheets = await getUncachableGoogleSheetClient();
+    
+    const values = [
+      [
+        row.timestamp,
+        row.productTitle,
+        row.price,
+        row.rating,
+        row.productUrl,
+        row.whatsappMessage,
+        row.telegramMessage,
+        row.affiliateTag
+      ]
+    ];
+
+    const response = await sheets.spreadsheets.values.append({
+      spreadsheetId,
+      range: 'Sheet1!A:H',
+      valueInputOption: 'RAW',
+      requestBody: {
+        values,
+      },
+    });
+
+    console.log(`✓ Successfully appended to Google Sheet ${spreadsheetId}: ${row.productTitle}`);
+    return response;
+  } catch (error) {
+    console.error(`✗ Failed to append to Google Sheet ${spreadsheetId}:`, error);
+    throw error;
+  }
 }
 
 export async function createNewSheet(title: string) {
