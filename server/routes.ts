@@ -596,64 +596,6 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/google/auth", async (req, res) => {
-    try {
-      const userId = req.query.userId as string;
-      if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      // Redirect to Replit's Google Sheets connector OAuth
-      const redirectUrl = new URL('https://' + process.env.REPLIT_CONNECTORS_HOSTNAME + '/oauth2/authorize');
-      redirectUrl.searchParams.set('connector_name', 'google-sheet');
-      redirectUrl.searchParams.set('state', userId);
-
-      res.redirect(redirectUrl.toString());
-    } catch (error) {
-      console.error('Google auth error:', error);
-      res.status(400).json({
-        error: error instanceof Error ? error.message : 'Failed to start Google auth',
-      });
-    }
-  });
-
-  app.get("/api/google/callback", async (req, res) => {
-    try {
-      const userId = req.query.state as string;
-      if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      // Auto-create a Google Sheet for the user if they don't have one
-      try {
-        const sheetName = `AmazonViral - ${user.username}`;
-        const { getOrCreateSheet } = await import('./sheets.js');
-        const spreadsheetId = await getOrCreateSheet(sheetName);
-        
-        await storage.updateUser(userId, { spreadsheetId });
-        
-        res.redirect(`/?sheets_connected=true`);
-      } catch (err) {
-        console.error('Failed to create sheet:', err);
-        res.redirect(`/?sheets_error=true`);
-      }
-    } catch (error) {
-      console.error('Google callback error:', error);
-      res.status(400).json({
-        error: error instanceof Error ? error.message : 'Failed to complete Google auth',
-      });
-    }
-  });
 
   return httpServer;
 }
