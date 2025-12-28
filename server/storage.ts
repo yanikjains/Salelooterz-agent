@@ -147,6 +147,7 @@ export class MemStorage implements IStorage {
     const automation: Automation = {
       ...insertAutomation,
       spreadsheetId: insertAutomation.spreadsheetId ?? null,
+      sentToTelegram: "false",
       id,
       createdAt: new Date(),
     };
@@ -189,7 +190,6 @@ export class MemStorage implements IStorage {
     const user = this.users.get(userId);
     if (!user) throw new Error('User not found');
     user.isPaid = "true";
-    user.paidAt = new Date();
     this.users.set(userId, user);
     return user;
   }
