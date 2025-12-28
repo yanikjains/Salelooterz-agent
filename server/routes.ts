@@ -11,6 +11,7 @@ import {
 import { appendToSheet, getOrCreateSheet, appendToMarketingSheet } from "./sheets";
 import { discoverProducts, discoverFromAllCategories, discoverHotDeals, categories } from "./productDiscovery";
 import { sendPasswordResetEmail } from "./email";
+import { sendTelegramMessage } from "./telegram";
 import { z } from "zod";
 
 const automationRequestSchema = z.object({
@@ -610,6 +611,57 @@ export async function registerRoutes(
     } catch (error) {
       res.status(400).json({
         error: error instanceof Error ? error.message : 'Failed to save sheet',
+      });
+    }
+  });
+
+  app.get("/api/user/telegram", async (req, res) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      res.json({
+        telegramBotToken: user.telegramBotToken || "",
+        telegramChannelId: user.telegramChannelId || "",
+        isConfigured: !!(user.telegramBotToken && user.telegramChannelId)
+      });
+    } catch (error) {
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  app.post("/api/user/telegram", async (req, res) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { telegramBotToken, telegramChannelId } = req.body;
+      if (!telegramBotToken || !telegramChannelId) {
+        return res.status(400).json({ error: "Bot token and channel ID are required" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      await storage.updateUser(userId, { telegramBotToken, telegramChannelId });
+
+      res.json({ success: true, message: "Telegram configured successfully" });
+    } catch (error) {
+      res.status(400).json({
+        error: error instanceof Error ? error.message : 'Failed to save Telegram config',
       });
     }
   });

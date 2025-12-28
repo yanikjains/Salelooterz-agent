@@ -11,6 +11,8 @@ export const users = pgTable("users", {
   spreadsheetId: text("spreadsheet_id"),
   googleAccessToken: text("google_access_token"),
   googleRefreshToken: text("google_refresh_token"),
+  telegramBotToken: text("telegram_bot_token"),
+  telegramChannelId: text("telegram_channel_id"),
   isPaid: text("is_paid").default("false").notNull(),
   subscriptionEndsAt: timestamp("subscription_ends_at"),
   trialEndsAt: timestamp("trial_ends_at"),
@@ -67,6 +69,7 @@ export const automations = pgTable("automations", {
   telegramMessage: text("telegram_message").notNull(),
   affiliateTag: text("affiliate_tag").notNull(),
   spreadsheetId: text("spreadsheet_id"),
+  sentToTelegram: text("sent_to_telegram").default("false").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
