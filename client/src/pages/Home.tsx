@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   Sparkles, ExternalLink, Check, Loader2, FileSpreadsheet, 
   Zap, Copy, ArrowRight, ShoppingBag, IndianRupee, Star,
-  MessageCircle, Send, LogOut
+  MessageCircle, Send, LogOut, Smartphone
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
@@ -52,6 +52,12 @@ export default function Home() {
   const [tempSheetsId, setTempSheetsId] = useState("");
   const [sheetsLoading, setSheetsLoading] = useState(false);
   const [showSheetsForm, setShowSheetsForm] = useState(false);
+  const [telegramBotToken, setTelegramBotToken] = useState("");
+  const [telegramChannelId, setTelegramChannelId] = useState("");
+  const [tempTelegramBotToken, setTempTelegramBotToken] = useState("");
+  const [tempTelegramChannelId, setTempTelegramChannelId] = useState("");
+  const [telegramLoading, setTelegramLoading] = useState(false);
+  const [showTelegramForm, setShowTelegramForm] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("electronics");
   const [discoveryResult, setDiscoveryResult] = useState<DiscoveryResult | null>(null);
@@ -91,7 +97,19 @@ export default function Home() {
         .then(data => {
           setSheetsId(data.sheetsId || "");
         })
-        .catch(() => setSheetsId(""))
+        .catch(() => setSheetsId("")),
+      fetch("/api/user/telegram", {
+        headers: { "x-user-id": userId }
+      })
+        .then(res => res.json())
+        .then(data => {
+          setTelegramBotToken(data.telegramBotToken || "");
+          setTelegramChannelId(data.telegramChannelId || "");
+        })
+        .catch(() => {
+          setTelegramBotToken("");
+          setTelegramChannelId("");
+        })
     ]).catch(console.error);
   }, [setLocation]);
 
@@ -222,6 +240,55 @@ export default function Home() {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSaveTelegram = async () => {
+    if (!tempTelegramBotToken.trim() || !tempTelegramChannelId.trim()) {
+      toast({
+        title: "Missing Fields",
+        description: "Please enter both bot token and channel ID",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setTelegramLoading(true);
+    try {
+      const userId = localStorage.getItem("userId");
+      if (!userId) {
+        setLocation("/login");
+        return;
+      }
+
+      const response = await fetch("/api/user/telegram", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": userId
+        },
+        body: JSON.stringify({
+          telegramBotToken: tempTelegramBotToken.trim(),
+          telegramChannelId: tempTelegramChannelId.trim()
+        })
+      });
+
+      if (response.ok) {
+        setTelegramBotToken(tempTelegramBotToken.trim());
+        setTelegramChannelId(tempTelegramChannelId.trim());
+        setShowTelegramForm(false);
+        toast({ title: "Telegram connected successfully!" });
+      } else {
+        throw new Error("Failed to save Telegram config");
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save Telegram config",
+        variant: "destructive",
+      });
+    } finally {
+      setTelegramLoading(false);
     }
   };
 
@@ -381,6 +448,114 @@ export default function Home() {
                       onClick={() => {
                         setShowSheetsForm(false);
                         setTempSheetsId("");
+                      }}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          className="mb-8"
+        >
+          <Card className={`glass-card overflow-hidden border-2 ${telegramBotToken && telegramChannelId ? "border-emerald-500/30" : "border-purple-500/30"}`}>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${telegramBotToken && telegramChannelId ? "bg-emerald-500/20" : "bg-purple-500/20"}`}>
+                    <Smartphone className={`w-6 h-6 ${telegramBotToken && telegramChannelId ? "text-emerald-400" : "text-purple-400"}`} />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-white">Telegram Channel</p>
+                    <p className={`text-sm ${telegramBotToken && telegramChannelId ? "text-emerald-400" : "text-purple-400"}`}>
+                      {telegramBotToken && telegramChannelId ? "✓ Connected" : "Auto-send messages to your channel"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {!showTelegramForm && !telegramBotToken && (
+                <div className="mt-4 space-y-3">
+                  <Button
+                    onClick={() => {
+                      setTempTelegramBotToken("");
+                      setTempTelegramChannelId("");
+                      setShowTelegramForm(true);
+                    }}
+                    className="w-full bg-purple-500 hover:bg-purple-600 text-white font-semibold"
+                    data-testid="button-add-telegram"
+                  >
+                    Connect Telegram
+                  </Button>
+                </div>
+              )}
+
+              {!showTelegramForm && telegramBotToken && (
+                <Button
+                  onClick={() => {
+                    setTempTelegramBotToken(telegramBotToken);
+                    setTempTelegramChannelId(telegramChannelId);
+                    setShowTelegramForm(true);
+                  }}
+                  variant="outline"
+                  className="mt-4 w-full"
+                  data-testid="button-edit-telegram"
+                >
+                  Edit Connection
+                </Button>
+              )}
+
+              {showTelegramForm && (
+                <div className="mt-4 space-y-3">
+                  <div className="text-xs bg-purple-500/10 p-4 rounded border border-purple-500/20 space-y-2">
+                    <p className="font-semibold text-white">🤖 How to connect Telegram?</p>
+                    <ol className="list-decimal list-inside space-y-1 text-muted-foreground text-xs">
+                      <li>Chat with <span className="text-purple-400 font-semibold">@BotFather</span> on Telegram</li>
+                      <li>Create a new bot with <span className="font-mono text-purple-400">/newbot</span></li>
+                      <li>Copy your <span className="text-purple-400 font-semibold">bot token</span></li>
+                      <li>Create a public Telegram channel</li>
+                      <li>Add your bot to the channel as admin</li>
+                      <li>Get your <span className="text-purple-400 font-semibold">channel ID</span> (starts with @)</li>
+                    </ol>
+                  </div>
+                  <Input
+                    value={tempTelegramBotToken}
+                    onChange={(e) => setTempTelegramBotToken(e.target.value)}
+                    placeholder="Bot Token (e.g., 123456789:ABCDEFGH...)"
+                    className="h-10 bg-gray-900 border-gray-700 text-white text-sm"
+                    type="password"
+                    data-testid="input-telegram-token"
+                  />
+                  <Input
+                    value={tempTelegramChannelId}
+                    onChange={(e) => setTempTelegramChannelId(e.target.value)}
+                    placeholder="Channel ID (e.g., @mychannel or -100123456789)"
+                    className="h-10 bg-gray-900 border-gray-700 text-white text-sm"
+                    data-testid="input-telegram-channel"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleSaveTelegram}
+                      disabled={telegramLoading || !tempTelegramBotToken.trim() || !tempTelegramChannelId.trim()}
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                      data-testid="button-save-telegram"
+                    >
+                      {telegramLoading ? "Connecting..." : "Connect"}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setShowTelegramForm(false);
+                        setTempTelegramBotToken("");
+                        setTempTelegramChannelId("");
                       }}
                       variant="outline"
                       className="flex-1"
