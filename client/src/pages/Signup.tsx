@@ -178,6 +178,29 @@ export default function Signup() {
                   {isLoading ? "Creating account..." : "Create Account"}
                   <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
+
+                <div className="relative my-6">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-white/10"></div>
+                  </div>
+                  <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-card text-muted-foreground">Or sign up with</span>
+                  </div>
+                </div>
+
+                <Button
+                  type="button"
+                  onClick={() => {
+                    window.location.href = '/api/auth/google-signup';
+                  }}
+                  className="w-full h-12 bg-white hover:bg-gray-100 text-black font-bold shadow-lg flex items-center justify-center gap-2"
+                  data-testid="button-google-signup"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24">
+                    <text x="0" y="20" fontSize="24" fill="currentColor">G</text>
+                  </svg>
+                  Sign up with Google
+                </Button>
               </form>
 
               <div className="mt-6 text-center text-sm text-muted-foreground">

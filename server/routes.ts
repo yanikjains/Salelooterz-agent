@@ -666,6 +666,78 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/user/whatsapp", async (req, res) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      res.json({
+        whatsappPhoneNumber: user.whatsappPhoneNumber || "",
+        whatsappChannelName: user.whatsappChannelName || "",
+        isConfigured: !!(user.whatsappPhoneNumber && user.whatsappChannelName)
+      });
+    } catch (error) {
+      res.status(500).json({
+        error: error instanceof Error ? error.message : 'Unknown error',
+      });
+    }
+  });
+
+  app.post("/api/user/whatsapp", async (req, res) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { whatsappPhoneNumber, whatsappChannelName } = req.body;
+      if (!whatsappPhoneNumber || !whatsappChannelName) {
+        return res.status(400).json({ error: "Phone number and channel name are required" });
+      }
+
+      const user = await storage.getUser(userId);
+      if (!user) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      await storage.updateUser(userId, { whatsappPhoneNumber, whatsappChannelName });
+
+      res.json({ success: true, message: "WhatsApp configured successfully" });
+    } catch (error) {
+      res.status(400).json({
+        error: error instanceof Error ? error.message : 'Failed to save WhatsApp config',
+      });
+    }
+  });
+
+  app.get("/api/auth/google-login", async (req, res) => {
+    try {
+      res.json({ 
+        message: "Google login initiated",
+        redirectUrl: "https://accounts.google.com/o/oauth2/v2/auth?client_id=YOUR_CLIENT_ID&redirect_uri=http://localhost:5000/api/auth/google/callback&response_type=code&scope=openid%20email%20profile"
+      });
+    } catch (error) {
+      res.status(400).json({ error: "Google login failed" });
+    }
+  });
+
+  app.get("/api/auth/google-signup", async (req, res) => {
+    try {
+      res.json({ 
+        message: "Google signup initiated",
+        redirectUrl: "https://accounts.google.com/o/oauth2/v2/auth?client_id=YOUR_CLIENT_ID&redirect_uri=http://localhost:5000/api/auth/google/callback&response_type=code&scope=openid%20email%20profile"
+      });
+    } catch (error) {
+      res.status(400).json({ error: "Google signup failed" });
+    }
+  });
 
   return httpServer;
 }

@@ -58,6 +58,12 @@ export default function Home() {
   const [tempTelegramChannelId, setTempTelegramChannelId] = useState("");
   const [telegramLoading, setTelegramLoading] = useState(false);
   const [showTelegramForm, setShowTelegramForm] = useState(false);
+  const [whatsappPhoneNumber, setWhatsappPhoneNumber] = useState("");
+  const [whatsappChannelName, setWhatsappChannelName] = useState("");
+  const [tempWhatsappPhoneNumber, setTempWhatsappPhoneNumber] = useState("");
+  const [tempWhatsappChannelName, setTempWhatsappChannelName] = useState("");
+  const [whatsappLoading, setWhatsappLoading] = useState(false);
+  const [showWhatsappForm, setShowWhatsappForm] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("electronics");
   const [discoveryResult, setDiscoveryResult] = useState<DiscoveryResult | null>(null);
@@ -109,6 +115,18 @@ export default function Home() {
         .catch(() => {
           setTelegramBotToken("");
           setTelegramChannelId("");
+        }),
+      fetch("/api/user/whatsapp", {
+        headers: { "x-user-id": userId }
+      })
+        .then(res => res.json())
+        .then(data => {
+          setWhatsappPhoneNumber(data.whatsappPhoneNumber || "");
+          setWhatsappChannelName(data.whatsappChannelName || "");
+        })
+        .catch(() => {
+          setWhatsappPhoneNumber("");
+          setWhatsappChannelName("");
         })
     ]).catch(console.error);
   }, [setLocation]);
@@ -289,6 +307,55 @@ export default function Home() {
       });
     } finally {
       setTelegramLoading(false);
+    }
+  };
+
+  const handleSaveWhatsapp = async () => {
+    if (!tempWhatsappPhoneNumber.trim() || !tempWhatsappChannelName.trim()) {
+      toast({
+        title: "Missing Fields",
+        description: "Please enter both phone number and channel name",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setWhatsappLoading(true);
+    try {
+      const userId = localStorage.getItem("userId");
+      if (!userId) {
+        setLocation("/login");
+        return;
+      }
+
+      const response = await fetch("/api/user/whatsapp", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": userId
+        },
+        body: JSON.stringify({
+          whatsappPhoneNumber: tempWhatsappPhoneNumber.trim(),
+          whatsappChannelName: tempWhatsappChannelName.trim()
+        })
+      });
+
+      if (response.ok) {
+        setWhatsappPhoneNumber(tempWhatsappPhoneNumber.trim());
+        setWhatsappChannelName(tempWhatsappChannelName.trim());
+        setShowWhatsappForm(false);
+        toast({ title: "WhatsApp connected successfully!" });
+      } else {
+        throw new Error("Failed to save WhatsApp config");
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to save WhatsApp config",
+        variant: "destructive",
+      });
+    } finally {
+      setWhatsappLoading(false);
     }
   };
 
@@ -573,6 +640,112 @@ export default function Home() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3 }}
+          className="mb-8"
+        >
+          <Card className={`glass-card overflow-hidden border-2 ${whatsappPhoneNumber && whatsappChannelName ? "border-emerald-500/30" : "border-green-500/30"}`}>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${whatsappPhoneNumber && whatsappChannelName ? "bg-emerald-500/20" : "bg-green-500/20"}`}>
+                    <MessageCircle className={`w-6 h-6 ${whatsappPhoneNumber && whatsappChannelName ? "text-emerald-400" : "text-green-400"}`} />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-white">WhatsApp Channel</p>
+                    <p className={`text-sm ${whatsappPhoneNumber && whatsappChannelName ? "text-emerald-400" : "text-green-400"}`}>
+                      {whatsappPhoneNumber && whatsappChannelName ? "✓ Connected" : "Auto-send messages to your WhatsApp"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {!showWhatsappForm && !whatsappPhoneNumber && (
+                <div className="mt-4 space-y-3">
+                  <Button
+                    onClick={() => {
+                      setTempWhatsappPhoneNumber("");
+                      setTempWhatsappChannelName("");
+                      setShowWhatsappForm(true);
+                    }}
+                    className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold"
+                    data-testid="button-add-whatsapp"
+                  >
+                    Connect WhatsApp
+                  </Button>
+                </div>
+              )}
+
+              {!showWhatsappForm && whatsappPhoneNumber && (
+                <Button
+                  onClick={() => {
+                    setTempWhatsappPhoneNumber(whatsappPhoneNumber);
+                    setTempWhatsappChannelName(whatsappChannelName);
+                    setShowWhatsappForm(true);
+                  }}
+                  variant="outline"
+                  className="mt-4 w-full"
+                  data-testid="button-edit-whatsapp"
+                >
+                  Edit Connection
+                </Button>
+              )}
+
+              {showWhatsappForm && (
+                <div className="mt-4 space-y-3">
+                  <div className="text-xs bg-green-500/10 p-4 rounded border border-green-500/20 space-y-2">
+                    <p className="font-semibold text-white">📱 How to connect WhatsApp?</p>
+                    <ol className="list-decimal list-inside space-y-1 text-muted-foreground text-xs">
+                      <li>Create a WhatsApp Business account</li>
+                      <li>Set up WhatsApp API via Meta Business Manager</li>
+                      <li>Get your <span className="text-green-400 font-semibold">phone number</span> (with country code)</li>
+                      <li>Create a broadcast list or channel</li>
+                      <li>Enter your <span className="text-green-400 font-semibold">channel name</span></li>
+                    </ol>
+                  </div>
+                  <Input
+                    value={tempWhatsappPhoneNumber}
+                    onChange={(e) => setTempWhatsappPhoneNumber(e.target.value)}
+                    placeholder="Phone number (e.g., +91XXXXXXXXXX)"
+                    className="h-10 bg-gray-900 border-gray-700 text-white text-sm"
+                    data-testid="input-whatsapp-phone"
+                  />
+                  <Input
+                    value={tempWhatsappChannelName}
+                    onChange={(e) => setTempWhatsappChannelName(e.target.value)}
+                    placeholder="Channel name (e.g., Affiliate Deals)"
+                    className="h-10 bg-gray-900 border-gray-700 text-white text-sm"
+                    data-testid="input-whatsapp-channel"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      onClick={handleSaveWhatsapp}
+                      disabled={whatsappLoading || !tempWhatsappPhoneNumber.trim() || !tempWhatsappChannelName.trim()}
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                      data-testid="button-save-whatsapp"
+                    >
+                      {whatsappLoading ? "Connecting..." : "Connect"}
+                    </Button>
+                    <Button
+                      onClick={() => {
+                        setShowWhatsappForm(false);
+                        setTempWhatsappPhoneNumber("");
+                        setTempWhatsappChannelName("");
+                      }}
+                      variant="outline"
+                      className="flex-1"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.35 }}
         >
           <Card className="glass-card mb-8 overflow-hidden">
             <CardContent className="p-8">

@@ -13,6 +13,8 @@ export const users = pgTable("users", {
   googleRefreshToken: text("google_refresh_token"),
   telegramBotToken: text("telegram_bot_token"),
   telegramChannelId: text("telegram_channel_id"),
+  whatsappPhoneNumber: text("whatsapp_phone_number"),
+  whatsappChannelName: text("whatsapp_channel_name"),
   isPaid: text("is_paid").default("false").notNull(),
   subscriptionEndsAt: timestamp("subscription_ends_at"),
   trialEndsAt: timestamp("trial_ends_at"),
