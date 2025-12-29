@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "framer-motion";
 import { ShoppingBag, ArrowRight, AlertCircle } from "lucide-react";
+import { GoogleLogin } from "@react-oauth/google";
 import { toast } from "@/hooks/use-toast";
 
 export default function Login() {
@@ -53,6 +54,43 @@ export default function Login() {
       toast({
         title: "Error",
         description: "Failed to login",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/auth/google-callback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: credentialResponse.credential }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        localStorage.setItem("userId", data.userId);
+        localStorage.setItem("username", data.username);
+        localStorage.setItem("email", data.email);
+        setLocation("/");
+        toast({ title: "Google login successful!" });
+      } else {
+        setError(data.error || "Google login failed");
+        toast({
+          title: "Google Login Failed",
+          description: data.error || "Please try again",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      setError("Failed to login with Google");
+      toast({
+        title: "Error",
+        description: "Failed to login with Google",
         variant: "destructive",
       });
     } finally {
@@ -133,19 +171,19 @@ export default function Login() {
                   </div>
                 </div>
 
-                <Button
-                  type="button"
-                  onClick={() => {
-                    window.location.href = '/api/auth/google-login';
-                  }}
-                  className="w-full h-12 bg-white hover:bg-gray-100 text-black font-bold shadow-lg rounded-lg flex items-center justify-center gap-2"
-                  data-testid="button-google-login"
-                >
-                  <svg className="w-5 h-5" viewBox="0 0 24 24">
-                    <text x="0" y="20" fontSize="24" fill="currentColor">G</text>
-                  </svg>
-                  Login with Google
-                </Button>
+                <div className="w-full flex justify-center" data-testid="button-google-login">
+                  <GoogleLogin
+                    onSuccess={handleGoogleSuccess}
+                    onError={() => {
+                      setError("Google login failed");
+                      toast({
+                        title: "Login Failed",
+                        description: "Google login encountered an error",
+                        variant: "destructive",
+                      });
+                    }}
+                  />
+                </div>
               </form>
 
               <div className="mt-6 text-center">

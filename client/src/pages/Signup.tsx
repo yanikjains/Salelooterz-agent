@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "framer-motion";
 import { ShoppingBag, ArrowRight } from "lucide-react";
+import { GoogleLogin } from "@react-oauth/google";
 import { toast } from "@/hooks/use-toast";
 
 export default function Signup() {
@@ -73,6 +74,41 @@ export default function Signup() {
       toast({
         title: "Error",
         description: "Failed to create account",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/auth/google-callback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: credentialResponse.credential }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        localStorage.setItem("userId", data.userId);
+        localStorage.setItem("username", data.username);
+        localStorage.setItem("email", data.email);
+        setLocation("/");
+        toast({ title: "Account created with Google! Welcome!" });
+      } else {
+        toast({
+          title: "Signup Failed",
+          description: data.error || "Please try again",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to create account with Google",
         variant: "destructive",
       });
     } finally {
@@ -188,19 +224,18 @@ export default function Signup() {
                   </div>
                 </div>
 
-                <Button
-                  type="button"
-                  onClick={() => {
-                    window.location.href = '/api/auth/google-signup';
-                  }}
-                  className="w-full h-12 bg-white hover:bg-gray-100 text-black font-bold shadow-lg flex items-center justify-center gap-2"
-                  data-testid="button-google-signup"
-                >
-                  <svg className="w-5 h-5" viewBox="0 0 24 24">
-                    <text x="0" y="20" fontSize="24" fill="currentColor">G</text>
-                  </svg>
-                  Sign up with Google
-                </Button>
+                <div className="w-full flex justify-center" data-testid="button-google-signup">
+                  <GoogleLogin
+                    onSuccess={handleGoogleSuccess}
+                    onError={() => {
+                      toast({
+                        title: "Signup Failed",
+                        description: "Google signup encountered an error",
+                        variant: "destructive",
+                      });
+                    }}
+                  />
+                </div>
               </form>
 
               <div className="mt-6 text-center text-sm text-muted-foreground">

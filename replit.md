@@ -6,14 +6,16 @@ India's First Smart Amazon Affiliate Bot is a web application that automates the
 
 **Creator:** Yanik Jain | **Email:** salelooterz@gmail.com
 
-## Recent Updates (December 28, 2025)
+## Recent Updates (December 29, 2025)
 
 ### Latest Features
+- **Google OAuth**: Complete login/signup with Google - users can sign in with their Google account
 - **Pricing Model**: ₹1,999 lifetime access with 3-day free trial and owner exemption
 - **Trial System**: All new users automatically get 3-day free trial; expired non-paying accounts auto-deleted
 - **Daily Limits**: 50 products per day for paid/trial users
 - **Owner Exemption**: Two owner emails (yaniikjain21@gmail.com, salelooterz@gmail.com) with unlimited access and no payment required
 - **Telegram Integration**: Auto-send generated messages to Telegram channels with bot configuration UI
+- **WhatsApp Channel**: Auto-send messages to WhatsApp with phone number + channel name setup
 - **Google Sheets Export**: Manual Sheet ID storage with automatic product logging
 - **Message Generation**: Viral WhatsApp & Telegram messages in Hindi-English hybrid format
 - **Free Trial Auto-Cleanup**: Non-paying users' accounts automatically deleted 3 days after signup unless they pay

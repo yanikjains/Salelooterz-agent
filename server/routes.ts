@@ -717,25 +717,52 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/auth/google-login", async (req, res) => {
+  app.post("/api/auth/google-callback", async (req, res) => {
     try {
-      res.json({ 
-        message: "Google login initiated",
-        redirectUrl: "https://accounts.google.com/o/oauth2/v2/auth?client_id=YOUR_CLIENT_ID&redirect_uri=http://localhost:5000/api/auth/google/callback&response_type=code&scope=openid%20email%20profile"
-      });
-    } catch (error) {
-      res.status(400).json({ error: "Google login failed" });
-    }
-  });
+      const { token } = req.body;
+      if (!token) {
+        return res.status(400).json({ error: "Token is required" });
+      }
 
-  app.get("/api/auth/google-signup", async (req, res) => {
-    try {
-      res.json({ 
-        message: "Google signup initiated",
-        redirectUrl: "https://accounts.google.com/o/oauth2/v2/auth?client_id=YOUR_CLIENT_ID&redirect_uri=http://localhost:5000/api/auth/google/callback&response_type=code&scope=openid%20email%20profile"
-      });
+      const jwt = require("jsonwebtoken");
+      let decoded;
+      
+      try {
+        const base64Url = token.split(".")[1];
+        const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+        const jsonPayload = decodeURIComponent(
+          atob(base64)
+            .split("")
+            .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+            .join("")
+        );
+        decoded = JSON.parse(jsonPayload);
+      } catch (err) {
+        return res.status(400).json({ error: "Invalid token" });
+      }
+
+      const { email, name } = decoded;
+      if (!email) {
+        return res.status(400).json({ error: "Email not found in token" });
+      }
+
+      let user = await storage.getUserByEmail(email);
+      
+      if (!user) {
+        const trialEndsAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+        user = await storage.createOrUpdateUserWithEmail(email, email);
+        await storage.updateUser(user.id, { trialEndsAt });
+      }
+
+      try {
+        await appendToMarketingSheet(email, name || email);
+      } catch (err) {
+        console.error("Failed to add to marketing sheet:", err);
+      }
+
+      res.json({ userId: user.id, username: user.username || email, email: user.email });
     } catch (error) {
-      res.status(400).json({ error: "Google signup failed" });
+      res.status(400).json({ error: error instanceof Error ? error.message : "Google login failed" });
     }
   });
 
