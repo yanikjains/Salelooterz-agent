@@ -443,8 +443,21 @@ export default function Home() {
                 />
               </div>
             </div>
-            <div className="text-center">
+            <div className="text-center space-y-3">
               <p className="text-muted-foreground text-sm">Don't have a Google account? <a href="https://accounts.google.com/signup" target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:text-amber-300 transition-colors">Create one here</a></p>
+              <div className="flex items-center gap-2 justify-center">
+                <div className="h-px bg-white/20 flex-1"></div>
+                <span className="text-muted-foreground text-xs">OR</span>
+                <div className="h-px bg-white/20 flex-1"></div>
+              </div>
+              <Button
+                onClick={() => setLocation("/login")}
+                variant="outline"
+                className="border-amber-400/50 text-amber-400 hover:bg-amber-400/10 w-full"
+                data-testid="button-traditional-login"
+              >
+                Sign in with Email
+              </Button>
             </div>
           </motion.div>
 
