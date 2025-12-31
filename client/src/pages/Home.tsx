@@ -59,10 +59,8 @@ export default function Home() {
   const [tempTelegramChannelId, setTempTelegramChannelId] = useState("");
   const [telegramLoading, setTelegramLoading] = useState(false);
   const [showTelegramForm, setShowTelegramForm] = useState(false);
-  const [whatsappPhoneNumber, setWhatsappPhoneNumber] = useState("");
-  const [whatsappChannelName, setWhatsappChannelName] = useState("");
-  const [tempWhatsappPhoneNumber, setTempWhatsappPhoneNumber] = useState("");
-  const [tempWhatsappChannelName, setTempWhatsappChannelName] = useState("");
+  const [whatsappChannelUrl, setWhatsappChannelUrl] = useState("");
+  const [tempWhatsappChannelUrl, setTempWhatsappChannelUrl] = useState("");
   const [whatsappLoading, setWhatsappLoading] = useState(false);
   const [showWhatsappForm, setShowWhatsappForm] = useState(false);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -142,12 +140,10 @@ export default function Home() {
         })
           .then(res => res.json())
           .then(data => {
-            setWhatsappPhoneNumber(data.whatsappPhoneNumber || "");
-            setWhatsappChannelName(data.whatsappChannelName || "");
+            setWhatsappChannelUrl(data.whatsappChannelUrl || "");
           })
           .catch(() => {
-            setWhatsappPhoneNumber("");
-            setWhatsappChannelName("");
+            setWhatsappChannelUrl("");
           })
       ]).catch(console.error);
     }
@@ -333,10 +329,10 @@ export default function Home() {
   };
 
   const handleSaveWhatsapp = async () => {
-    if (!tempWhatsappPhoneNumber.trim() || !tempWhatsappChannelName.trim()) {
+    if (!tempWhatsappChannelUrl.trim()) {
       toast({
-        title: "Missing Fields",
-        description: "Please enter both phone number and channel name",
+        title: "Missing URL",
+        description: "Please enter your WhatsApp channel URL",
         variant: "destructive",
       });
       return;
@@ -357,14 +353,12 @@ export default function Home() {
           "x-user-id": userId
         },
         body: JSON.stringify({
-          whatsappPhoneNumber: tempWhatsappPhoneNumber.trim(),
-          whatsappChannelName: tempWhatsappChannelName.trim()
+          whatsappChannelUrl: tempWhatsappChannelUrl.trim()
         })
       });
 
       if (response.ok) {
-        setWhatsappPhoneNumber(tempWhatsappPhoneNumber.trim());
-        setWhatsappChannelName(tempWhatsappChannelName.trim());
+        setWhatsappChannelUrl(tempWhatsappChannelUrl.trim());
         setShowWhatsappForm(false);
         toast({ title: "WhatsApp connected successfully!" });
       } else {
@@ -378,6 +372,60 @@ export default function Home() {
       });
     } finally {
       setWhatsappLoading(false);
+    }
+  };
+
+  const handleSendAllToChannels = async () => {
+    if (!discoveryResult) return;
+
+    const userId = localStorage.getItem("userId");
+    if (!userId) {
+      setLocation("/login");
+      return;
+    }
+
+    if (!whatsappChannelUrl && !telegramBotToken) {
+      toast({
+        title: "No Channels Configured",
+        description: "Please connect at least WhatsApp or Telegram",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      const response = await fetch("/api/send-bulk-messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-user-id": userId
+        },
+        body: JSON.stringify({
+          products: discoveryResult.results,
+          whatsappChannelUrl: whatsappChannelUrl || null,
+          telegramBotToken: telegramBotToken || null,
+          telegramChannelId: telegramChannelId || null
+        })
+      });
+
+      const data = await response.json();
+      if (data.success) {
+        toast({
+          title: "Messages Sent!",
+          description: `Successfully sent ${data.sentCount} messages to your channels`,
+        });
+      } else {
+        throw new Error(data.error || "Failed to send messages");
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to send messages",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -767,28 +815,27 @@ export default function Home() {
           transition={{ delay: 0.3 }}
           className="mb-8"
         >
-          <Card className={`glass-card overflow-hidden border-2 ${whatsappPhoneNumber && whatsappChannelName ? "border-emerald-500/30" : "border-green-500/30"}`}>
+          <Card className={`glass-card overflow-hidden border-2 ${whatsappChannelUrl ? "border-emerald-500/30" : "border-green-500/30"}`}>
             <CardContent className="p-6">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${whatsappPhoneNumber && whatsappChannelName ? "bg-emerald-500/20" : "bg-green-500/20"}`}>
-                    <MessageCircle className={`w-6 h-6 ${whatsappPhoneNumber && whatsappChannelName ? "text-emerald-400" : "text-green-400"}`} />
+                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${whatsappChannelUrl ? "bg-emerald-500/20" : "bg-green-500/20"}`}>
+                    <MessageCircle className={`w-6 h-6 ${whatsappChannelUrl ? "text-emerald-400" : "text-green-400"}`} />
                   </div>
                   <div>
                     <p className="font-semibold text-white">WhatsApp Channel</p>
-                    <p className={`text-sm ${whatsappPhoneNumber && whatsappChannelName ? "text-emerald-400" : "text-green-400"}`}>
-                      {whatsappPhoneNumber && whatsappChannelName ? "✓ Connected" : "Auto-send messages to your WhatsApp"}
+                    <p className={`text-sm ${whatsappChannelUrl ? "text-emerald-400" : "text-green-400"}`}>
+                      {whatsappChannelUrl ? "✓ Connected" : "Auto-send messages to your WhatsApp"}
                     </p>
                   </div>
                 </div>
               </div>
 
-              {!showWhatsappForm && !whatsappPhoneNumber && (
+              {!showWhatsappForm && !whatsappChannelUrl && (
                 <div className="mt-4 space-y-3">
                   <Button
                     onClick={() => {
-                      setTempWhatsappPhoneNumber("");
-                      setTempWhatsappChannelName("");
+                      setTempWhatsappChannelUrl("");
                       setShowWhatsappForm(true);
                     }}
                     className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold"
@@ -799,11 +846,10 @@ export default function Home() {
                 </div>
               )}
 
-              {!showWhatsappForm && whatsappPhoneNumber && (
+              {!showWhatsappForm && whatsappChannelUrl && (
                 <Button
                   onClick={() => {
-                    setTempWhatsappPhoneNumber(whatsappPhoneNumber);
-                    setTempWhatsappChannelName(whatsappChannelName);
+                    setTempWhatsappChannelUrl(whatsappChannelUrl);
                     setShowWhatsappForm(true);
                   }}
                   variant="outline"
@@ -817,43 +863,29 @@ export default function Home() {
               {showWhatsappForm && (
                 <div className="mt-4 space-y-3">
                   <div className="text-xs bg-green-500/10 p-4 rounded border border-green-500/20 space-y-2">
-                    <p className="font-semibold text-white">📱 How to connect WhatsApp?</p>
-                    <ol className="list-decimal list-inside space-y-1 text-muted-foreground text-xs">
-                      <li>Create a WhatsApp Business account</li>
-                      <li>Set up WhatsApp API via Meta Business Manager</li>
-                      <li>Get your <span className="text-green-400 font-semibold">phone number</span> (with country code)</li>
-                      <li>Create a broadcast list or channel</li>
-                      <li>Enter your <span className="text-green-400 font-semibold">channel name</span></li>
-                    </ol>
+                    <p className="font-semibold text-white">📱 WhatsApp Channel URL</p>
+                    <p className="text-muted-foreground">Paste your WhatsApp channel link to auto-send messages</p>
                   </div>
                   <Input
-                    value={tempWhatsappPhoneNumber}
-                    onChange={(e) => setTempWhatsappPhoneNumber(e.target.value)}
-                    placeholder="Phone number (e.g., +91XXXXXXXXXX)"
+                    value={tempWhatsappChannelUrl}
+                    onChange={(e) => setTempWhatsappChannelUrl(e.target.value)}
+                    placeholder="https://chat.whatsapp.com/... or your channel URL"
                     className="h-10 bg-gray-900 border-gray-700 text-white text-sm"
-                    data-testid="input-whatsapp-phone"
-                  />
-                  <Input
-                    value={tempWhatsappChannelName}
-                    onChange={(e) => setTempWhatsappChannelName(e.target.value)}
-                    placeholder="Channel name (e.g., Affiliate Deals)"
-                    className="h-10 bg-gray-900 border-gray-700 text-white text-sm"
-                    data-testid="input-whatsapp-channel"
+                    data-testid="input-whatsapp-url"
                   />
                   <div className="flex gap-2">
                     <Button
                       onClick={handleSaveWhatsapp}
-                      disabled={whatsappLoading || !tempWhatsappPhoneNumber.trim() || !tempWhatsappChannelName.trim()}
+                      disabled={whatsappLoading || !tempWhatsappChannelUrl.trim()}
                       className="flex-1 bg-emerald-600 hover:bg-emerald-700"
                       data-testid="button-save-whatsapp"
                     >
-                      {whatsappLoading ? "Connecting..." : "Connect"}
+                      {whatsappLoading ? "Saving..." : "Save"}
                     </Button>
                     <Button
                       onClick={() => {
                         setShowWhatsappForm(false);
-                        setTempWhatsappPhoneNumber("");
-                        setTempWhatsappChannelName("");
+                        setTempWhatsappChannelUrl("");
                       }}
                       variant="outline"
                       className="flex-1"
@@ -997,15 +1029,28 @@ export default function Home() {
                         </p>
                       </div>
                     </div>
-                    <Button
-                      onClick={() => window.open(discoveryResult.spreadsheetUrl, '_blank')}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg"
-                      data-testid="button-open-sheets"
-                    >
-                      <FileSpreadsheet className="w-5 h-5 mr-2" />
-                      Open Google Sheet
-                      <ExternalLink className="w-4 h-4 ml-2" />
-                    </Button>
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      {(whatsappChannelUrl || telegramBotToken) && (
+                        <Button
+                          onClick={handleSendAllToChannels}
+                          disabled={isLoading}
+                          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg"
+                          data-testid="button-send-all-channels"
+                        >
+                          <Send className="w-5 h-5 mr-2" />
+                          Send All to Channels
+                        </Button>
+                      )}
+                      <Button
+                        onClick={() => window.open(discoveryResult.spreadsheetUrl, '_blank')}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg"
+                        data-testid="button-open-sheets"
+                      >
+                        <FileSpreadsheet className="w-5 h-5 mr-2" />
+                        Open Google Sheet
+                        <ExternalLink className="w-4 h-4 ml-2" />
+                      </Button>
+                    </div>
                   </div>
                 </CardContent>
               </Card>

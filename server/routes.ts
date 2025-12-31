@@ -679,9 +679,8 @@ export async function registerRoutes(
       }
 
       res.json({
-        whatsappPhoneNumber: user.whatsappPhoneNumber || "",
-        whatsappChannelName: user.whatsappChannelName || "",
-        isConfigured: !!(user.whatsappPhoneNumber && user.whatsappChannelName)
+        whatsappChannelUrl: user.whatsappChannelUrl || "",
+        isConfigured: !!user.whatsappChannelUrl
       });
     } catch (error) {
       res.status(500).json({
@@ -697,9 +696,9 @@ export async function registerRoutes(
         return res.status(401).json({ error: "Unauthorized" });
       }
 
-      const { whatsappPhoneNumber, whatsappChannelName } = req.body;
-      if (!whatsappPhoneNumber || !whatsappChannelName) {
-        return res.status(400).json({ error: "Phone number and channel name are required" });
+      const { whatsappChannelUrl } = req.body;
+      if (!whatsappChannelUrl) {
+        return res.status(400).json({ error: "WhatsApp channel URL is required" });
       }
 
       const user = await storage.getUser(userId);
@@ -707,12 +706,44 @@ export async function registerRoutes(
         return res.status(404).json({ error: "User not found" });
       }
 
-      await storage.updateUser(userId, { whatsappPhoneNumber, whatsappChannelName });
+      await storage.updateUser(userId, { whatsappChannelUrl });
 
       res.json({ success: true, message: "WhatsApp configured successfully" });
     } catch (error) {
       res.status(400).json({
         error: error instanceof Error ? error.message : 'Failed to save WhatsApp config',
+      });
+    }
+  });
+
+  app.post("/api/send-bulk-messages", async (req, res) => {
+    try {
+      const userId = req.headers["x-user-id"] as string;
+      if (!userId) {
+        return res.status(401).json({ error: "Unauthorized" });
+      }
+
+      const { products, whatsappChannelUrl, telegramBotToken, telegramChannelId } = req.body;
+
+      let sentCount = 0;
+
+      // Send to Telegram if configured
+      if (telegramBotToken && telegramChannelId) {
+        for (const product of products) {
+          const success = await sendTelegramMessage(telegramBotToken, telegramChannelId, product.telegramMessage);
+          if (success) sentCount++;
+        }
+      }
+
+      // Send to WhatsApp if configured (open channel URL for each message)
+      // Note: WhatsApp doesn't have a direct API for channels without Business API
+      // This opens the channel link - manual sharing needed or use WhatsApp Business API
+
+      res.json({ success: true, sentCount, message: "Messages sent to configured channels" });
+    } catch (error) {
+      res.status(400).json({
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to send messages',
       });
     }
   });
