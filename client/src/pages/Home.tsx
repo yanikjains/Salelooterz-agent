@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { GoogleLogin } from "@react-oauth/google";
 import { 
   Sparkles, ExternalLink, Check, Loader2, FileSpreadsheet, 
   Zap, Copy, ArrowRight, ShoppingBag, IndianRupee, Star,
@@ -69,66 +70,87 @@ export default function Home() {
   const [discoveryResult, setDiscoveryResult] = useState<DiscoveryResult | null>(null);
   const [weeklyStats, setWeeklyStats] = useState({ weeklyCount: 0, remaining: 50, weeklyLimit: 50 });
 
+  const handleGoogleSuccess = async (credentialResponse: any) => {
+    try {
+      const response = await fetch("/api/auth/google-callback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: credentialResponse.credential }),
+      });
+
+      const data = await response.json();
+
+      if (data.success) {
+        localStorage.setItem("userId", data.userId);
+        localStorage.setItem("username", data.username);
+        setUsername(data.username);
+        toast({ title: "Login successful!" });
+        window.location.reload();
+      } else {
+        toast({ title: "Login failed", description: data.error, variant: "destructive" });
+      }
+    } catch (error) {
+      toast({ title: "Login failed", description: "Please try again", variant: "destructive" });
+    }
+  };
+
   useEffect(() => {
     const userId = localStorage.getItem("userId");
     const storedUsername = localStorage.getItem("username");
     
-    if (!userId) {
-      setLocation("/login");
-      return;
+    if (userId) {
+      setUsername(storedUsername || "");
+      
+      Promise.all([
+        fetch("/api/categories")
+          .then(res => res.json())
+          .then(data => {
+            setCategories([
+              { id: "hot", name: "Hot Deals", icon: "🔥", description: "Today's Best" },
+              ...data.categories
+            ]);
+          }),
+        fetch("/api/user/weekly-stats", {
+          headers: { "x-user-id": userId }
+        })
+          .then(res => res.json())
+          .then(data => {
+            setWeeklyStats(data);
+          }),
+        fetch("/api/user/sheets-id", {
+          headers: { "x-user-id": userId }
+        })
+          .then(res => res.json())
+          .then(data => {
+            setSheetsId(data.sheetsId || "");
+          })
+          .catch(() => setSheetsId("")),
+        fetch("/api/user/telegram", {
+          headers: { "x-user-id": userId }
+        })
+          .then(res => res.json())
+          .then(data => {
+            setTelegramBotToken(data.telegramBotToken || "");
+            setTelegramChannelId(data.telegramChannelId || "");
+          })
+          .catch(() => {
+            setTelegramBotToken("");
+            setTelegramChannelId("");
+          }),
+        fetch("/api/user/whatsapp", {
+          headers: { "x-user-id": userId }
+        })
+          .then(res => res.json())
+          .then(data => {
+            setWhatsappPhoneNumber(data.whatsappPhoneNumber || "");
+            setWhatsappChannelName(data.whatsappChannelName || "");
+          })
+          .catch(() => {
+            setWhatsappPhoneNumber("");
+            setWhatsappChannelName("");
+          })
+      ]).catch(console.error);
     }
-
-    setUsername(storedUsername || "");
-
-    Promise.all([
-      fetch("/api/categories")
-        .then(res => res.json())
-        .then(data => {
-          setCategories([
-            { id: "hot", name: "Hot Deals", icon: "🔥", description: "Today's Best" },
-            ...data.categories
-          ]);
-        }),
-      fetch("/api/user/weekly-stats", {
-        headers: { "x-user-id": userId }
-      })
-        .then(res => res.json())
-        .then(data => {
-          setWeeklyStats(data);
-        }),
-      fetch("/api/user/sheets-id", {
-        headers: { "x-user-id": userId }
-      })
-        .then(res => res.json())
-        .then(data => {
-          setSheetsId(data.sheetsId || "");
-        })
-        .catch(() => setSheetsId("")),
-      fetch("/api/user/telegram", {
-        headers: { "x-user-id": userId }
-      })
-        .then(res => res.json())
-        .then(data => {
-          setTelegramBotToken(data.telegramBotToken || "");
-          setTelegramChannelId(data.telegramChannelId || "");
-        })
-        .catch(() => {
-          setTelegramBotToken("");
-          setTelegramChannelId("");
-        }),
-      fetch("/api/user/whatsapp", {
-        headers: { "x-user-id": userId }
-      })
-        .then(res => res.json())
-        .then(data => {
-          setWhatsappPhoneNumber(data.whatsappPhoneNumber || "");
-          setWhatsappChannelName(data.whatsappChannelName || "");
-        })
-        .catch(() => {
-          setWhatsappPhoneNumber("");
-          setWhatsappChannelName("");
-        })
-    ]).catch(console.error);
   }, [setLocation]);
 
   const handleSaveSheets = async () => {
@@ -363,6 +385,96 @@ export default function Home() {
     navigator.clipboard.writeText(text);
     toast({ title: `${type} message copied!` });
   };
+
+  const userId = typeof window !== "undefined" ? localStorage.getItem("userId") : null;
+
+  if (!userId) {
+    return (
+      <div className="min-h-screen w-full bg-black flex items-center justify-center">
+        <div className="container mx-auto px-4 py-6 max-w-4xl">
+          <motion.div 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-center mb-16"
+          >
+            <div className="flex items-center justify-center gap-3 mb-8">
+              <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl shadow-lg flex items-center justify-center">
+                <ShoppingBag className="w-8 h-8 text-white" />
+              </div>
+              <div>
+                <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight">India's First Smart Amazon Affiliate Bot</h1>
+              </div>
+            </div>
+          </motion.div>
+
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="text-center mb-12"
+          >
+            <h2 className="text-3xl md:text-4xl font-bold mb-6">
+              <span className="text-white">Scrape Real Products from </span>
+              <span className="gradient-text">Amazon.in</span>
+            </h2>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-10">
+              Select category → Auto-scrape unlimited products → Get viral WhatsApp & Telegram messages → Export to Google Sheets
+            </p>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="flex flex-col items-center gap-6 mb-12"
+          >
+            <div className="flex flex-col items-center gap-4">
+              <p className="text-white font-semibold text-lg">Get Started with Google</p>
+              <div data-testid="button-google-signin">
+                <GoogleLogin
+                  onSuccess={handleGoogleSuccess}
+                  onError={() => {
+                    toast({
+                      title: "Login Failed",
+                      description: "Google login encountered an error",
+                      variant: "destructive",
+                    });
+                  }}
+                />
+              </div>
+            </div>
+            <div className="text-center">
+              <p className="text-muted-foreground text-sm">Don't have a Google account? <a href="https://accounts.google.com/signup" target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:text-amber-300 transition-colors">Create one here</a></p>
+            </div>
+          </motion.div>
+
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.3 }}
+            className="text-center py-8"
+          >
+            <div className="inline-flex items-center gap-3 bg-card/40 border border-white/5 rounded-full px-6 py-3 text-sm text-muted-foreground">
+              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+              Scrapes real-time data from Amazon.in • Unlimited products • No rate limits
+            </div>
+          </motion.div>
+
+          <motion.footer
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.4 }}
+            className="border-t border-white/5 mt-16 pt-8 text-center text-xs text-muted-foreground space-y-2"
+          >
+            <p>Created by <span className="text-white font-semibold">Yanik Jain</span></p>
+            <p>
+              Contact: <a href="mailto:salelooterz@gmail.com" className="text-amber-400 hover:text-amber-300 transition-colors">salelooterz@gmail.com</a>
+            </p>
+          </motion.footer>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen w-full">
