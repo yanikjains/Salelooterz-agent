@@ -77,7 +77,7 @@ export default function Login() {
       });
 
       // Actually, let's fix the frontend to decode properly like before
-      const jwtDecode = (await import("jwt-decode")).default;
+      const jwtDecode = (await import("jwt-decode")).jwtDecode;
       const decoded: any = jwtDecode(credentialResponse.credential);
       
       const res = await fetch("/api/auth/google", {
