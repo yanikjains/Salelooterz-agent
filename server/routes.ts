@@ -706,10 +706,12 @@ export async function registerRoutes(
         return res.status(404).json({ error: "User not found" });
       }
 
+      console.log(`Updating WhatsApp config for user ${userId}:`, whatsappChannelUrl);
       await storage.updateUser(userId, { whatsappChannelUrl });
 
       res.json({ success: true, message: "WhatsApp configured successfully" });
     } catch (error) {
+      console.error('WhatsApp config save error:', error);
       res.status(400).json({
         error: error instanceof Error ? error.message : 'Failed to save WhatsApp config',
       });

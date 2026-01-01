@@ -118,18 +118,26 @@ export default function Home() {
         fetch("/api/user/sheets-id", {
           headers: { "x-user-id": userId }
         })
-          .then(res => res.json())
+          .then(async res => {
+            if (res.status === 404) return null;
+            return res.json();
+          })
           .then(data => {
-            setSheetsId(data.sheetsId || "");
+            if (data) setSheetsId(data.sheetsId || "");
           })
           .catch(() => setSheetsId("")),
         fetch("/api/user/telegram", {
           headers: { "x-user-id": userId }
         })
-          .then(res => res.json())
+          .then(async res => {
+            if (res.status === 404) return null;
+            return res.json();
+          })
           .then(data => {
-            setTelegramBotToken(data.telegramBotToken || "");
-            setTelegramChannelId(data.telegramChannelId || "");
+            if (data) {
+              setTelegramBotToken(data.telegramBotToken || "");
+              setTelegramChannelId(data.telegramChannelId || "");
+            }
           })
           .catch(() => {
             setTelegramBotToken("");
@@ -138,9 +146,15 @@ export default function Home() {
         fetch("/api/user/whatsapp", {
           headers: { "x-user-id": userId }
         })
-          .then(res => res.json())
+          .then(async res => {
+            if (res.status === 404) {
+              handleLogout();
+              return;
+            }
+            return res.json();
+          })
           .then(data => {
-            setWhatsappChannelUrl(data.whatsappChannelUrl || "");
+            if (data) setWhatsappChannelUrl(data.whatsappChannelUrl || "");
           })
           .catch(() => {
             setWhatsappChannelUrl("");
