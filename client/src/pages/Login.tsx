@@ -5,8 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { motion } from "framer-motion";
 import { ShoppingBag, ArrowRight, AlertCircle } from "lucide-react";
-import { GoogleLogin } from "@react-oauth/google";
-import { toast } from "@/hooks/use-toast";
+import { jwtDecode } from "jwt-decode";
 
 export default function Login() {
   const [, setLocation] = useLocation();
@@ -64,20 +63,6 @@ export default function Login() {
   const handleGoogleSuccess = async (credentialResponse: any) => {
     setIsLoading(true);
     try {
-      const response = await fetch("/api/auth/google", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          token: credentialResponse.credential, // The actual JWT from Google
-          // We need to decode this on the server or send the necessary info
-          // For now, let's stick to the current server implementation which expects email/name
-          // But wait, the server uses googleAuthSchema: email, name
-          // I need to decode it here and send it.
-        }),
-      });
-
-      // Actually, let's fix the frontend to decode properly like before
-      const jwtDecode = (await import("jwt-decode")).jwtDecode;
       const decoded: any = jwtDecode(credentialResponse.credential);
       
       const res = await fetch("/api/auth/google", {
