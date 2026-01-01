@@ -87,9 +87,11 @@ export class MemStorage implements IStorage {
   }
 
   async createOrUpdateUserWithEmail(username: string, email: string): Promise<User> {
-    let user = Array.from(this.users.values()).find(u => u.username === username || u.email === email);
+    let user = Array.from(this.users.values()).find(u => u.email === email);
     
     if (user) {
+      console.log(`Storage: Found existing user by email ${email}, updating...`);
+      // Preserve existing data but update email if it was different
       user.email = email;
       this.users.set(user.id, user);
       return user;
@@ -97,7 +99,8 @@ export class MemStorage implements IStorage {
 
     const id = randomUUID();
     const now = new Date();
-    const subscriptionEndsAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    // 3-day trial for new users
+    const trialEndsAt = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
     
     const newUser: User = {
       id,
@@ -111,8 +114,8 @@ export class MemStorage implements IStorage {
       telegramChannelId: null,
       whatsappChannelUrl: null,
       isPaid: "false",
-      subscriptionEndsAt,
-      trialEndsAt: null,
+      subscriptionEndsAt: null,
+      trialEndsAt,
       razorpayOrderId: null,
       failedLoginAttempts: 0,
       lockedUntil: null,
@@ -121,6 +124,7 @@ export class MemStorage implements IStorage {
       createdAt: now,
     };
     this.users.set(id, newUser);
+    console.log(`Storage: Created new Google/Email user ${id}`);
     return newUser;
   }
 

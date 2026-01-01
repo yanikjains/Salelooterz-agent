@@ -64,15 +64,34 @@ export default function Login() {
   const handleGoogleSuccess = async (credentialResponse: any) => {
     setIsLoading(true);
     try {
-      const response = await fetch("/api/auth/google-callback", {
+      const response = await fetch("/api/auth/google", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: credentialResponse.credential }),
+        body: JSON.stringify({ 
+          token: credentialResponse.credential, // The actual JWT from Google
+          // We need to decode this on the server or send the necessary info
+          // For now, let's stick to the current server implementation which expects email/name
+          // But wait, the server uses googleAuthSchema: email, name
+          // I need to decode it here and send it.
+        }),
       });
 
-      const data = await response.json();
+      // Actually, let's fix the frontend to decode properly like before
+      const jwtDecode = (await import("jwt-decode")).default;
+      const decoded: any = jwtDecode(credentialResponse.credential);
+      
+      const res = await fetch("/api/auth/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          email: decoded.email,
+          name: decoded.name
+        }),
+      });
 
-      if (response.ok) {
+      const data = await res.json();
+
+      if (res.ok) {
         localStorage.setItem("userId", data.userId);
         localStorage.setItem("username", data.username);
         localStorage.setItem("email", data.email);
@@ -87,6 +106,7 @@ export default function Login() {
         });
       }
     } catch (error) {
+      console.error("Google Auth Error:", error);
       setError("Failed to login with Google");
       toast({
         title: "Error",

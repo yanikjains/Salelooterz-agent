@@ -73,15 +73,21 @@ export async function registerRoutes(
   app.post("/api/auth/signup", async (req, res) => {
     try {
       const { username, email, password } = signupSchemaServer.parse(req.body);
-      const existingUser = await storage.getUserByUsername(username);
       const existingEmail = await storage.getUserByEmail(email);
       
-      if (existingUser) {
-        return res.status(400).json({ error: "Username already exists" });
-      }
-      
       if (existingEmail) {
-        return res.status(400).json({ error: "Email already registered" });
+        // If user exists and has a password, it's a duplicate
+        if (existingEmail.password) {
+          return res.status(400).json({ error: "Email already registered" });
+        }
+        // If user exists but has no password (Google user), update their password
+        const bcrypt = await import("bcrypt");
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const user = await storage.updateUser(existingEmail.id, { 
+          username, 
+          password: hashedPassword 
+        });
+        return res.json({ userId: user.id, username: user.username, email: user.email, trialEndsAt: user.trialEndsAt });
       }
 
       // Set 3-day trial for all users
@@ -138,22 +144,23 @@ export async function registerRoutes(
     try {
       const { email, name } = googleAuthSchema.parse(req.body);
       
-      let user = await storage.getUserByUsername(email);
-      
-      if (!user) {
-        user = await storage.createOrUpdateUserWithEmail(email, email);
-      } else {
-        user = await storage.createOrUpdateUserWithEmail(user.username, email);
-      }
+      // Use email as the unique identifier for persistence
+      const user = await storage.createOrUpdateUserWithEmail(name || email, email);
 
-      // Add email to marketing sheet
+      // Add email to marketing sheet for owner outreach
       try {
         await appendToMarketingSheet(email, name);
       } catch (err) {
         console.error('Failed to add to marketing sheet:', err);
       }
 
-      res.json({ userId: user.id, username: user.username || email, email: user.email });
+      res.json({ 
+        userId: user.id, 
+        username: user.username, 
+        email: user.email,
+        isPaid: user.isPaid === "true",
+        trialEndsAt: user.trialEndsAt
+      });
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : "Google login failed" });
     }
