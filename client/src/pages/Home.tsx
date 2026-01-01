@@ -467,7 +467,7 @@ export default function Home() {
           </div>
           <div className="flex items-center gap-6">
             <Link href="/features">
-              <a className="text-sm text-gray-400 hover:text-white transition-colors">Features</a>
+              <span className="text-sm text-gray-400 hover:text-white transition-colors cursor-pointer">Features</span>
             </Link>
             <Button 
               onClick={() => setLocation("/login")}
