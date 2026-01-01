@@ -1,3 +1,5 @@
+import stockImage from '@assets/stock_images/ai_marketing_automat_decfe48f.jpg'
+import { Link } from "wouter";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
@@ -464,7 +466,9 @@ export default function Home() {
             <span className="text-xl font-bold text-white tracking-tight">SmartBot</span>
           </div>
           <div className="flex items-center gap-6">
-            <a href="#features" className="text-sm text-gray-400 hover:text-white transition-colors">Features</a>
+            <Link href="/features">
+              <a className="text-sm text-gray-400 hover:text-white transition-colors">Features</a>
+            </Link>
             <Button 
               onClick={() => setLocation("/login")}
               variant="outline" 
@@ -530,33 +534,39 @@ export default function Home() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.5 }}
-            className="mt-16 w-full max-w-4xl rounded-3xl overflow-hidden border border-white/10 bg-white/5 backdrop-blur-sm shadow-2xl"
+            className="mt-16 w-full max-w-4xl rounded-3xl overflow-hidden border border-white/10 bg-white/5 backdrop-blur-sm shadow-2xl relative group"
           >
-            <div className="aspect-[16/9] bg-black/40 flex items-center justify-center text-gray-500 font-mono text-sm p-4 text-center border-b border-white/5">
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent z-10 pointer-events-none" />
+            <img 
+              src={stockImage} 
+              alt="AI Marketing Dashboard" 
+              className="w-full h-full object-cover aspect-[16/9] opacity-60 group-hover:scale-105 transition-transform duration-1000"
+            />
+            <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-8 text-center bg-black/20">
               <div className="space-y-4">
-                <div className="flex gap-2 justify-center">
-                  <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/40" />
-                  <div className="w-3 h-3 rounded-full bg-yellow-500/20 border border-yellow-500/40" />
-                  <div className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500/40" />
+                <div className="flex gap-2 justify-center mb-4">
+                  <div className="w-3 h-3 rounded-full bg-red-500/40 border border-red-500/60" />
+                  <div className="w-3 h-3 rounded-full bg-yellow-500/40 border border-yellow-500/60" />
+                  <div className="w-3 h-3 rounded-full bg-green-500/40 border border-green-600/60" />
                 </div>
                 <div className="space-y-2">
-                  <div className="h-2 w-48 bg-white/10 rounded-full mx-auto" />
-                  <div className="h-2 w-32 bg-white/5 rounded-full mx-auto" />
+                  <h3 className="text-2xl font-bold text-white mb-2">Smart Dashboard</h3>
+                  <p className="text-gray-300 max-w-md text-sm">Automated Amazon product discovery and message generation at your fingertips.</p>
                 </div>
               </div>
             </div>
-            <div className="p-8 grid grid-cols-3 gap-8 text-center border-t border-white/5">
+            <div className="absolute bottom-0 left-0 right-0 p-8 grid grid-cols-3 gap-8 text-center border-t border-white/10 bg-black/40 backdrop-blur-md z-30">
               <div>
                 <div className="text-2xl font-bold text-white mb-1">50+</div>
-                <div className="text-xs text-gray-500 uppercase tracking-widest">Daily Scrapes</div>
+                <div className="text-xs text-gray-400 uppercase tracking-widest">Daily Scrapes</div>
               </div>
               <div>
                 <div className="text-2xl font-bold text-white mb-1">10k+</div>
-                <div className="text-xs text-gray-500 uppercase tracking-widest">Users India</div>
+                <div className="text-xs text-gray-400 uppercase tracking-widest">Users India</div>
               </div>
               <div>
                 <div className="text-2xl font-bold text-white mb-1">99.9%</div>
-                <div className="text-xs text-gray-500 uppercase tracking-widest">Success Rate</div>
+                <div className="text-xs text-gray-400 uppercase tracking-widest">Success Rate</div>
               </div>
             </div>
           </motion.div>
