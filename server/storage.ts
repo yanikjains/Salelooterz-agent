@@ -71,6 +71,7 @@ export class MemStorage implements IStorage {
       googleRefreshToken: null,
       telegramBotToken: null,
       telegramChannelId: null,
+      whatsappChannelUrl: null,
       isPaid: "false",
       subscriptionEndsAt,
       trialEndsAt: null,
@@ -108,6 +109,7 @@ export class MemStorage implements IStorage {
       googleRefreshToken: null,
       telegramBotToken: null,
       telegramChannelId: null,
+      whatsappChannelUrl: null,
       isPaid: "false",
       subscriptionEndsAt,
       trialEndsAt: null,
@@ -136,7 +138,7 @@ export class MemStorage implements IStorage {
       console.error(`Storage: User ${userId} not found during update`);
       throw new Error('User not found');
     }
-    const updatedUser = { ...user, ...updates } as User;
+    const updatedUser: User = { ...user, ...updates };
     this.users.set(userId, updatedUser);
     console.log(`Storage: Updated user ${userId}`, updates);
     return updatedUser;

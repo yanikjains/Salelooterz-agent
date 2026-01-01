@@ -452,101 +452,128 @@ export default function Home() {
 
   if (!userId) {
     return (
-      <div className="min-h-screen w-full bg-black flex items-center justify-center">
-        <div className="container mx-auto px-4 py-6 max-w-4xl">
-          <motion.div 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-16"
-          >
-            <div className="flex items-center justify-center gap-3 mb-8">
-              <div className="w-16 h-16 bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl shadow-lg flex items-center justify-center">
-                <ShoppingBag className="w-8 h-8 text-white" />
-              </div>
-              <div>
-                <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight">India's First Smart Amazon Affiliate Bot</h1>
-              </div>
+      <div className="min-h-screen w-full bg-[#030303] flex flex-col items-center selection:bg-purple-500/30 selection:text-purple-200">
+        <div className="fixed inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(120,50,255,0.08)_0%,transparent_50%)] pointer-events-none" />
+        <div className="fixed inset-0 bg-[linear-gradient(to_bottom,transparent,rgba(0,0,0,0.8))] pointer-events-none" />
+        
+        <header className="w-full max-w-7xl px-6 py-8 flex justify-between items-center relative z-10">
+          <div className="flex items-center gap-2">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
+              <ShoppingBag className="w-6 h-6 text-white" />
             </div>
+            <span className="text-xl font-bold text-white tracking-tight">SmartBot</span>
+          </div>
+          <div className="flex items-center gap-6">
+            <a href="#features" className="text-sm text-gray-400 hover:text-white transition-colors">Features</a>
+            <Button 
+              onClick={() => setLocation("/login")}
+              variant="outline" 
+              className="rounded-full px-6 bg-white/5 border-white/10 text-white hover:bg-white/10 h-10"
+              data-testid="button-nav-login"
+            >
+              Sign In
+            </Button>
+          </div>
+        </header>
+
+        <main className="container max-w-5xl px-6 pt-24 pb-32 flex flex-col items-center relative z-10">
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-sm font-medium mb-8"
+          >
+            <Sparkles className="w-4 h-4" />
+            <span>AI-Powered Affiliate Automation</span>
           </motion.div>
 
-          <motion.div 
+          <motion.h1 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
-            className="text-center mb-12"
+            className="text-6xl md:text-8xl font-bold text-center text-white tracking-tight leading-[1.1] mb-8"
           >
-            <h2 className="text-3xl md:text-4xl font-bold mb-6">
-              <span className="text-white">Scrape Real Products from </span>
-              <span className="gradient-text">Amazon.in</span>
-            </h2>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-10">
-              Select category → Auto-scrape unlimited products → Get viral WhatsApp & Telegram messages → Export to Google Sheets
-            </p>
-          </motion.div>
+            Automate Your <br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-400 to-purple-400 bg-[length:200%_auto] animate-gradient-x">Earnings Flow.</span>
+          </motion.h1>
+
+          <motion.p 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="text-lg md:text-xl text-gray-400 text-center max-w-2xl mb-12 leading-relaxed"
+          >
+            The world's first smart Amazon affiliate bot. Scrape, generate, and post viral content to WhatsApp & Telegram in seconds.
+          </motion.p>
 
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-            className="flex flex-col items-center gap-6 mb-12"
+            transition={{ delay: 0.3 }}
+            className="flex flex-col sm:flex-row items-center gap-4 w-full max-w-md"
           >
-            <div className="flex flex-col items-center gap-4">
-              <p className="text-white font-semibold text-lg">Get Started with Google</p>
-              <div data-testid="button-google-signin">
+            <div className="w-full relative group">
+              <div className="absolute -inset-1 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200" />
+              <div className="relative w-full" data-testid="button-google-signin">
                 <GoogleLogin
                   onSuccess={handleGoogleSuccess}
-                  onError={() => {
-                    toast({
-                      title: "Login Failed",
-                      description: "Google login encountered an error",
-                      variant: "destructive",
-                    });
-                  }}
+                  onError={() => toast({ title: "Login Failed", variant: "destructive" })}
+                  useOneTap
+                  theme="filled_black"
+                  shape="pill"
+                  width="100%"
                 />
               </div>
             </div>
-            <div className="text-center space-y-3">
-              <p className="text-muted-foreground text-sm">Don't have a Google account? <a href="https://accounts.google.com/signup" target="_blank" rel="noopener noreferrer" className="text-amber-400 hover:text-amber-300 transition-colors">Create one here</a></p>
-              <div className="flex items-center gap-2 justify-center">
-                <div className="h-px bg-white/20 flex-1"></div>
-                <span className="text-muted-foreground text-xs">OR</span>
-                <div className="h-px bg-white/20 flex-1"></div>
+          </motion.div>
+
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.5 }}
+            className="mt-16 w-full max-w-4xl rounded-3xl overflow-hidden border border-white/10 bg-white/5 backdrop-blur-sm shadow-2xl"
+          >
+            <div className="aspect-[16/9] bg-black/40 flex items-center justify-center text-gray-500 font-mono text-sm p-4 text-center border-b border-white/5">
+              <div className="space-y-4">
+                <div className="flex gap-2 justify-center">
+                  <div className="w-3 h-3 rounded-full bg-red-500/20 border border-red-500/40" />
+                  <div className="w-3 h-3 rounded-full bg-yellow-500/20 border border-yellow-500/40" />
+                  <div className="w-3 h-3 rounded-full bg-green-500/20 border border-green-500/40" />
+                </div>
+                <div className="space-y-2">
+                  <div className="h-2 w-48 bg-white/10 rounded-full mx-auto" />
+                  <div className="h-2 w-32 bg-white/5 rounded-full mx-auto" />
+                </div>
               </div>
-              <Button
-                onClick={() => setLocation("/login")}
-                variant="outline"
-                className="border-amber-400/50 text-amber-400 hover:bg-amber-400/10 w-full"
-                data-testid="button-traditional-login"
-              >
-                Sign in with Email
-              </Button>
+            </div>
+            <div className="p-8 grid grid-cols-3 gap-8 text-center border-t border-white/5">
+              <div>
+                <div className="text-2xl font-bold text-white mb-1">50+</div>
+                <div className="text-xs text-gray-500 uppercase tracking-widest">Daily Scrapes</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-white mb-1">10k+</div>
+                <div className="text-xs text-gray-500 uppercase tracking-widest">Users India</div>
+              </div>
+              <div>
+                <div className="text-2xl font-bold text-white mb-1">99.9%</div>
+                <div className="text-xs text-gray-500 uppercase tracking-widest">Success Rate</div>
+              </div>
             </div>
           </motion.div>
-
-          <motion.div 
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.3 }}
-            className="text-center py-8"
-          >
-            <div className="inline-flex items-center gap-3 bg-card/40 border border-white/5 rounded-full px-6 py-3 text-sm text-muted-foreground">
-              <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-              Scrapes real-time data from Amazon.in • Unlimited products • No rate limits
-            </div>
-          </motion.div>
-
-          <motion.footer
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.4 }}
-            className="border-t border-white/5 mt-16 pt-8 text-center text-xs text-muted-foreground space-y-2"
-          >
-            <p>Created by <span className="text-white font-semibold">Yanik Jain</span></p>
-            <p>
-              Contact: <a href="mailto:salelooterz@gmail.com" className="text-amber-400 hover:text-amber-300 transition-colors">salelooterz@gmail.com</a>
-            </p>
-          </motion.footer>
-        </div>
+        </main>
+        
+        <footer className="w-full max-w-7xl px-6 py-12 border-t border-white/5 relative z-10 flex flex-col md:flex-row justify-between items-center gap-8 text-sm text-gray-500">
+          <div className="flex items-center gap-4">
+            <span>© 2026 SmartBot India</span>
+            <div className="w-1 h-1 rounded-full bg-gray-800" />
+            <span>Built by Yanik Jain</span>
+          </div>
+          <div className="flex items-center gap-8">
+            <a href="mailto:salelooterz@gmail.com" className="hover:text-white transition-colors">Support</a>
+            <a href="#" className="hover:text-white transition-colors">Privacy</a>
+            <a href="#" className="hover:text-white transition-colors">Terms</a>
+          </div>
+        </footer>
       </div>
     );
   }
