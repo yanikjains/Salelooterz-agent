@@ -513,20 +513,13 @@ export default function Home() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="flex flex-col sm:flex-row items-center gap-4 w-full max-w-md"
+            className="mt-12 mb-16 relative z-10"
           >
-            <div className="w-full relative group">
-              <div className="absolute -inset-1 bg-gradient-to-r from-purple-600 to-indigo-600 rounded-2xl blur opacity-25 group-hover:opacity-50 transition duration-1000 group-hover:duration-200" />
-              <div className="relative w-full" data-testid="button-google-signin">
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={() => toast({ title: "Login Failed", variant: "destructive" })}
-                  useOneTap
-                  theme="filled_black"
-                  shape="pill"
-                  width="100%"
-                />
-              </div>
+            <div className="relative group">
+              <div className="absolute -inset-1 bg-gradient-to-r from-purple-600/20 to-indigo-600/20 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition duration-1000" />
+              <blockquote className="relative p-8 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm shadow-xl italic text-gray-300 text-xl text-center font-medium tracking-wide">
+                "Success in affiliate marketing isn't about working harder, it's about working smarter. Let AI handle the grind while you focus on the growth."
+              </blockquote>
             </div>
           </motion.div>
 
