@@ -14,7 +14,7 @@ export default function Support() {
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
               <ShoppingBag className="w-6 h-6 text-white" />
             </div>
-            <span className="text-xl font-bold text-white tracking-tight">SmartBot</span>
+            <span className="text-xl font-bold text-white tracking-tight">Affiliate Bot</span>
           </div>
         </Link>
         <Link href="/">
@@ -57,7 +57,7 @@ export default function Support() {
 
       <footer className="w-full max-w-7xl px-6 py-12 border-t border-white/5 relative z-10 flex flex-col items-center gap-6 text-sm text-gray-500">
         <div className="flex flex-col md:flex-row items-center gap-4 text-center">
-          <span>© 2026 SmartBot India</span>
+          <span>© 2026 Affiliate Bot India</span>
           <div className="hidden md:block w-1 h-1 rounded-full bg-gray-800" />
           <span>Need help? Contact our support team.</span>
         </div>

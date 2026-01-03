@@ -89,7 +89,7 @@ export default function Signup() {
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
               <ShoppingBag className="w-5 h-5 text-white" />
             </div>
-            <span className="text-lg font-bold text-white tracking-tight">SmartBot</span>
+            <span className="text-lg font-bold text-white tracking-tight">Affiliate Bot</span>
           </div>
         </Link>
         <Link href="/">
@@ -219,7 +219,7 @@ export default function Signup() {
       </main>
 
       <footer className="w-full max-w-7xl px-6 py-4 absolute bottom-0 left-0 right-0 z-20 flex justify-center text-center text-[10px] text-gray-600">
-        <span>© 2026 SmartBot India • Secure Registration</span>
+        <span>© 2026 Affiliate Bot India • Secure Registration</span>
       </footer>
     </div>
 

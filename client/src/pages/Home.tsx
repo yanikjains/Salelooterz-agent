@@ -463,7 +463,7 @@ export default function Home() {
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
               <ShoppingBag className="w-6 h-6 text-white" />
             </div>
-            <span className="text-xl font-bold text-white tracking-tight">SmartBot</span>
+            <span className="text-xl font-bold text-white tracking-tight">Affiliate Bot</span>
           </div>
           <div className="flex items-center gap-6">
             <Link href="/features">
@@ -567,7 +567,7 @@ export default function Home() {
         
         <footer className="w-full max-w-7xl px-6 py-12 border-t border-white/5 relative z-10 flex flex-col items-center gap-8 text-sm text-gray-500">
           <div className="flex flex-col md:flex-row items-center gap-4 text-center">
-            <span>© 2026 SmartBot India</span>
+            <span>© 2026 Affiliate Bot India</span>
             <div className="hidden md:block w-1 h-1 rounded-full bg-gray-800" />
             <span>Built by Yanik Jain</span>
           </div>
@@ -600,7 +600,7 @@ export default function Home() {
               <ShoppingBag className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white tracking-tight">India's First Smart Amazon Affiliate Bot</h1>
+              <h1 className="text-2xl font-bold text-white tracking-tight">Affiliate Bot</h1>
               <p className="text-xs text-muted-foreground">Automated Message Generation & Google Sheets Export</p>
             </div>
           </div>
