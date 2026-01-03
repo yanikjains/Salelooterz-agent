@@ -84,12 +84,12 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen h-screen w-full bg-[#030303] flex flex-col items-center selection:bg-purple-500/30 selection:text-purple-200 overflow-hidden relative">
+    <div className="h-screen w-full bg-[#030303] flex flex-col items-center justify-center overflow-hidden selection:bg-purple-500/30 selection:text-purple-200 relative">
       {/* Background Gradients */}
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(120,50,255,0.08)_0%,transparent_50%)] pointer-events-none" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(120,50,255,0.03)_0%,transparent_30%)] pointer-events-none" />
       
-      <header className="w-full max-w-7xl px-6 py-4 flex justify-between items-center relative z-10">
+      <header className="w-full max-w-7xl px-6 py-4 flex justify-between items-center absolute top-0 left-0 right-0 z-20">
         <Link href="/">
           <div className="flex items-center gap-2 cursor-pointer">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
@@ -103,7 +103,7 @@ export default function Login() {
         </Link>
       </header>
 
-      <main className="flex-1 flex flex-col items-center justify-center w-full max-w-lg px-6 pb-8 relative z-10 overflow-y-auto">
+      <main className="flex flex-col items-center justify-center w-full max-w-lg px-6 relative z-10">
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -240,7 +240,7 @@ export default function Login() {
         </motion.p>
       </main>
 
-      <footer className="w-full max-w-7xl px-6 py-12 border-t border-white/5 relative z-10 flex justify-center text-sm text-gray-600">
+      <footer className="w-full max-w-7xl px-6 py-8 absolute bottom-0 left-0 right-0 z-20 flex justify-center text-sm text-gray-600">
         <span>© 2026 SmartBot India • Secure Authentication</span>
       </footer>
     </div>
