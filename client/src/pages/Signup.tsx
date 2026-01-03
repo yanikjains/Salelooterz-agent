@@ -92,8 +92,8 @@ export default function Signup() {
             <span className="text-xl font-bold text-white tracking-tight">SmartBot</span>
           </div>
         </Link>
-        <Link href="/features">
-          <span className="text-sm text-gray-400 hover:text-white transition-colors cursor-pointer">Features</span>
+        <Link href="/">
+          <span className="text-sm text-gray-400 hover:text-white transition-colors cursor-pointer">Back to Home</span>
         </Link>
       </header>
 
