@@ -139,8 +139,12 @@ export default function Features() {
         </motion.div>
       </main>
 
-      <footer className="w-full max-w-7xl px-6 py-12 border-t border-white/5 relative z-10 flex justify-center text-sm text-gray-500">
-        <span>© 2026 SmartBot India • All features included</span>
+      <footer className="w-full max-w-7xl px-6 py-12 border-t border-white/5 relative z-10 flex flex-col items-center gap-6 text-sm text-gray-500">
+        <div className="flex flex-col md:flex-row items-center gap-4 text-center">
+          <span>© 2026 SmartBot India</span>
+          <div className="hidden md:block w-1 h-1 rounded-full bg-gray-800" />
+          <span>Automating the Future of Affiliate Marketing</span>
+        </div>
       </footer>
     </div>
   );
