@@ -5,6 +5,9 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 import { Toaster } from "@/components/ui/toaster";
 import Home from "@/pages/Home";
 import Features from "@/pages/Features";
+import Support from "@/pages/Support";
+import Privacy from "@/pages/Privacy";
+import Terms from "@/pages/Terms";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
 import ForgotPassword from "@/pages/ForgotPassword";
@@ -17,6 +20,9 @@ function Router() {
     <Switch>
       <Route path="/" component={Home} />
       <Route path="/features" component={Features} />
+      <Route path="/support" component={Support} />
+      <Route path="/privacy" component={Privacy} />
+      <Route path="/terms" component={Terms} />
       <Route path="/login" component={Login} />
       <Route path="/signup" component={Signup} />
       <Route path="/forgot-password" component={ForgotPassword} />

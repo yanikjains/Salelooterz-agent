@@ -572,9 +572,15 @@ export default function Home() {
             <span>Built by Yanik Jain</span>
           </div>
           <div className="flex items-center gap-8">
-            <a href="mailto:salelooterz@gmail.com" className="hover:text-white transition-colors">Support</a>
-            <a href="#" className="hover:text-white transition-colors">Privacy</a>
-            <a href="#" className="hover:text-white transition-colors">Terms</a>
+            <Link href="/support">
+              <span className="hover:text-white transition-colors cursor-pointer">Support</span>
+            </Link>
+            <Link href="/privacy">
+              <span className="hover:text-white transition-colors cursor-pointer">Privacy</span>
+            </Link>
+            <Link href="/terms">
+              <span className="hover:text-white transition-colors cursor-pointer">Terms</span>
+            </Link>
           </div>
         </footer>
       </div>
