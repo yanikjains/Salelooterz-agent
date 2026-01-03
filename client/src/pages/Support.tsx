@@ -31,19 +31,12 @@ export default function Support() {
           <p className="text-gray-400 text-lg">We're here to help you automate your success.</p>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-12">
-          <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="p-8 rounded-3xl border border-white/10 bg-white/5 backdrop-blur-sm">
+        <div className="grid grid-cols-1 gap-6 mb-12">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="p-8 rounded-3xl border border-white/10 bg-white/5 backdrop-blur-sm">
             <Mail className="w-10 h-10 text-purple-400 mb-6" />
             <h3 className="text-xl font-bold text-white mb-2">Email Us</h3>
             <p className="text-gray-400 mb-6">General inquiries and technical support.</p>
             <a href="mailto:salelooterz@gmail.com" className="text-purple-400 font-bold hover:underline">salelooterz@gmail.com</a>
-          </motion.div>
-
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} className="p-8 rounded-3xl border border-white/10 bg-white/5 backdrop-blur-sm">
-            <MessageCircle className="w-10 h-10 text-emerald-400 mb-6" />
-            <h3 className="text-xl font-bold text-white mb-2">Direct Message</h3>
-            <p className="text-gray-400 mb-6">Quick response for urgent account issues.</p>
-            <span className="text-emerald-400 font-bold">@YanikJain on Telegram</span>
           </motion.div>
         </div>
 
