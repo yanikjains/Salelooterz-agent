@@ -84,49 +84,45 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#030303] flex flex-col items-center selection:bg-purple-500/30 selection:text-purple-200 overflow-x-hidden">
+    <div className="min-h-screen h-screen w-full bg-[#030303] flex flex-col items-center selection:bg-purple-500/30 selection:text-purple-200 overflow-hidden relative">
       {/* Background Gradients */}
-      <div className="fixed inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(120,50,255,0.08)_0%,transparent_50%)] pointer-events-none" />
-      <div className="fixed inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(120,50,255,0.03)_0%,transparent_30%)] pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(120,50,255,0.08)_0%,transparent_50%)] pointer-events-none" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(120,50,255,0.03)_0%,transparent_30%)] pointer-events-none" />
       
-      {/* Header */}
-      <header className="w-full max-w-7xl px-6 py-8 flex justify-between items-center relative z-10">
+      <header className="w-full max-w-7xl px-6 py-4 flex justify-between items-center relative z-10">
         <Link href="/">
           <div className="flex items-center gap-2 cursor-pointer">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
-              <ShoppingBag className="w-6 h-6 text-white" />
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
+              <ShoppingBag className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-bold text-white tracking-tight">SmartBot</span>
+            <span className="text-lg font-bold text-white tracking-tight">SmartBot</span>
           </div>
         </Link>
-        <Link href="/features">
-          <span className="text-sm text-gray-400 hover:text-white transition-colors cursor-pointer">Features</span>
+        <Link href="/">
+          <span className="text-sm text-gray-400 hover:text-white transition-colors cursor-pointer">Back to Home</span>
         </Link>
       </header>
 
-      <main className="flex-1 flex flex-col items-center justify-center w-full max-w-lg px-6 pb-20 relative z-10">
+      <main className="flex-1 flex flex-col items-center justify-center w-full max-w-lg px-6 pb-8 relative z-10 overflow-y-auto">
         <motion.div
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          className="w-full text-center mb-10"
+          className="w-full text-center mb-6"
         >
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-sm font-medium mb-6">
-            <Sparkles className="w-4 h-4" />
+          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-medium mb-4">
+            <Sparkles className="w-3.5 h-3.5" />
             <span>Welcome Back</span>
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold text-white tracking-tight mb-4">
-            Login to your account
+          <h1 className="text-3xl md:text-4xl font-bold text-white tracking-tight mb-2">
+            Login
           </h1>
-          <p className="text-gray-400 text-lg">
-            Ready to scale your affiliate earnings?
-          </p>
         </motion.div>
 
         <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
+          initial={{ opacity: 0, scale: 0.98 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: 0.1 }}
-          className="w-full p-8 rounded-[2rem] border border-white/10 bg-white/5 backdrop-blur-xl shadow-2xl relative overflow-hidden group"
+          className="w-full p-6 rounded-[1.5rem] border border-white/10 bg-white/5 backdrop-blur-xl shadow-2xl relative overflow-hidden group"
         >
           <div className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl pointer-events-none group-hover:bg-purple-500/20 transition-colors duration-700" />
           

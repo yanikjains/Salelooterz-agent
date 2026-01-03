@@ -1,10 +1,9 @@
 import { useState } from "react";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Card, CardContent } from "@/components/ui/card";
-import { motion } from "framer-motion";
-import { ShoppingBag, ArrowLeft, AlertCircle, CheckCircle } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { ShoppingBag, ArrowLeft, Mail, AlertCircle, CheckCircle, Sparkles } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 export default function ForgotPassword() {
@@ -21,194 +20,112 @@ export default function ForgotPassword() {
     setIsLoading(true);
 
     try {
-      if (!email) {
-        setError("Please enter your email");
-        setIsLoading(false);
-        return;
-      }
-
       const response = await fetch("/api/auth/forgot-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
       });
-
       const data = await response.json();
-
       if (response.ok) {
-        // If recovery code is returned, email service might not be configured
-        if (data.resetCode) {
-          setResetCode(data.resetCode);
-        }
+        if (data.resetCode) setResetCode(data.resetCode);
         setSubmitted(true);
-        toast({ title: "Recovery code sent!", description: data.message });
+        toast({ title: "Recovery code sent!" });
       } else {
         setError(data.error || "Failed to process request");
-        toast({
-          title: "Error",
-          description: data.error || "Email not found",
-          variant: "destructive",
-        });
       }
     } catch (error) {
       setError("Failed to process request");
-      toast({
-        title: "Error",
-        description: "Failed to process request",
-        variant: "destructive",
-      });
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-black text-white overflow-hidden">
-      <div className="grid lg:grid-cols-2 h-screen">
-        <motion.div
-          initial={{ opacity: 0, x: -50 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="flex flex-col justify-between p-8 md:p-12 bg-black"
-        >
-          <div>
-            <div className="flex items-center gap-3 mb-12">
-              <div className="w-12 h-12 bg-gradient-to-br from-yellow-400 to-yellow-500 rounded-xl flex items-center justify-center shadow-lg">
-                <ShoppingBag className="w-6 h-6 text-black" />
-              </div>
-              <span className="font-bold text-xl">Amazon Affiliate Bot</span>
+    <div className="min-h-screen w-full bg-[#030303] flex flex-col items-center selection:bg-purple-500/30 selection:text-purple-200 overflow-x-hidden">
+      <div className="fixed inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(120,50,255,0.08)_0%,transparent_50%)] pointer-events-none" />
+      
+      <header className="w-full max-w-7xl px-6 py-8 flex justify-between items-center relative z-10">
+        <Link href="/">
+          <div className="flex items-center gap-2 cursor-pointer">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
+              <ShoppingBag className="w-6 h-6 text-white" />
             </div>
+            <span className="text-xl font-bold text-white tracking-tight">SmartBot</span>
+          </div>
+        </Link>
+        <Link href="/">
+          <span className="text-sm text-gray-400 hover:text-white transition-colors cursor-pointer">Back to Home</span>
+        </Link>
+      </header>
 
-            <div className="max-w-sm">
-              <button
-                onClick={() => setLocation("/login")}
-                className="flex items-center gap-2 text-gray-400 hover:text-yellow-400 mb-8 text-sm"
-              >
-                <ArrowLeft className="w-4 h-4" />
-                Back to Login
-              </button>
+      <main className="flex-1 flex flex-col items-center justify-center w-full max-w-lg px-6 pb-20 relative z-10">
+        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full text-center mb-8">
+          <h1 className="text-4xl font-bold text-white tracking-tight mb-2">Reset Password</h1>
+          <p className="text-gray-400">Regain access to your earnings dashboard.</p>
+        </motion.div>
 
-              <h1 className="text-4xl font-bold mb-3">Reset Your Password</h1>
-              <p className="text-gray-400 mb-8">
-                Enter your email address and we'll send you a recovery code.
-              </p>
-
-              {!submitted ? (
-                <>
-                  {error && (
-                    <div className="bg-red-500/10 border border-red-500/30 rounded-lg p-3 flex items-center gap-2 mb-6">
-                      <AlertCircle className="w-4 h-4 text-red-500 flex-shrink-0" />
-                      <p className="text-sm text-red-400">{error}</p>
-                    </div>
-                  )}
-
-                  <form onSubmit={handleSubmit} className="space-y-5">
-                    <div>
-                      <label className="text-sm font-medium text-gray-300 mb-2 block">
-                        Email Address
-                      </label>
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full p-8 rounded-[2rem] border border-white/10 bg-white/5 backdrop-blur-xl shadow-2xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 bg-purple-500/10 rounded-full blur-3xl pointer-events-none group-hover:bg-purple-500/20 transition-colors duration-700" />
+          
+          <AnimatePresence mode="wait">
+            {!submitted ? (
+              <motion.div key="form" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+                {error && (
+                  <div className="mb-6 bg-red-500/10 border border-red-500/20 rounded-2xl p-4 flex items-center gap-3">
+                    <AlertCircle className="w-5 h-5 text-red-500 shrink-0" />
+                    <p className="text-sm text-red-400">{error}</p>
+                  </div>
+                )}
+                <form onSubmit={handleSubmit} className="space-y-6 relative z-10">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium text-gray-300 ml-1">Email address</label>
+                    <div className="relative group/input">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 group-focus-within/input:text-purple-400 transition-colors">
+                        <Mail className="w-5 h-5" />
+                      </div>
                       <Input
                         type="email"
                         value={email}
                         onChange={(e) => setEmail(e.target.value)}
-                        placeholder="your.email@example.com"
-                        className="h-12 bg-gray-900 border-gray-700 text-white placeholder:text-gray-500 focus:border-yellow-400"
+                        placeholder="name@company.com"
+                        className="h-14 pl-12 bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-purple-500/50 focus:ring-purple-500/20 rounded-2xl transition-all"
                         required
-                        data-testid="input-forgot-email"
                       />
                     </div>
-
-                    <Button
-                      type="submit"
-                      disabled={isLoading}
-                      className="w-full h-12 bg-yellow-400 hover:bg-yellow-500 text-black font-bold shadow-lg rounded-lg"
-                      data-testid="button-send-code"
-                    >
-                      {isLoading ? "Sending..." : "Send Recovery Code"}
-                    </Button>
-                  </form>
-                </>
-              ) : (
-                <div className="space-y-6">
-                  <div className="bg-green-500/10 border border-green-500/30 rounded-lg p-4 flex items-start gap-3">
-                    <CheckCircle className="w-5 h-5 text-green-400 flex-shrink-0 mt-0.5" />
-                    <div>
-                      <p className="text-sm text-green-400 font-semibold">Recovery code sent to your email!</p>
-                      <p className="text-xs text-green-400/70 mt-1">Check your inbox for the reset code</p>
-                    </div>
                   </div>
-
-                  {resetCode && (
-                    <>
-                      <p className="text-sm text-gray-400">
-                        If you don't see the email, here's your backup code:
-                      </p>
-                      <div className="bg-gray-900 border border-gray-700 rounded-lg p-4">
-                        <code className="text-lg font-mono text-yellow-400 break-all select-all">
-                          {resetCode}
-                        </code>
-                      </div>
-                    </>
-                  )}
-
-                  <p className="text-sm text-gray-400">
-                    Click the button below to reset your password using the code from your email.
-                  </p>
-
-                  <Button
-                    onClick={() => setLocation("/reset-password")}
-                    className="w-full h-12 bg-yellow-400 hover:bg-yellow-500 text-black font-bold shadow-lg rounded-lg"
-                    data-testid="button-go-to-reset"
-                  >
-                    Go to Reset Password
+                  <Button type="submit" disabled={isLoading} className="w-full h-14 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold rounded-2xl shadow-lg shadow-purple-500/20 transition-all active:scale-[0.98]">
+                    {isLoading ? "Sending..." : "Send Recovery Code"}
                   </Button>
-
-                  <button
-                    onClick={() => {
-                      setSubmitted(false);
-                      setEmail("");
-                      setError("");
-                      setResetCode("");
-                    }}
-                    className="w-full text-center text-sm text-gray-400 hover:text-gray-300"
-                  >
-                    Try another email
-                  </button>
+                </form>
+              </motion.div>
+            ) : (
+              <motion.div key="success" initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 text-center relative z-10">
+                <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <CheckCircle className="w-8 h-8 text-green-500" />
                 </div>
-              )}
-            </div>
-          </div>
-
-          <div className="space-y-2 text-xs text-gray-500">
-            <p>© 2024 India's First Smart Amazon Affiliate Bot</p>
-            <p>Earn real commissions from Amazon India</p>
-          </div>
+                <h2 className="text-2xl font-bold text-white">Check your email</h2>
+                <p className="text-gray-400 text-sm">We've sent a recovery code to {email}.</p>
+                {resetCode && (
+                  <div className="p-4 bg-white/5 border border-white/10 rounded-2xl">
+                    <p className="text-xs text-gray-500 mb-2 uppercase tracking-widest">Backup Code</p>
+                    <code className="text-purple-400 font-mono text-lg">{resetCode}</code>
+                  </div>
+                )}
+                <Button onClick={() => setLocation("/reset-password")} className="w-full h-14 bg-white text-black hover:bg-gray-100 font-bold rounded-2xl">
+                  Go to Reset Password
+                </Button>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, x: 50 }}
-          animate={{ opacity: 1, x: 0 }}
-          className="hidden lg:flex flex-col justify-center items-center bg-gradient-to-br from-gray-900 via-black to-gray-900 p-12 relative overflow-hidden"
-        >
-          <div className="absolute inset-0 opacity-5">
-            <div className="absolute inset-0 bg-gradient-to-br from-yellow-400 to-transparent mix-blend-screen"></div>
-          </div>
-
-          <div className="relative z-10 max-w-md text-center">
-            <motion.div
-              initial={{ scale: 0.8, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.3, duration: 0.5 }}
-              className="mb-8 inline-block"
-            >
-              <div className="text-6xl mb-6">🔐</div>
-              <h2 className="text-3xl font-bold text-yellow-400 mb-4">Account Recovery</h2>
-              <p className="text-gray-400">
-                We'll help you regain access to your account safely. Enter your email to get started.
-              </p>
-            </motion.div>
-          </div>
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="mt-8">
+          <button onClick={() => setLocation("/login")} className="flex items-center gap-2 text-gray-500 hover:text-white transition-colors text-sm">
+            <ArrowLeft className="w-4 h-4" />
+            Back to Login
+          </button>
         </motion.div>
-      </div>
+      </main>
     </div>
   );
 }
