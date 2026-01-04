@@ -48,8 +48,8 @@ export default function Terms() {
         </section>
       </main>
 
-      <footer className="w-full max-w-7xl px-6 py-12 border-t border-white/5 relative z-10 flex flex-col items-center gap-6 text-sm text-gray-500">
-        <div className="flex flex-col md:flex-row items-center gap-4 text-center">
+      <footer className="w-full max-w-7xl px-6 py-12 border-t border-white/5 relative z-10 flex flex-col items-center gap-6 text-sm text-gray-500 mx-auto">
+        <div className="flex flex-col md:flex-row items-center justify-center gap-4 text-center w-full">
           <span>© 2026 Affiliate Bot India</span>
           <div className="hidden md:block w-1 h-1 rounded-full bg-gray-800" />
           <span>Fair usage and transparent policies.</span>

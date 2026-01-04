@@ -218,7 +218,7 @@ export default function Signup() {
         </motion.p>
       </main>
 
-      <footer className="w-full max-w-7xl px-6 py-4 absolute bottom-0 left-0 right-0 z-20 flex justify-center text-center text-[10px] text-gray-600">
+      <footer className="w-full max-w-7xl px-6 py-4 absolute bottom-0 left-1/2 -translate-x-1/2 z-20 flex justify-center text-center text-[10px] text-gray-600">
         <span>© 2026 Affiliate Bot India • Secure Registration</span>
       </footer>
     </div>
