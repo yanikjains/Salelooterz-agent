@@ -89,7 +89,7 @@ export default function Login() {
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(120,50,255,0.08)_0%,transparent_50%)] pointer-events-none" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(120,50,255,0.03)_0%,transparent_30%)] pointer-events-none" />
       
-      <header className="w-full max-w-7xl px-6 py-4 flex justify-between items-center absolute top-0 left-0 right-0 z-20">
+      <header className="w-full px-6 py-4 flex justify-between items-center absolute top-0 left-0 right-0 z-20">
         <Link href="/">
           <div className="flex items-center gap-2 cursor-pointer">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
@@ -99,7 +99,7 @@ export default function Login() {
           </div>
         </Link>
         <Link href="/">
-          <span className="text-sm text-gray-400 hover:text-white transition-colors cursor-pointer">Back to Home</span>
+          <span className="text-sm text-gray-400 hover:text-white transition-colors cursor-pointer bg-white/5 px-4 py-2 rounded-full border border-white/10 backdrop-blur-sm">Back to Home</span>
         </Link>
       </header>
 
