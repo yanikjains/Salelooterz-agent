@@ -42,7 +42,15 @@ export default function Login() {
         setLocation("/");
         toast({ title: "Login successful!" });
       } else {
-        setError(data.error || "Invalid credentials. Please try again.");
+        let errorMsg = "Invalid credentials. Please try again.";
+        if (typeof data.error === "string") {
+          errorMsg = data.error;
+        } else if (Array.isArray(data.error)) {
+          errorMsg = data.error[0]?.message || "Invalid input data";
+        } else if (data.error && typeof data.error === 'object' && data.error.message) {
+          errorMsg = data.error.message;
+        }
+        setError(errorMsg);
       }
     } catch (error) {
       setError("Failed to login. Please try again.");

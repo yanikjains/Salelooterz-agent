@@ -44,7 +44,16 @@ export default function Signup() {
         setLocation("/");
         toast({ title: "Account created successfully! Welcome!" });
       } else {
-        setError(data.error || "Signup failed");
+        // Handle Zod validation error arrays or string errors
+        let errorMsg = "Signup failed";
+        if (typeof data.error === "string") {
+          errorMsg = data.error;
+        } else if (Array.isArray(data.error)) {
+          errorMsg = data.error[0]?.message || "Invalid input data";
+        } else if (data.error && typeof data.error === 'object' && data.error.message) {
+          errorMsg = data.error.message;
+        }
+        setError(errorMsg);
       }
     } catch (error) {
       setError("Failed to create account");
@@ -101,7 +110,7 @@ export default function Signup() {
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="w-full text-center mb-6">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-xs font-medium mb-3">
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Join SmartBot</span>
+            <span>Join Affiliate Bot</span>
           </div>
           <h1 className="text-3xl font-bold text-white tracking-tight mb-1">Create Account</h1>
           <p className="text-gray-400 text-sm">Start your affiliate journey in seconds.</p>
