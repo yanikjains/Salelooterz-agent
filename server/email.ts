@@ -9,7 +9,7 @@ export async function sendPasswordResetEmail(email: string, resetCode: string): 
     const smtpPort = process.env.SMTP_PORT;
     const smtpUser = process.env.SMTP_USER;
     const smtpPass = process.env.SMTP_PASS;
-    const fromEmail = process.env.SMTP_FROM_EMAIL || "noreply@affiliatebot.in";
+    const fromEmail = process.env.SMTP_FROM_EMAIL || "salelooterz@gmail.com";
 
     if (!smtpHost || !smtpPort || !smtpUser || !smtpPass) {
       console.warn("SMTP credentials not configured. Password reset email not sent.");
