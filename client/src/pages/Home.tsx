@@ -45,8 +45,50 @@ interface DiscoveryResult {
   }>;
 }
 
+import Joyride, { Step } from "react-joyride";
+
 export default function Home() {
   const [, setLocation] = useLocation();
+  const [runTour, setRunTour] = useState(false);
+
+  const tourSteps: Step[] = [
+    {
+      target: '[data-testid="input-affiliate-tag-tour"]',
+      content: "Enter your Amazon Affiliate ID here. This ensures you get commission for every sale.",
+      placement: "bottom",
+    },
+    {
+      target: '[data-testid="button-category-electronics"]',
+      content: "Choose a product category to discover hot-selling items.",
+      placement: "bottom",
+    },
+    {
+      target: '[data-testid="button-discover"]',
+      content: "Click here to automatically scrape products and generate viral messages!",
+      placement: "top",
+    },
+    {
+      target: '[data-testid="button-add-sheets"]',
+      content: "Connect your Google Sheet ID to automatically log all your campaigns.",
+      placement: "top",
+    }
+  ];
+
+  useEffect(() => {
+    const hasSeenTour = localStorage.getItem("hasSeenTour");
+    const userId = localStorage.getItem("userId");
+    if (userId && !hasSeenTour) {
+      setRunTour(true);
+    }
+  }, []);
+
+  const handleTourFinish = (data: any) => {
+    const { status } = data;
+    if (["finished", "skipped"].includes(status)) {
+      localStorage.setItem("hasSeenTour", "true");
+      setRunTour(false);
+    }
+  };
   const [username, setUsername] = useState("");
   const [affiliateTag, setAffiliateTag] = useState("");
   const [productLimit, setProductLimit] = useState(5);
@@ -589,6 +631,22 @@ export default function Home() {
 
   return (
     <div className="min-h-screen w-full">
+      <Joyride
+        steps={tourSteps}
+        run={runTour}
+        continuous={true}
+        showProgress={true}
+        showSkipButton={true}
+        callback={handleTourFinish}
+        styles={{
+          options: {
+            primaryColor: "#8b5cf6",
+            textColor: "#fff",
+            backgroundColor: "#1f2937",
+            arrowColor: "#1f2937",
+          },
+        }}
+      />
       <div className="container mx-auto px-4 py-6 max-w-6xl">
         <motion.header 
           initial={{ opacity: 0, y: -20 }}
@@ -968,7 +1026,7 @@ export default function Home() {
                     placeholder="yourtag-21"
                     className="h-14 text-lg bg-background/50 border-white/10 placeholder:text-muted-foreground/50"
                     disabled={isLoading}
-                    data-testid="input-affiliate-tag"
+                    data-testid="input-affiliate-tag-tour"
                   />
                   <p className="text-xs text-muted-foreground mt-2">
                     Find your tag at affiliate-program.amazon.in
