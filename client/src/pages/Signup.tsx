@@ -49,7 +49,8 @@ export default function Signup() {
         if (typeof data.error === "string") {
           errorMsg = data.error;
         } else if (Array.isArray(data.error)) {
-          errorMsg = data.error[0]?.message || "Invalid input data";
+          // Flatten Zod error arrays into a single clear message
+          errorMsg = data.error.map((err: any) => err.message).join(", ");
         } else if (data.error && typeof data.error === 'object' && data.error.message) {
           errorMsg = data.error.message;
         }
@@ -129,69 +130,70 @@ export default function Signup() {
           </AnimatePresence>
 
           <form onSubmit={handleSignup} className="space-y-3 relative z-10">
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-300 ml-1">Username</label>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300 ml-1">Username</label>
               <div className="relative group/input">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 group-focus-within/input:text-purple-400 transition-colors">
-                  <User className="w-4 h-4" />
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 group-focus-within/input:text-purple-400 transition-colors">
+                  <User className="w-5 h-5" />
                 </div>
                 <Input
                   value={username}
                   onChange={(e) => setUsername(e.target.value)}
                   placeholder="johndoe"
-                  className="h-11 pl-10 bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-purple-500/50 focus:ring-purple-500/20 rounded-xl transition-all text-sm"
+                  className="h-14 pl-12 bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-purple-500/50 focus:ring-purple-500/20 rounded-2xl transition-all"
                   required
                 />
               </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="text-xs font-medium text-gray-300 ml-1">Email</label>
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-gray-300 ml-1">Email</label>
               <div className="relative group/input">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 group-focus-within/input:text-purple-400 transition-colors">
-                  <Mail className="w-4 h-4" />
+                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 group-focus-within/input:text-purple-400 transition-colors">
+                  <Mail className="w-5 h-5" />
                 </div>
                 <Input
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@company.com"
-                  className="h-11 pl-10 bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-purple-500/50 focus:ring-purple-500/20 rounded-xl transition-all text-sm"
+                  className="h-14 pl-12 bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-purple-500/50 focus:ring-purple-500/20 rounded-2xl transition-all"
                   required
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-300 ml-1">Password</label>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-300 ml-1">Password</label>
                 <div className="relative group/input">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 group-focus-within/input:text-purple-400 transition-colors">
-                    <Lock className="w-4 h-4" />
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 group-focus-within/input:text-purple-400 transition-colors">
+                    <Lock className="w-5 h-5" />
                   </div>
                   <Input
                     type="password"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="h-11 pl-10 bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-purple-500/50 focus:ring-purple-500/20 rounded-xl transition-all text-sm"
+                    className="h-14 pl-12 bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-purple-500/50 focus:ring-purple-500/20 rounded-2xl transition-all"
                     required
                   />
                 </div>
+                <p className="text-[10px] text-gray-500 ml-1">Must include Upper, Lower, Number & Symbol</p>
               </div>
 
-              <div className="space-y-1">
-                <label className="text-xs font-medium text-gray-300 ml-1">Confirm</label>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-gray-300 ml-1">Confirm</label>
                 <div className="relative group/input">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-500 group-focus-within/input:text-purple-400 transition-colors">
-                    <Lock className="w-4 h-4" />
+                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-500 group-focus-within/input:text-purple-400 transition-colors">
+                    <Lock className="w-5 h-5" />
                   </div>
                   <Input
                     type="password"
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="h-11 pl-10 bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-purple-500/50 focus:ring-purple-500/20 rounded-xl transition-all text-sm"
+                    className="h-14 pl-12 bg-white/5 border-white/10 text-white placeholder:text-gray-500 focus:border-purple-500/50 focus:ring-purple-500/20 rounded-2xl transition-all"
                     required
                   />
                 </div>

@@ -46,7 +46,8 @@ export default function Login() {
         if (typeof data.error === "string") {
           errorMsg = data.error;
         } else if (Array.isArray(data.error)) {
-          errorMsg = data.error[0]?.message || "Invalid input data";
+          // Flatten Zod error arrays into a single clear message
+          errorMsg = data.error.map((err: any) => err.message).join(", ");
         } else if (data.error && typeof data.error === 'object' && data.error.message) {
           errorMsg = data.error.message;
         }
