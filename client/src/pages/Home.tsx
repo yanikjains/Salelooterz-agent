@@ -45,12 +45,6 @@ interface DiscoveryResult {
   }>;
 }
 
-import { 
-  Sparkles, ExternalLink, Check, Loader2, FileSpreadsheet, 
-  Zap, Copy, ArrowRight, ShoppingBag, IndianRupee, Star,
-  MessageCircle, Send, LogOut, Smartphone
-} from "lucide-react";
-
 export default function Home() {
   const [, setLocation] = useLocation();
   const [username, setUsername] = useState("");
@@ -181,7 +175,6 @@ export default function Home() {
       return;
     }
 
-    // Extract Sheet ID from full URL if user pasted the entire URL
     let sheetId = tempSheetsId.trim();
     const urlMatch = sheetId.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
     if (urlMatch) {
@@ -190,13 +183,11 @@ export default function Home() {
 
     setSheetsLoading(true);
     try {
-      // Save to localStorage (primary storage - works offline)
       localStorage.setItem("sheetsId", sheetId);
       setSheetsId(sheetId);
       setShowSheetsForm(false);
       toast({ title: "Google Sheet saved successfully!" });
 
-      // Also try to sync with backend (optional - doesn't block if fails)
       const userId = localStorage.getItem("userId");
       if (userId) {
         fetch("/api/user/sheets-id", {
@@ -206,9 +197,7 @@ export default function Home() {
             "x-user-id": userId
           },
           body: JSON.stringify({ sheetsId: sheetId })
-        }).catch(() => {
-          // Silently fail - localStorage backup is already saved
-        });
+        }).catch(() => {});
       }
     } catch (error) {
       toast({
@@ -1071,157 +1060,129 @@ export default function Home() {
             >
               <Card className="glass-card border-emerald-500/30 glow-green overflow-hidden">
                 <CardContent className="p-6">
-                  <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-                    <div className="flex items-center gap-4">
-                      <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center shadow-lg">
-                        <Check className="w-8 h-8 text-white" />
+                  <div className="flex items-center justify-between mb-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
+                        <Check className="w-6 h-6 text-emerald-400" />
                       </div>
                       <div>
-                        <h3 className="font-bold text-2xl text-white">
-                          {discoveryResult.count} Products Scraped!
-                        </h3>
-                        <p className="text-muted-foreground">
-                          Real data from Amazon.in with viral messages
-                        </p>
+                        <h3 className="text-xl font-bold text-white">Results Found!</h3>
+                        <p className="text-sm text-emerald-400/80">Pushed to your Google Sheet</p>
                       </div>
                     </div>
-                    <div className="flex flex-col sm:flex-row gap-3">
-                      {(whatsappChannelUrl || telegramBotToken) && (
-                        <Button
-                          onClick={handleSendAllToChannels}
-                          disabled={isLoading}
-                          className="bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 text-white shadow-lg"
-                          data-testid="button-send-all-channels"
-                        >
-                          <Send className="w-5 h-5 mr-2" />
-                          Send All to Channels
-                        </Button>
-                      )}
+                    <div className="flex items-center gap-3">
                       <Button
-                        onClick={() => window.open(discoveryResult.spreadsheetUrl, '_blank')}
-                        className="bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg"
-                        data-testid="button-open-sheets"
+                        onClick={handleSendAllToChannels}
+                        disabled={isLoading}
+                        className="bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-500/20"
                       >
-                        <FileSpreadsheet className="w-5 h-5 mr-2" />
-                        Open Google Sheet
-                        <ExternalLink className="w-4 h-4 ml-2" />
+                        {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+                        Post All to Channels
                       </Button>
+                      <a 
+                        href={`https://docs.google.com/spreadsheets/d/${sheetsId || discoveryResult.spreadsheetId}`} 
+                        target="_blank" 
+                        rel="noopener noreferrer"
+                      >
+                        <Button variant="outline" className="border-white/10 hover:bg-white/5">
+                          <FileSpreadsheet className="w-4 h-4 mr-2" />
+                          View Spreadsheet
+                        </Button>
+                      </a>
                     </div>
+                  </div>
+
+                  <div className="grid gap-6">
+                    {discoveryResult.results.map((res, idx) => (
+                      <div key={idx} className="p-6 rounded-2xl bg-white/5 border border-white/10 group hover:border-amber-500/30 transition-all duration-300">
+                        <div className="grid md:grid-cols-4 gap-6">
+                          <div className="md:col-span-1">
+                            <div className="relative rounded-xl overflow-hidden aspect-square bg-white flex items-center justify-center">
+                              <img src={res.product.image} alt={res.product.title} className="max-w-full max-h-full object-contain p-2" />
+                              <div className="absolute top-2 right-2">
+                                <Badge className="bg-amber-500 text-black font-bold">-{res.product.discount}</Badge>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="md:col-span-3 space-y-4">
+                            <div>
+                              <h4 className="font-bold text-lg text-white line-clamp-2 mb-1">{res.product.title}</h4>
+                              <div className="flex items-center gap-4">
+                                <span className="text-2xl font-bold text-amber-400">₹{res.product.price}</span>
+                                <span className="text-sm text-muted-foreground line-through">₹{res.product.originalPrice}</span>
+                                <div className="flex items-center gap-1 text-yellow-400 text-sm">
+                                  <Star className="w-4 h-4 fill-current" />
+                                  <span>{res.product.rating}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <Tabs defaultValue="whatsapp" className="w-full">
+                              <TabsList className="grid grid-cols-2 bg-black/40 border border-white/10 rounded-xl p-1">
+                                <TabsTrigger value="whatsapp" className="rounded-lg data-[state=active]:bg-green-500/20 data-[state=active]:text-green-400">
+                                  <MessageCircle className="w-4 h-4 mr-2" />
+                                  WhatsApp
+                                </TabsTrigger>
+                                <TabsTrigger value="telegram" className="rounded-lg data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400">
+                                  <Send className="w-4 h-4 mr-2" />
+                                  Telegram
+                                </TabsTrigger>
+                              </TabsList>
+                              <TabsContent value="whatsapp" className="mt-4">
+                                <div className="relative">
+                                  <div className="absolute top-2 right-2 flex gap-2">
+                                    <Button size="icon" variant="ghost" className="h-8 w-8 text-gray-400 hover:text-green-400" onClick={() => copyToClipboard(res.whatsappMessage, "WhatsApp")}>
+                                      <Copy className="w-4 h-4" />
+                                    </Button>
+                                  </div>
+                                  <pre className="p-4 rounded-xl bg-black/60 border border-white/5 text-xs text-gray-300 whitespace-pre-wrap font-sans min-h-[100px]">
+                                    {res.whatsappMessage}
+                                  </pre>
+                                </div>
+                              </TabsContent>
+                              <TabsContent value="telegram" className="mt-4">
+                                <div className="relative">
+                                  <div className="absolute top-2 right-2 flex gap-2">
+                                    <Button size="icon" variant="ghost" className="h-8 w-8 text-gray-400 hover:text-blue-400" onClick={() => copyToClipboard(res.telegramMessage, "Telegram")}>
+                                      <Copy className="w-4 h-4" />
+                                    </Button>
+                                  </div>
+                                  <pre className="p-4 rounded-xl bg-black/60 border border-white/5 text-xs text-gray-300 whitespace-pre-wrap font-sans min-h-[100px]">
+                                    {res.telegramMessage}
+                                  </pre>
+                                </div>
+                              </TabsContent>
+                            </Tabs>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>
-
-              <div className="grid gap-5 md:grid-cols-2">
-                {discoveryResult.results.map((result, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.08 }}
-                  >
-                    <Card className="overflow-hidden hover:shadow-2xl transition-all duration-300 bg-gradient-to-br from-slate-800 to-slate-900 border-amber-500/20 hover:border-amber-400/40">
-                      <CardContent className="p-0">
-                        <div className="relative group overflow-hidden h-48 bg-black/20">
-                          {result.product.image && (
-                            <img 
-                              src={result.product.image} 
-                              alt={result.product.title}
-                              className="w-full h-full object-contain group-hover:scale-110 transition-transform duration-300 p-4"
-                              onError={(e) => {
-                                (e.target as HTMLImageElement).src = '🛍️';
-                              }}
-                            />
-                          )}
-                          {result.product.discount && (
-                            <div className="absolute top-3 right-3 bg-red-500 text-white px-3 py-1 rounded-full text-sm font-bold shadow-lg">
-                              {result.product.discount}
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="p-5">
-                          <h4 className="font-bold text-white leading-tight line-clamp-2 mb-3 text-base group-hover:text-amber-400 transition-colors">
-                            {result.product.title}
-                          </h4>
-                          
-                          <div className="flex items-end gap-2 mb-3">
-                            <span className="text-2xl font-bold text-amber-400">
-                              {result.product.price}
-                            </span>
-                            {result.product.originalPrice && result.product.originalPrice !== result.product.price && (
-                              <span className="text-sm text-gray-400 line-through">
-                                {result.product.originalPrice}
-                              </span>
-                            )}
-                          </div>
-
-                          {result.product.rating > 0 && (
-                            <div className="flex items-center gap-2 mb-4 pb-4 border-b border-white/10">
-                              <div className="flex items-center gap-1">
-                                <Star className="w-4 h-4 fill-amber-400 text-amber-400" />
-                                <span className="text-sm font-semibold text-white">{result.product.rating}</span>
-                              </div>
-                              {result.product.reviews > 0 && (
-                                <span className="text-xs text-gray-400">({result.product.reviews.toLocaleString('en-IN')} reviews)</span>
-                              )}
-                            </div>
-                          )}
-
-                          <div className="space-y-3">
-                            <button
-                              onClick={() => window.open(`${result.product.url}?tag=${affiliateTag}`, '_blank')}
-                              className="w-full bg-amber-400 hover:bg-amber-500 text-black font-bold py-2 px-4 rounded-lg transition-colors duration-200 flex items-center justify-center gap-2 text-sm"
-                              data-testid={`button-amazon-${index}`}
-                            >
-                              <ExternalLink className="w-4 h-4" />
-                              View on Amazon India
-                            </button>
-                            <button
-                              onClick={() => {
-                                const message = `${result.whatsappMessage} ${result.product.url}?tag=${affiliateTag}`;
-                                const encoded = encodeURIComponent(message);
-                                window.open(`https://wa.me/?text=${encoded}`, '_blank');
-                              }}
-                              className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold py-2 px-4 rounded-lg transition-colors duration-200 text-sm"
-                              data-testid={`button-whatsapp-${index}`}
-                            >
-                              Share on WhatsApp
-                            </button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </motion.div>
-                ))}
-              </div>
             </motion.div>
           )}
         </AnimatePresence>
-
-        <motion.div 
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.4 }}
-          className="text-center py-12"
-        >
-          <div className="inline-flex items-center gap-3 bg-card/40 border border-white/5 rounded-full px-6 py-3 text-sm text-muted-foreground">
-            <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
-            Scrapes real-time data from Amazon.in • Unlimited products • No rate limits
-          </div>
-        </motion.div>
-
-        <motion.footer
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.5 }}
-          className="border-t border-white/5 mt-16 pt-8 text-center text-xs text-muted-foreground space-y-2"
-        >
-          <p>Created by <span className="text-white font-semibold">Yanik Jain</span></p>
-          <p>
-            Contact: <a href="mailto:salelooterz@gmail.com" className="text-amber-400 hover:text-amber-300 transition-colors">salelooterz@gmail.com</a>
-          </p>
-        </motion.footer>
       </div>
+
+      <footer className="w-full max-w-7xl px-6 py-12 border-t border-white/5 relative z-10 flex flex-col items-center gap-8 text-sm text-gray-500 mx-auto mt-20">
+        <div className="flex flex-col md:flex-row items-center justify-center gap-4 text-center w-full">
+          <span>© 2026 Affiliate Bot India</span>
+          <div className="hidden md:block w-1 h-1 rounded-full bg-gray-800" />
+          <span>Built by Yanik Jain</span>
+        </div>
+        <div className="flex items-center justify-center gap-8 w-full">
+          <Link href="/support">
+            <span className="hover:text-white transition-colors cursor-pointer">Support</span>
+          </Link>
+          <Link href="/privacy">
+            <span className="hover:text-white transition-colors cursor-pointer">Privacy</span>
+          </Link>
+          <Link href="/terms">
+            <span className="hover:text-white transition-colors cursor-pointer">Terms</span>
+          </Link>
+        </div>
+      </footer>
     </div>
   );
 }
