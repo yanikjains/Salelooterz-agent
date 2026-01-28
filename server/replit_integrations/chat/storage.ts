@@ -1,6 +1,26 @@
-import { db } from "../../db";
+import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
 import { conversations, messages } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
+
+// Dummy DB object for MemStorage mode
+const dummyDb = {
+  select: () => ({
+    from: (table: any) => ({
+      where: (condition: any) => ({
+        orderBy: (order: any) => []
+      }),
+      orderBy: (order: any) => []
+    })
+  }),
+  insert: (table: any) => ({
+    values: (data: any) => ({
+      returning: () => [data]
+    })
+  }),
+  delete: (table: any) => ({
+    where: (condition: any) => ({})
+  })
+};
 
 export interface IChatStorage {
   getConversation(id: number): Promise<typeof conversations.$inferSelect | undefined>;
@@ -11,33 +31,55 @@ export interface IChatStorage {
   createMessage(conversationId: number, role: string, content: string): Promise<typeof messages.$inferSelect>;
 }
 
-export const chatStorage: IChatStorage = {
+// In-memory implementation for chat
+class ChatMemStorage implements IChatStorage {
+  private conversations: Map<number, typeof conversations.$inferSelect>;
+  private messages: Map<number, typeof messages.$inferSelect>;
+  private convIdCounter: number;
+  private msgIdCounter: number;
+
+  constructor() {
+    this.conversations = new Map();
+    this.messages = new Map();
+    this.convIdCounter = 1;
+    this.msgIdCounter = 1;
+  }
+
   async getConversation(id: number) {
-    const [conversation] = await db.select().from(conversations).where(eq(conversations.id, id));
-    return conversation;
-  },
+    return this.conversations.get(id);
+  }
 
   async getAllConversations() {
-    return db.select().from(conversations).orderBy(desc(conversations.createdAt));
-  },
+    return Array.from(this.conversations.values()).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  }
 
   async createConversation(title: string) {
-    const [conversation] = await db.insert(conversations).values({ title }).returning();
+    const id = this.convIdCounter++;
+    const conversation = { id, title, createdAt: new Date() };
+    this.conversations.set(id, conversation);
     return conversation;
-  },
+  }
 
   async deleteConversation(id: number) {
-    await db.delete(messages).where(eq(messages.conversationId, id));
-    await db.delete(conversations).where(eq(conversations.id, id));
-  },
+    this.conversations.delete(id);
+    const msgIds = Array.from(this.messages.values())
+      .filter(m => m.conversationId === id)
+      .map(m => m.id);
+    msgIds.forEach(mid => this.messages.delete(mid));
+  }
 
   async getMessagesByConversation(conversationId: number) {
-    return db.select().from(messages).where(eq(messages.conversationId, conversationId)).orderBy(messages.createdAt);
-  },
+    return Array.from(this.messages.values())
+      .filter(m => m.conversationId === conversationId)
+      .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+  }
 
   async createMessage(conversationId: number, role: string, content: string) {
-    const [message] = await db.insert(messages).values({ conversationId, role, content }).returning();
+    const id = this.msgIdCounter++;
+    const message = { id, conversationId, role, content, createdAt: new Date() };
+    this.messages.set(id, message);
     return message;
-  },
-};
+  }
+}
 
+export const chatStorage: IChatStorage = new ChatMemStorage();

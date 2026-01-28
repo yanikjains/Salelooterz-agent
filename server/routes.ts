@@ -26,7 +26,7 @@ const discoveryRequestSchema = z.object({
   limit: z.number().min(1).optional().default(5),
 });
 
-const loginSchema = z.object({
+const loginRequestSchema = z.object({
   email: z.string().email("Please enter a valid email"),
   password: z.string().min(1, "Password is required"),
 });
@@ -65,10 +65,20 @@ const resetPasswordSchema = z.object({
     .regex(/[^a-zA-Z0-9]/, "Password must contain a special character"),
 });
 
+import { 
+  users, automations, signupSchema, 
+  insertAutomationSchema, conversations, messages 
+} from "@shared/schema";
+import { registerChatRoutes } from "./replit_integrations/chat";
+import { registerImageRoutes } from "./replit_integrations/image";
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
+  // Register AI integrations
+  registerChatRoutes(app);
+  registerImageRoutes(app);
   
   app.post("/api/auth/signup", async (req, res) => {
     try {
@@ -76,11 +86,9 @@ export async function registerRoutes(
       const existingEmail = await storage.getUserByEmail(email);
       
       if (existingEmail) {
-        // If user exists and has a password, it's a duplicate
         if (existingEmail.password) {
           return res.status(400).json({ error: "Email already registered" });
         }
-        // If user exists but has no password (Google user), update their password
         const bcrypt = await import("bcrypt");
         const hashedPassword = await bcrypt.hash(password, 10);
         const user = await storage.updateUser(existingEmail.id, { 
@@ -90,7 +98,6 @@ export async function registerRoutes(
         return res.json({ userId: user.id, username: user.username, email: user.email, trialEndsAt: user.trialEndsAt });
       }
 
-      // Set 3-day trial for all users
       const trialEndsAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
       const user = await storage.createUser({ username, email, password });
       await storage.updateUser(user.id, { trialEndsAt });
@@ -103,7 +110,7 @@ export async function registerRoutes(
 
   app.post("/api/auth/login", async (req, res) => {
     try {
-      const { email, password } = loginSchema.parse(req.body);
+      const { email, password } = loginRequestSchema.parse(req.body);
       const user = await storage.getUserByEmail(email);
       
       if (!user) {
@@ -121,12 +128,10 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Invalid credentials" });
       }
 
-      // Check if trial expired and user hasn't paid
       const OWNER_EMAILS = ["yaniikjain21@gmail.com", "salelooterz@gmail.com"];
       const isOwner = OWNER_EMAILS.includes(email.toLowerCase());
       
       if (!isOwner && user.trialEndsAt && new Date() > user.trialEndsAt && user.isPaid !== "true") {
-        // Delete expired trial account
         await storage.deleteUser(user.id);
         return res.status(400).json({ 
           error: "Your 3-day free trial has expired. Please sign up again to get another 3 days free!",
@@ -143,11 +148,8 @@ export async function registerRoutes(
   app.post("/api/auth/google", async (req, res) => {
     try {
       const { email, name } = googleAuthSchema.parse(req.body);
-      
-      // Use email as the unique identifier for persistence
       const user = await storage.createOrUpdateUserWithEmail(name || email, email);
 
-      // Add email to marketing sheet for owner outreach
       try {
         await appendToMarketingSheet(email, name);
       } catch (err) {
@@ -175,23 +177,17 @@ export async function registerRoutes(
         return res.status(400).json({ error: "Email not found" });
       }
 
-      // Generate a simple reset code
       const resetCode = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-      
-      // Store reset token (expires in 1 hour)
       await storage.setResetToken(user.id, resetCode, 60 * 60 * 1000);
-
-      // Send reset code via email
       const emailSent = await sendPasswordResetEmail(email, resetCode);
 
       if (emailSent) {
         res.json({ success: true, message: "Password reset code sent to your email. Check your inbox." });
       } else {
-        // Email sending not configured, but token is stored
         res.json({ 
           success: true, 
           message: "Recovery code generated.",
-          resetCode, // Return code only if email service not configured
+          resetCode,
           note: "Email service not configured. Please contact support or use the code shown." 
         });
       }
@@ -204,7 +200,6 @@ export async function registerRoutes(
     try {
       const { resetCode, newPassword } = resetPasswordSchema.parse(req.body);
       const user = await storage.resetPassword(resetCode, newPassword);
-      
       res.json({ userId: user.id, username: user.username, message: "Password reset successfully" });
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : "Failed to reset password" });
@@ -215,14 +210,9 @@ export async function registerRoutes(
     try {
       const { userId } = sheetsSchema.parse(req.body);
       const user = await storage.getUser(userId);
-      
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
+      if (!user) return res.status(404).json({ error: "User not found" });
       const spreadsheetId = await getOrCreateSheet(`Affiliate Bot - ${user.username}`);
       await storage.updateUserSpreadsheet(userId, spreadsheetId);
-      
       res.json({ spreadsheetId, success: true });
     } catch (error) {
       res.status(400).json({ error: error instanceof Error ? error.message : "Connection failed" });
@@ -237,15 +227,10 @@ export async function registerRoutes(
     try {
       const { category, affiliateTag, limit } = discoveryRequestSchema.parse(req.body);
       const userId = req.headers["x-user-id"] as string;
-      
-      if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
       const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
+      if (!user) return res.status(404).json({ error: "User not found" });
 
       const isPaid = user.isPaid === "true";
       const OWNER_USERNAMES = ["Yanik Jain", "yanik"];
@@ -267,8 +252,6 @@ export async function registerRoutes(
 
       if (!isOwner && isPaid) {
         dailyCount = await storage.getDailyProductCount(userId);
-        dailyLimit = 50;
-        
         if (dailyCount >= dailyLimit) {
           return res.status(429).json({
             success: false,
@@ -281,7 +264,7 @@ export async function registerRoutes(
         if (limit && limit > (dailyLimit - dailyCount)) {
           return res.status(429).json({
             success: false,
-            error: `You can only scrape ${dailyLimit - dailyCount} more products today (limit: ${dailyLimit} per day).`,
+            error: `You can only scrape ${dailyLimit - dailyCount} more products today.`,
             dailyCount,
             remaining: dailyLimit - dailyCount
           });
@@ -300,19 +283,17 @@ export async function registerRoutes(
       if (products.length === 0) {
         return res.status(404).json({
           success: false,
-          error: "No products found for this category. Amazon may be rate limiting requests.",
+          error: "No products found for this category.",
         });
       }
 
       let spreadsheetId: string | null = user.spreadsheetId || null;
-      
       const results = [];
       
       for (const product of products) {
         const whatsappMessage = generateWhatsAppMessageFromDiscovered(product, affiliateTag);
         const telegramMessage = generateTelegramMessageFromDiscovered(product, affiliateTag);
         
-        // Try to append to Google Sheets, but don't fail if it errors
         if (spreadsheetId) {
           try {
             await appendToSheet(spreadsheetId, {
@@ -326,8 +307,7 @@ export async function registerRoutes(
               affiliateTag,
             });
           } catch (sheetsError) {
-            console.error('Google Sheets export failed for product:', product.title, sheetsError);
-            // Continue without Sheets - data is saved in database
+            console.error('Sheets export failed:', sheetsError);
           }
         }
         
@@ -375,19 +355,13 @@ export async function registerRoutes(
   app.post("/api/automate", async (req, res) => {
     try {
       const userId = req.headers["x-user-id"] as string;
-      if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
       const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
+      if (!user) return res.status(404).json({ error: "User not found" });
 
       const { url, affiliateTag, spreadsheetId } = automationRequestSchema.parse(req.body);
-      
       const product = await scrapeAmazonProduct(url);
-      
       const whatsappMessage = generateWhatsAppMessage(product, affiliateTag);
       const telegramMessage = generateTelegramMessage(product, affiliateTag);
       
@@ -426,9 +400,7 @@ export async function registerRoutes(
         spreadsheetId: finalSpreadsheetId,
         spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${finalSpreadsheetId}`,
       });
-      
     } catch (error) {
-      console.error('Automation error:', error);
       res.status(400).json({
         success: false,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -439,9 +411,7 @@ export async function registerRoutes(
   app.get("/api/automations", async (req, res) => {
     try {
       const userId = req.headers["x-user-id"] as string;
-      if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
       const automations = await storage.getAutomations(userId, 50);
       const user = await storage.getUser(userId);
@@ -461,28 +431,21 @@ export async function registerRoutes(
         isOwner: !!isOwner
       });
     } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
     }
   });
 
   app.get("/api/user/status", async (req, res) => {
     try {
       const userId = req.headers["x-user-id"] as string;
-      if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
 
       const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
+      if (!user) return res.status(404).json({ error: "User not found" });
 
       const OWNER_EMAILS = ["yaniikjain21@gmail.com", "salelooterz@gmail.com"];
       const isOwner = OWNER_EMAILS.includes(user.email?.toLowerCase() || "");
       const isPaid = user.isPaid === "true";
-      
       const dailyCount = await storage.getDailyProductCount(userId);
       const DAILY_LIMIT = 50;
       
@@ -495,314 +458,134 @@ export async function registerRoutes(
         price: 199900
       });
     } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
     }
   });
 
   app.post("/api/payment/create-order", async (req, res) => {
     try {
       const userId = req.headers["x-user-id"] as string;
-      if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
       const { amount } = req.body;
-      // In production, create order with Razorpay API
-      // For now, return mock order
       const orderId = `order_${Date.now()}`;
-      
       res.json({ 
         orderId,
         razorpayKey: process.env.RAZORPAY_KEY_ID || 'rzp_test_key',
         amount 
       });
     } catch (error) {
-      res.status(400).json({
-        error: error instanceof Error ? error.message : 'Failed to create order',
-      });
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Failed to create order' });
     }
   });
 
   app.post("/api/payment/verify", async (req, res) => {
     try {
       const userId = req.headers["x-user-id"] as string;
-      if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
       const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
+      if (!user) return res.status(404).json({ error: "User not found" });
 
-      // Update subscription to end 30 days from now
       const subscriptionEndsAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
-      user.subscriptionEndsAt = subscriptionEndsAt;
-      user.isPaid = "true";
       await storage.updateUser(userId, { subscriptionEndsAt, isPaid: "true" });
-
-      res.json({ 
-        success: true, 
-        message: "Subscription activated for 30 days",
-        subscriptionEndsAt 
-      });
+      res.json({ success: true, message: "Subscription activated", subscriptionEndsAt });
     } catch (error) {
-      res.status(400).json({
-        error: error instanceof Error ? error.message : 'Verification failed',
-      });
-    }
-  });
-
-  app.get("/api/sheets/status", async (req, res) => {
-    try {
-      const userId = req.headers["x-user-id"] as string;
-      if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      res.json({ connected: !!user.spreadsheetId });
-    } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Verification failed' });
     }
   });
 
   app.get("/api/user/sheets-id", async (req, res) => {
     try {
       const userId = req.headers["x-user-id"] as string;
-      if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
       const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
+      if (!user) return res.status(404).json({ error: "User not found" });
       res.json({ sheetsId: user.spreadsheetId || "" });
     } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
     }
   });
 
   app.post("/api/user/sheets-id", async (req, res) => {
     try {
       const userId = req.headers["x-user-id"] as string;
-      if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
       const { sheetsId } = req.body;
-      if (!sheetsId) {
-        return res.status(400).json({ error: "Sheet ID is required" });
-      }
-
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
+      if (!sheetsId) return res.status(400).json({ error: "Sheet ID is required" });
       await storage.updateUser(userId, { spreadsheetId: sheetsId });
-
       res.json({ success: true, sheetsId });
     } catch (error) {
-      res.status(400).json({
-        error: error instanceof Error ? error.message : 'Failed to save sheet',
-      });
+      res.status(400).json({ error: error instanceof Error ? error.message : 'Failed to save sheet' });
     }
   });
 
   app.get("/api/user/telegram", async (req, res) => {
     try {
       const userId = req.headers["x-user-id"] as string;
-      if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
       const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
+      if (!user) return res.status(404).json({ error: "User not found" });
       res.json({
         telegramBotToken: user.telegramBotToken || "",
         telegramChannelId: user.telegramChannelId || "",
         isConfigured: !!(user.telegramBotToken && user.telegramChannelId)
       });
     } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+      res.status(500).json({ error: error instanceof Error ? error.message : 'Unknown error' });
     }
   });
 
   app.post("/api/user/telegram", async (req, res) => {
     try {
       const userId = req.headers["x-user-id"] as string;
-      if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
       const { telegramBotToken, telegramChannelId } = req.body;
-      if (!telegramBotToken || !telegramChannelId) {
-        return res.status(400).json({ error: "Bot token and channel ID are required" });
-      }
-
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
+      if (!telegramBotToken || !telegramChannelId) return res.status(400).json({ error: "Fields required" });
       await storage.updateUser(userId, { telegramBotToken, telegramChannelId });
-
-      res.json({ success: true, message: "Telegram configured successfully" });
+      res.json({ success: true });
     } catch (error) {
-      res.status(400).json({
-        error: error instanceof Error ? error.message : 'Failed to save Telegram config',
-      });
+      res.status(400).json({ error: "Failed to save Telegram config" });
     }
   });
 
   app.get("/api/user/whatsapp", async (req, res) => {
     try {
       const userId = req.headers["x-user-id"] as string;
-      if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
       const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      res.json({
-        whatsappChannelUrl: user.whatsappChannelUrl || "",
-        isConfigured: !!user.whatsappChannelUrl
-      });
+      if (!user) return res.status(404).json({ error: "User not found" });
+      res.json({ whatsappChannelUrl: user.whatsappChannelUrl || "" });
     } catch (error) {
-      res.status(500).json({
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+      res.status(500).json({ error: "Failed to get WhatsApp config" });
     }
   });
 
   app.post("/api/user/whatsapp", async (req, res) => {
     try {
       const userId = req.headers["x-user-id"] as string;
-      if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-
+      if (!userId) return res.status(401).json({ error: "Unauthorized" });
       const { whatsappChannelUrl } = req.body;
-      if (!whatsappChannelUrl) {
-        return res.status(400).json({ error: "WhatsApp channel URL is required" });
-      }
-
-      const user = await storage.getUser(userId);
-      if (!user) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      console.log(`Updating WhatsApp config for user ${userId}:`, whatsappChannelUrl);
       await storage.updateUser(userId, { whatsappChannelUrl });
-
-      res.json({ success: true, message: "WhatsApp configured successfully" });
+      res.json({ success: true });
     } catch (error) {
-      console.error('WhatsApp config save error:', error);
-      res.status(400).json({
-        error: error instanceof Error ? error.message : 'Failed to save WhatsApp config',
-      });
+      res.status(400).json({ error: "Failed to save WhatsApp config" });
     }
   });
 
   app.post("/api/send-bulk-messages", async (req, res) => {
     try {
-      const userId = req.headers["x-user-id"] as string;
-      if (!userId) {
-        return res.status(401).json({ error: "Unauthorized" });
-      }
-
       const { products, whatsappChannelUrl, telegramBotToken, telegramChannelId } = req.body;
-
       let sentCount = 0;
-
-      // Send to Telegram if configured
-      if (telegramBotToken && telegramChannelId) {
-        for (const product of products) {
-          const success = await sendTelegramMessage(telegramBotToken, telegramChannelId, product.telegramMessage);
-          if (success) sentCount++;
+      for (const item of products) {
+        if (telegramBotToken && telegramChannelId) {
+          try {
+            await sendTelegramMessage(telegramBotToken, telegramChannelId, item.telegramMessage);
+            sentCount++;
+          } catch (e) { console.error("Telegram send failed", e); }
         }
       }
-
-      // Send to WhatsApp if configured (open channel URL for each message)
-      // Note: WhatsApp doesn't have a direct API for channels without Business API
-      // This opens the channel link - manual sharing needed or use WhatsApp Business API
-
-      res.json({ success: true, sentCount, message: "Messages sent to configured channels" });
+      res.json({ success: true, sentCount });
     } catch (error) {
-      res.status(400).json({
-        success: false,
-        error: error instanceof Error ? error.message : 'Failed to send messages',
-      });
-    }
-  });
-
-  app.post("/api/auth/google-callback", async (req, res) => {
-    try {
-      const { token } = req.body;
-      if (!token) {
-        return res.status(400).json({ error: "Token is required" });
-      }
-
-      const jwt = require("jsonwebtoken");
-      let decoded;
-      
-      try {
-        const base64Url = token.split(".")[1];
-        const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
-        const jsonPayload = decodeURIComponent(
-          atob(base64)
-            .split("")
-            .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
-            .join("")
-        );
-        decoded = JSON.parse(jsonPayload);
-      } catch (err) {
-        return res.status(400).json({ error: "Invalid token" });
-      }
-
-      const { email, name } = decoded;
-      if (!email) {
-        return res.status(400).json({ error: "Email not found in token" });
-      }
-
-      let user = await storage.getUserByEmail(email);
-      
-      if (!user) {
-        const trialEndsAt = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
-        user = await storage.createOrUpdateUserWithEmail(email, email);
-        await storage.updateUser(user.id, { trialEndsAt });
-      }
-
-      try {
-        await appendToMarketingSheet(email, name || email);
-      } catch (err) {
-        console.error("Failed to add to marketing sheet:", err);
-      }
-
-      res.json({ userId: user.id, username: user.username || email, email: user.email });
-    } catch (error) {
-      res.status(400).json({ error: error instanceof Error ? error.message : "Google login failed" });
+      res.status(500).json({ success: false, error: "Bulk send failed" });
     }
   });
 

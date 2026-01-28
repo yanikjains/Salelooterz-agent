@@ -12,7 +12,7 @@ import { GoogleLogin } from "@react-oauth/google";
 import { 
   Sparkles, ExternalLink, Check, Loader2, FileSpreadsheet, 
   Zap, Copy, ArrowRight, ShoppingBag, IndianRupee, Star,
-  MessageCircle, Send, LogOut, Smartphone
+  MessageCircle, Send, LogOut, Smartphone, Bot
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
@@ -69,6 +69,7 @@ export default function Home() {
   const [selectedCategory, setSelectedCategory] = useState<string>("electronics");
   const [discoveryResult, setDiscoveryResult] = useState<DiscoveryResult | null>(null);
   const [weeklyStats, setWeeklyStats] = useState({ weeklyCount: 0, remaining: 50, weeklyLimit: 50 });
+  const [showAIChat, setShowAIChat] = useState(false);
 
   const handleGoogleSuccess = async (credentialResponse: any) => {
     try {
@@ -600,6 +601,14 @@ export default function Home() {
             </div>
           </div>
           <div className="flex items-center gap-4">
+            <Button
+              onClick={() => setShowAIChat(!showAIChat)}
+              className="bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-500/20"
+              data-testid="button-toggle-ai-chat"
+            >
+              <Bot className="w-4 h-4 mr-2" />
+              AI Assistant
+            </Button>
             {username && (
               <div className="text-right">
                 <p className="text-sm text-white">Welcome, <span className="font-semibold">{username}</span></p>
@@ -1183,6 +1192,17 @@ export default function Home() {
           </Link>
         </div>
       </footer>
+
+      {/* AI Chat Widget */}
+      {showAIChat && (
+        <div className="fixed bottom-6 right-6 w-[400px] h-[600px] z-50 shadow-2xl rounded-2xl overflow-hidden border border-white/10 bg-black/90 backdrop-blur-xl">
+          <iframe 
+            src="/chat" 
+            className="w-full h-full border-none"
+            title="AI Assistant"
+          />
+        </div>
+      )}
     </div>
   );
 }
