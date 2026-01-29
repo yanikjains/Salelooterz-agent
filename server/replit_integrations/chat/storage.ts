@@ -2,26 +2,6 @@ import { pgTable, text, serial, timestamp, integer } from "drizzle-orm/pg-core";
 import { conversations, messages } from "@shared/schema";
 import { eq, desc } from "drizzle-orm";
 
-// Dummy DB object for MemStorage mode
-const dummyDb = {
-  select: () => ({
-    from: (table: any) => ({
-      where: (condition: any) => ({
-        orderBy: (order: any) => []
-      }),
-      orderBy: (order: any) => []
-    })
-  }),
-  insert: (table: any) => ({
-    values: (data: any) => ({
-      returning: () => [data]
-    })
-  }),
-  delete: (table: any) => ({
-    where: (condition: any) => ({})
-  })
-};
-
 export interface IChatStorage {
   getConversation(id: number): Promise<typeof conversations.$inferSelect | undefined>;
   getAllConversations(): Promise<(typeof conversations.$inferSelect)[]>;
@@ -31,7 +11,7 @@ export interface IChatStorage {
   createMessage(conversationId: number, role: string, content: string): Promise<typeof messages.$inferSelect>;
 }
 
-// In-memory implementation for chat
+// In-memory implementation for chat to avoid Neon endpoint disabled error
 class ChatMemStorage implements IChatStorage {
   private conversations: Map<number, typeof conversations.$inferSelect>;
   private messages: Map<number, typeof messages.$inferSelect>;

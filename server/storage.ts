@@ -54,7 +54,6 @@ export class MemStorage implements IStorage {
     const now = new Date();
     const subscriptionEndsAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
     
-    // Hash password if provided
     let hashedPassword: string | null = null;
     if (insertUser.password) {
       const bcrypt = await import("bcrypt");
@@ -90,8 +89,6 @@ export class MemStorage implements IStorage {
     let user = Array.from(this.users.values()).find(u => u.email === email);
     
     if (user) {
-      console.log(`Storage: Found existing user by email ${email}, updating...`);
-      // Preserve existing data but update email if it was different
       user.email = email;
       this.users.set(user.id, user);
       return user;
@@ -99,7 +96,6 @@ export class MemStorage implements IStorage {
 
     const id = randomUUID();
     const now = new Date();
-    // 3-day trial for new users
     const trialEndsAt = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
     
     const newUser: User = {
@@ -124,7 +120,6 @@ export class MemStorage implements IStorage {
       createdAt: now,
     };
     this.users.set(id, newUser);
-    console.log(`Storage: Created new Google/Email user ${id}`);
     return newUser;
   }
 
@@ -138,13 +133,9 @@ export class MemStorage implements IStorage {
 
   async updateUser(userId: string, updates: Partial<User>): Promise<User> {
     const user = this.users.get(userId);
-    if (!user) {
-      console.error(`Storage: User ${userId} not found during update`);
-      throw new Error('User not found');
-    }
+    if (!user) throw new Error('User not found');
     const updatedUser: User = { ...user, ...updates };
     this.users.set(userId, updatedUser);
-    console.log(`Storage: Updated user ${userId}`, updates);
     return updatedUser;
   }
 
@@ -177,22 +168,18 @@ export class MemStorage implements IStorage {
   async getWeeklyProductCount(userId: string): Promise<number> {
     const now = new Date();
     const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    
     const userAutomations = Array.from(this.automations.values()).filter(
       a => a.userId === userId && a.createdAt >= weekAgo
     );
-    
     return userAutomations.length;
   }
 
   async getDailyProductCount(userId: string): Promise<number> {
     const now = new Date();
     const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    
     const userAutomations = Array.from(this.automations.values()).filter(
       a => a.userId === userId && a.createdAt >= today
     );
-    
     return userAutomations.length;
   }
 
@@ -223,10 +210,8 @@ export class MemStorage implements IStorage {
   async resetPassword(resetToken: string, newPassword: string): Promise<User> {
     const user = await this.getUserByResetToken(resetToken);
     if (!user) throw new Error('Invalid or expired reset token');
-    
     const bcrypt = await import("bcrypt");
     const hashedPassword = await bcrypt.hash(newPassword, 10);
-    
     user.password = hashedPassword;
     user.resetToken = null;
     user.resetTokenExpiry = null;
