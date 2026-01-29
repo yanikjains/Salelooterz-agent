@@ -44,10 +44,18 @@ export default function Login() {
       } else {
         let errorMsg = "Invalid credentials. Please try again.";
         if (typeof data.error === "string") {
-          errorMsg = data.error;
+          try {
+            const parsed = JSON.parse(data.error);
+            if (Array.isArray(parsed)) {
+              errorMsg = parsed[0]?.message || "Invalid input data";
+            } else {
+              errorMsg = data.error;
+            }
+          } catch (e) {
+            errorMsg = data.error;
+          }
         } else if (Array.isArray(data.error)) {
-          // Flatten Zod error arrays into a single clear message
-          errorMsg = data.error.map((err: any) => err.message).join(", ");
+          errorMsg = data.error[0]?.message || "Invalid input data";
         } else if (data.error && typeof data.error === 'object' && data.error.message) {
           errorMsg = data.error.message;
         }

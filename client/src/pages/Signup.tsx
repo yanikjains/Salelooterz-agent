@@ -44,13 +44,22 @@ export default function Signup() {
         setLocation("/");
         toast({ title: "Account created successfully! Welcome!" });
       } else {
-        // Handle Zod validation error arrays or string errors
-        let errorMsg = "Signup failed";
+        // Simple English error messages
+        let errorMsg = "Signup failed. Please check your details.";
         if (typeof data.error === "string") {
-          errorMsg = data.error;
+          try {
+            // Try to parse if it's a stringified JSON array from backend
+            const parsed = JSON.parse(data.error);
+            if (Array.isArray(parsed)) {
+              errorMsg = parsed[0]?.message || "Invalid input data";
+            } else {
+              errorMsg = data.error;
+            }
+          } catch (e) {
+            errorMsg = data.error;
+          }
         } else if (Array.isArray(data.error)) {
-          // Flatten Zod error arrays into a single clear message
-          errorMsg = data.error.map((err: any) => err.message).join(", ");
+          errorMsg = data.error[0]?.message || "Invalid input data";
         } else if (data.error && typeof data.error === 'object' && data.error.message) {
           errorMsg = data.error.message;
         }
