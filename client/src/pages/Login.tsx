@@ -229,14 +229,14 @@ export default function Login() {
             </div>
 
             <div className="flex justify-center" data-testid="button-google-login">
-              <div className="scale-110 hover:opacity-90 transition-opacity">
-                <GoogleLogin
-                  onSuccess={handleGoogleSuccess}
-                  onError={() => setError("Google login failed")}
-                  theme="filled_black"
-                  shape="pill"
-                />
-              </div>
+              <Button
+                type="button"
+                onClick={() => window.location.href = "/api/login"}
+                className="w-full h-14 bg-white text-black hover:bg-gray-100 font-bold rounded-2xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-3"
+              >
+                <img src="https://www.google.com/favicon.ico" className="w-5 h-5" alt="Google" />
+                <span>Continue with Google</span>
+              </Button>
             </div>
           </form>
         </motion.div>

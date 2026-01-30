@@ -45,7 +45,11 @@ interface DiscoveryResult {
   }>;
 }
 
+import { useAuth } from "@/hooks/use-auth";
+
 export default function Home() {
+  const { user } = useAuth();
+  const userId = user?.id;
   const [, setLocation] = useLocation();
   const [username, setUsername] = useState("");
   const [affiliateTag, setAffiliateTag] = useState("");
@@ -96,11 +100,10 @@ export default function Home() {
   };
 
   useEffect(() => {
-    const userId = localStorage.getItem("userId");
     const storedUsername = localStorage.getItem("username");
     
     if (userId) {
-      setUsername(storedUsername || "");
+      setUsername(storedUsername || (user as any)?.firstName || "");
       
       Promise.all([
         fetch("/api/categories")
@@ -111,16 +114,16 @@ export default function Home() {
               ...data.categories
             ]);
           }),
-        fetch("/api/user/weekly-stats", {
-          headers: { "x-user-id": userId }
-        })
+        fetch("/api/automations")
           .then(res => res.json())
           .then(data => {
-            setWeeklyStats(data);
+            setWeeklyStats({
+              weeklyCount: data.dailyCount,
+              remaining: data.remaining,
+              weeklyLimit: data.dailyLimit
+            });
           }),
-        fetch("/api/user/sheets-id", {
-          headers: { "x-user-id": userId }
-        })
+        fetch("/api/user/sheets-id")
           .then(async res => {
             if (res.status === 404) return null;
             return res.json();
@@ -129,9 +132,7 @@ export default function Home() {
             if (data) setSheetsId(data.sheetsId || "");
           })
           .catch(() => setSheetsId("")),
-        fetch("/api/user/telegram", {
-          headers: { "x-user-id": userId }
-        })
+        fetch("/api/user/telegram")
           .then(async res => {
             if (res.status === 404) return null;
             return res.json();
@@ -146,9 +147,7 @@ export default function Home() {
             setTelegramBotToken("");
             setTelegramChannelId("");
           }),
-        fetch("/api/user/whatsapp", {
-          headers: { "x-user-id": userId }
-        })
+        fetch("/api/user/whatsapp")
           .then(async res => {
             if (res.status === 404) {
               handleLogout();
@@ -164,7 +163,7 @@ export default function Home() {
           })
       ]).catch(console.error);
     }
-  }, [setLocation]);
+  }, [userId, user]);
 
   const handleSaveSheets = async () => {
     if (!tempSheetsId.trim()) {
@@ -212,10 +211,7 @@ export default function Home() {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem("userId");
-    localStorage.removeItem("username");
-    setLocation("/login");
-    toast({ title: "Logged out successfully" });
+    window.location.href = "/api/logout";
   };
 
   const handleDiscover = async () => {

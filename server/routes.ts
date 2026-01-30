@@ -72,14 +72,14 @@ import {
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { registerImageRoutes } from "./replit_integrations/image";
 
+import { setupAuth, registerAuthRoutes, isAuthenticated } from "./replit_integrations/auth";
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  // Register AI integrations
-  registerChatRoutes(app);
-  registerImageRoutes(app);
-  
+  // Authentication is handled by Replit Auth integration
+  // but we keep existing API structure where needed
   app.post("/api/auth/signup", async (req, res) => {
     try {
       const { username, email, password } = signupSchemaServer.parse(req.body);
@@ -223,11 +223,10 @@ export async function registerRoutes(
     res.json({ categories });
   });
 
-  app.post("/api/discover", async (req, res) => {
+  app.post("/api/discover", isAuthenticated, async (req, res) => {
     try {
       const { category, affiliateTag, limit } = discoveryRequestSchema.parse(req.body);
-      const userId = req.headers["x-user-id"] as string;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = (req.user as any).claims.sub;
 
       const user = await storage.getUser(userId);
       if (!user) return res.status(404).json({ error: "User not found" });
@@ -352,10 +351,9 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/automate", async (req, res) => {
+  app.post("/api/automate", isAuthenticated, async (req, res) => {
     try {
-      const userId = req.headers["x-user-id"] as string;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = (req.user as any).claims.sub;
 
       const user = await storage.getUser(userId);
       if (!user) return res.status(404).json({ error: "User not found" });
@@ -408,10 +406,9 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/automations", async (req, res) => {
+  app.get("/api/automations", isAuthenticated, async (req, res) => {
     try {
-      const userId = req.headers["x-user-id"] as string;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = (req.user as any).claims.sub;
 
       const automations = await storage.getAutomations(userId, 50);
       const user = await storage.getUser(userId);
@@ -435,10 +432,9 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/user/status", async (req, res) => {
+  app.get("/api/user/status", isAuthenticated, async (req, res) => {
     try {
-      const userId = req.headers["x-user-id"] as string;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = (req.user as any).claims.sub;
 
       const user = await storage.getUser(userId);
       if (!user) return res.status(404).json({ error: "User not found" });
@@ -462,10 +458,9 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/payment/create-order", async (req, res) => {
+  app.post("/api/payment/create-order", isAuthenticated, async (req, res) => {
     try {
-      const userId = req.headers["x-user-id"] as string;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = (req.user as any).claims.sub;
       const { amount } = req.body;
       const orderId = `order_${Date.now()}`;
       res.json({ 
@@ -478,10 +473,9 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/payment/verify", async (req, res) => {
+  app.post("/api/payment/verify", isAuthenticated, async (req, res) => {
     try {
-      const userId = req.headers["x-user-id"] as string;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = (req.user as any).claims.sub;
       const user = await storage.getUser(userId);
       if (!user) return res.status(404).json({ error: "User not found" });
 
@@ -493,10 +487,9 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/user/sheets-id", async (req, res) => {
+  app.get("/api/user/sheets-id", isAuthenticated, async (req, res) => {
     try {
-      const userId = req.headers["x-user-id"] as string;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = (req.user as any).claims.sub;
       const user = await storage.getUser(userId);
       if (!user) return res.status(404).json({ error: "User not found" });
       res.json({ sheetsId: user.spreadsheetId || "" });
@@ -505,10 +498,9 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/user/sheets-id", async (req, res) => {
+  app.post("/api/user/sheets-id", isAuthenticated, async (req, res) => {
     try {
-      const userId = req.headers["x-user-id"] as string;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = (req.user as any).claims.sub;
       const { sheetsId } = req.body;
       if (!sheetsId) return res.status(400).json({ error: "Sheet ID is required" });
       await storage.updateUser(userId, { spreadsheetId: sheetsId });
@@ -518,10 +510,9 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/user/telegram", async (req, res) => {
+  app.get("/api/user/telegram", isAuthenticated, async (req, res) => {
     try {
-      const userId = req.headers["x-user-id"] as string;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = (req.user as any).claims.sub;
       const user = await storage.getUser(userId);
       if (!user) return res.status(404).json({ error: "User not found" });
       res.json({
@@ -534,10 +525,9 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/user/telegram", async (req, res) => {
+  app.post("/api/user/telegram", isAuthenticated, async (req, res) => {
     try {
-      const userId = req.headers["x-user-id"] as string;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = (req.user as any).claims.sub;
       const { telegramBotToken, telegramChannelId } = req.body;
       if (!telegramBotToken || !telegramChannelId) return res.status(400).json({ error: "Fields required" });
       await storage.updateUser(userId, { telegramBotToken, telegramChannelId });
@@ -547,10 +537,9 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/user/whatsapp", async (req, res) => {
+  app.get("/api/user/whatsapp", isAuthenticated, async (req, res) => {
     try {
-      const userId = req.headers["x-user-id"] as string;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = (req.user as any).claims.sub;
       const user = await storage.getUser(userId);
       if (!user) return res.status(404).json({ error: "User not found" });
       res.json({ whatsappChannelUrl: user.whatsappChannelUrl || "" });
@@ -559,10 +548,9 @@ export async function registerRoutes(
     }
   });
 
-  app.post("/api/user/whatsapp", async (req, res) => {
+  app.post("/api/user/whatsapp", isAuthenticated, async (req, res) => {
     try {
-      const userId = req.headers["x-user-id"] as string;
-      if (!userId) return res.status(401).json({ error: "Unauthorized" });
+      const userId = (req.user as any).claims.sub;
       const { whatsappChannelUrl } = req.body;
       await storage.updateUser(userId, { whatsappChannelUrl });
       res.json({ success: true });
