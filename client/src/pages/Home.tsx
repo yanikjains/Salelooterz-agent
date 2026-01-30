@@ -442,7 +442,6 @@ export default function Home() {
     toast({ title: `${type} message copied!` });
   };
 
-  const userId = typeof window !== "undefined" ? localStorage.getItem("userId") : null;
 
   if (!userId) {
     return (
