@@ -73,6 +73,8 @@ export const messages = pgTable("messages", {
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 
+export * from "./models/auth";
+
 export const automations = pgTable("automations", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull(),
