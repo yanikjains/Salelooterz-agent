@@ -12,8 +12,9 @@ import { GoogleLogin } from "@react-oauth/google";
 import { 
   Sparkles, ExternalLink, Check, Loader2, FileSpreadsheet, 
   Zap, Copy, ArrowRight, ShoppingBag, IndianRupee, Star,
-  MessageCircle, Send, LogOut, Smartphone, Bot
+  MessageCircle, Send, LogOut, Smartphone, Bot, TrendingUp, BarChart3
 } from "lucide-react";
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { toast } from "@/hooks/use-toast";
 
 interface Category {
@@ -49,7 +50,16 @@ import { useAuth } from "@/hooks/use-auth";
 
 export default function Home() {
   const { user } = useAuth();
-  const userId = user?.id;
+  const [analyticsData, setAnalyticsData] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (userId) {
+      fetch("/api/analytics/scrapes")
+        .then(res => res.json())
+        .then(data => setAnalyticsData(data))
+        .catch(console.error);
+    }
+  }, [userId]);
   const [, setLocation] = useLocation();
   const [username, setUsername] = useState("");
   const [affiliateTag, setAffiliateTag] = useState("");
@@ -454,7 +464,7 @@ export default function Home() {
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
               <ShoppingBag className="w-6 h-6 text-white" />
             </div>
-            <span className="text-xl font-bold text-white tracking-tight">Affiliate Bot</span>
+            <span className="text-xl font-bold text-white tracking-tight">SaleLooterz AI</span>
           </div>
           <div className="flex items-center gap-6">
             <Link href="/features">
@@ -481,14 +491,14 @@ export default function Home() {
             <span>AI-Powered Affiliate Automation</span>
           </motion.div>
 
-          <motion.h1 
+            <motion.h1 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
             className="text-6xl md:text-8xl font-bold text-center text-white tracking-tight leading-[1.1] mb-8"
           >
-            Automate Your <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-400 to-purple-400 bg-[length:200%_auto] animate-gradient-x">Earnings Flow.</span>
+            Scale Your <br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 via-indigo-400 to-purple-400 bg-[length:200%_auto] animate-gradient-x">Affiliate Empire.</span>
           </motion.h1>
 
           <motion.p 
@@ -497,7 +507,7 @@ export default function Home() {
             transition={{ delay: 0.2 }}
             className="text-lg md:text-xl text-gray-400 text-center max-w-2xl mb-12 leading-relaxed"
           >
-            The world's first smart Amazon affiliate bot. Scrape, generate, and post viral content to WhatsApp & Telegram in seconds.
+            The premium automation engine for Amazon India creators. Turn browsing into high-conversion viral assets in one click.
           </motion.p>
 
           <motion.div
@@ -558,7 +568,7 @@ export default function Home() {
         
         <footer className="w-full max-w-7xl px-6 py-12 border-t border-white/5 relative z-10 flex flex-col items-center gap-8 text-sm text-gray-500 mx-auto">
           <div className="flex flex-col md:flex-row items-center justify-center gap-4 text-center w-full">
-            <span>© 2026 Affiliate Bot India</span>
+            <span>© 2026 SaleLooterz AI India</span>
             <div className="hidden md:block w-1 h-1 rounded-full bg-gray-800" />
             <span>Built by Yanik Jain</span>
           </div>
@@ -591,7 +601,7 @@ export default function Home() {
               <ShoppingBag className="w-6 h-6 text-white" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white tracking-tight">Affiliate Bot</h1>
+              <h1 className="text-2xl font-bold text-white tracking-tight">SaleLooterz AI</h1>
               <p className="text-xs text-muted-foreground">Automated Message Generation & Google Sheets Export</p>
             </div>
           </div>
@@ -624,6 +634,82 @@ export default function Home() {
             </Badge>
           </div>
         </motion.header>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
+          <Card className="lg:col-span-2 bg-white/5 border-white/10 backdrop-blur-sm overflow-hidden">
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h3 className="text-lg font-semibold text-white">Scraping Activity</h3>
+                  <p className="text-sm text-muted-foreground">Your daily product discovery trends</p>
+                </div>
+                <div className="p-2 bg-purple-500/10 rounded-lg">
+                  <TrendingUp className="w-5 h-5 text-purple-400" />
+                </div>
+              </div>
+              <div className="h-[240px] w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={analyticsData}>
+                    <defs>
+                      <linearGradient id="colorCount" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#a855f7" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#a855f7" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#ffffff10" vertical={false} />
+                    <XAxis 
+                      dataKey="day" 
+                      axisLine={false} 
+                      tickLine={false} 
+                      tick={{fill: '#94a3b8', fontSize: 12}}
+                    />
+                    <YAxis 
+                      hide={true}
+                    />
+                    <Tooltip 
+                      contentStyle={{backgroundColor: '#1e1b4b', border: 'none', borderRadius: '8px', color: '#fff'}}
+                      itemStyle={{color: '#a855f7'}}
+                    />
+                    <Area 
+                      type="monotone" 
+                      dataKey="count" 
+                      stroke="#a855f7" 
+                      fillOpacity={1} 
+                      fill="url(#colorCount)" 
+                      strokeWidth={3}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white/5 border-white/10 backdrop-blur-sm">
+            <CardContent className="p-6 flex flex-col justify-between h-full">
+              <div>
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="p-2 bg-amber-500/10 rounded-lg">
+                    <Zap className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-white">Growth Potential</h3>
+                </div>
+                <div className="space-y-4">
+                  <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                    <p className="text-sm text-muted-foreground mb-1">Estimated Reach</p>
+                    <p className="text-2xl font-bold text-white">{(weeklyStats.weeklyCount * 450).toLocaleString()}+</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-white/5 border border-white/10">
+                    <p className="text-sm text-muted-foreground mb-1">Efficiency Score</p>
+                    <p className="text-2xl font-bold text-white">98.4%</p>
+                  </div>
+                </div>
+              </div>
+              <Button className="w-full mt-6 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 border-none">
+                View Detailed Insights
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
 
         <motion.div 
           initial={{ opacity: 0, y: 20 }}

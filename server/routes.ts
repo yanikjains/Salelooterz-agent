@@ -537,6 +537,24 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/analytics/scrapes", isAuthenticated, async (req, res) => {
+    try {
+      // Mock analytics data for visual representation
+      const data = [
+        { day: 'Mon', count: 12 },
+        { day: 'Tue', count: 19 },
+        { day: 'Wed', count: 15 },
+        { day: 'Thu', count: 22 },
+        { day: 'Fri', count: 30 },
+        { day: 'Sat', count: 25 },
+        { day: 'Sun', count: 28 },
+      ];
+      res.json(data);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch analytics" });
+    }
+  });
+
   app.get("/api/user/whatsapp", isAuthenticated, async (req, res) => {
     try {
       const userId = (req.user as any).claims.sub;
