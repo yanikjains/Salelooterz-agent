@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, Tooltip, CartesianGrid } from 'recharts';
 import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/use-auth";
 
 interface Category {
   id: string;
@@ -46,20 +47,10 @@ interface DiscoveryResult {
   }>;
 }
 
-import { useAuth } from "@/hooks/use-auth";
-
 export default function Home() {
   const { user } = useAuth();
+  const userId = user?.id;
   const [analyticsData, setAnalyticsData] = useState<any[]>([]);
-
-  useEffect(() => {
-    if (userId) {
-      fetch("/api/analytics/scrapes")
-        .then(res => res.json())
-        .then(data => setAnalyticsData(data))
-        .catch(console.error);
-    }
-  }, [userId]);
   const [, setLocation] = useLocation();
   const [username, setUsername] = useState("");
   const [affiliateTag, setAffiliateTag] = useState("");
@@ -85,28 +76,13 @@ export default function Home() {
   const [weeklyStats, setWeeklyStats] = useState({ weeklyCount: 0, remaining: 50, weeklyLimit: 50 });
   const [showAIChat, setShowAIChat] = useState(false);
 
-  const handleGoogleSuccess = async (credentialResponse: any) => {
-    try {
-      const response = await fetch("/api/auth/google-callback", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ token: credentialResponse.credential }),
-      });
-
-      const data = await response.json();
-
-      if (data.success) {
-        localStorage.setItem("userId", data.userId);
-        localStorage.setItem("username", data.username);
-        setUsername(data.username);
-        toast({ title: "Login successful!" });
-        window.location.reload();
-      } else {
-        toast({ title: "Login failed", description: data.error, variant: "destructive" });
-      }
-    } catch (error) {
-      toast({ title: "Login failed", description: "Please try again", variant: "destructive" });
+  const fetchWithAuth = async (url: string) => {
+    const res = await fetch(url);
+    if (res.status === 401) {
+      window.location.href = "/api/login";
+      return null;
     }
+    return res;
   };
 
   useEffect(() => {
@@ -116,35 +92,39 @@ export default function Home() {
       setUsername(storedUsername || (user as any)?.firstName || "");
       
       Promise.all([
-        fetch("/api/categories")
-          .then(res => res.json())
+        fetchWithAuth("/api/categories")
+          .then(res => res?.json())
           .then(data => {
-            setCategories([
-              { id: "hot", name: "Hot Deals", icon: "🔥", description: "Today's Best" },
-              ...data.categories
-            ]);
+            if (data) {
+              setCategories([
+                { id: "hot", name: "Hot Deals", icon: "🔥", description: "Today's Best" },
+                ...data.categories
+              ]);
+            }
           }),
-        fetch("/api/automations")
-          .then(res => res.json())
+        fetchWithAuth("/api/automations")
+          .then(res => res?.json())
           .then(data => {
-            setWeeklyStats({
-              weeklyCount: data.dailyCount,
-              remaining: data.remaining,
-              weeklyLimit: data.dailyLimit
-            });
+            if (data) {
+              setWeeklyStats({
+                weeklyCount: data.dailyCount,
+                remaining: data.remaining,
+                weeklyLimit: data.dailyLimit
+              });
+            }
           }),
-        fetch("/api/user/sheets-id")
+        fetchWithAuth("/api/user/sheets-id")
           .then(async res => {
-            if (res.status === 404) return null;
+            if (!res || res.status === 404) return null;
             return res.json();
           })
           .then(data => {
             if (data) setSheetsId(data.sheetsId || "");
           })
           .catch(() => setSheetsId("")),
-        fetch("/api/user/telegram")
+        fetchWithAuth("/api/user/telegram")
           .then(async res => {
-            if (res.status === 404) return null;
+            if (!res || res.status === 404) return null;
             return res.json();
           })
           .then(data => {
@@ -157,12 +137,9 @@ export default function Home() {
             setTelegramBotToken("");
             setTelegramChannelId("");
           }),
-        fetch("/api/user/whatsapp")
+        fetchWithAuth("/api/user/whatsapp")
           .then(async res => {
-            if (res.status === 404) {
-              handleLogout();
-              return;
-            }
+            if (!res || res.status === 404) return null;
             return res.json();
           })
           .then(data => {
@@ -170,7 +147,13 @@ export default function Home() {
           })
           .catch(() => {
             setWhatsappChannelUrl("");
+          }),
+        fetchWithAuth("/api/analytics/scrapes")
+          .then(res => res?.json())
+          .then(data => {
+            if (data) setAnalyticsData(data);
           })
+          .catch(console.error)
       ]).catch(console.error);
     }
   }, [userId, user]);
@@ -198,17 +181,13 @@ export default function Home() {
       setShowSheetsForm(false);
       toast({ title: "Google Sheet saved successfully!" });
 
-      const userId = localStorage.getItem("userId");
-      if (userId) {
-        fetch("/api/user/sheets-id", {
-          method: "POST",
-          headers: { 
-            "Content-Type": "application/json",
-            "x-user-id": userId
-          },
-          body: JSON.stringify({ sheetsId: sheetId })
-        }).catch(() => {});
-      }
+      fetch("/api/user/sheets-id", {
+        method: "POST",
+        headers: { 
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ sheetsId: sheetId })
+      }).catch(() => {});
     } catch (error) {
       toast({
         title: "Error",
@@ -243,21 +222,6 @@ export default function Home() {
       return;
     }
 
-    if (productLimit > weeklyStats.remaining) {
-      toast({
-        title: "Limit Exceeded",
-        description: `You can only scrape ${weeklyStats.remaining} more products this week.`,
-        variant: "destructive",
-      });
-      return;
-    }
-
-    const userId = localStorage.getItem("userId");
-    if (!userId) {
-      setLocation("/login");
-      return;
-    }
-
     setIsLoading(true);
     setDiscoveryResult(null);
 
@@ -265,8 +229,7 @@ export default function Home() {
       const response = await fetch("/api/discover", {
         method: "POST",
         headers: { 
-          "Content-Type": "application/json",
-          "x-user-id": userId
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({ 
           category: selectedCategory, 
@@ -309,17 +272,10 @@ export default function Home() {
 
     setTelegramLoading(true);
     try {
-      const userId = localStorage.getItem("userId");
-      if (!userId) {
-        setLocation("/login");
-        return;
-      }
-
       const response = await fetch("/api/user/telegram", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "x-user-id": userId
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
           telegramBotToken: tempTelegramBotToken.trim(),
@@ -358,17 +314,10 @@ export default function Home() {
 
     setWhatsappLoading(true);
     try {
-      const userId = localStorage.getItem("userId");
-      if (!userId) {
-        setLocation("/login");
-        return;
-      }
-
       const response = await fetch("/api/user/whatsapp", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "x-user-id": userId
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
           whatsappChannelUrl: tempWhatsappChannelUrl.trim()
@@ -396,12 +345,6 @@ export default function Home() {
   const handleSendAllToChannels = async () => {
     if (!discoveryResult) return;
 
-    const userId = localStorage.getItem("userId");
-    if (!userId) {
-      setLocation("/login");
-      return;
-    }
-
     if (!whatsappChannelUrl && !telegramBotToken) {
       toast({
         title: "No Channels Configured",
@@ -416,8 +359,7 @@ export default function Home() {
       const response = await fetch("/api/send-bulk-messages", {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
-          "x-user-id": userId
+          "Content-Type": "application/json"
         },
         body: JSON.stringify({
           products: discoveryResult.results,
@@ -451,7 +393,6 @@ export default function Home() {
     navigator.clipboard.writeText(text);
     toast({ title: `${type} message copied!` });
   };
-
 
   if (!userId) {
     return (
@@ -491,7 +432,7 @@ export default function Home() {
             <span>AI-Powered Affiliate Automation</span>
           </motion.div>
 
-            <motion.h1 
+          <motion.h1 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.1 }}
@@ -757,13 +698,6 @@ export default function Home() {
                   >
                     Add Sheet ID
                   </Button>
-                  <div className="text-center">
-                    <div className="inline-block bg-slate-800/50 border border-slate-700 rounded-lg px-4 py-2">
-                      <p className="text-xs text-muted-foreground">
-                        <span className="text-blue-400 font-semibold">Coming Soon:</span> Direct Google Sheets Sync
-                      </p>
-                    </div>
-                  </div>
                 </div>
               )}
 
@@ -783,26 +717,6 @@ export default function Home() {
 
               {showSheetsForm && (
                 <div className="mt-4 space-y-3">
-                  <div className="text-xs bg-blue-500/10 p-4 rounded border border-blue-500/20 space-y-2">
-                    <p className="font-semibold text-white">📝 What is a Google Sheet ID?</p>
-                    <p className="text-muted-foreground">
-                      A unique identifier for your Google Sheet found in the URL. It's a long string of letters and numbers.
-                    </p>
-                    <div className="bg-black/30 p-2 rounded border border-blue-500/30 mt-2">
-                      <p className="text-muted-foreground text-xs mb-1">Full URL example:</p>
-                      <p className="text-blue-300 font-mono text-xs break-all">
-                        https://docs.google.com/spreadsheets/d/<span className="text-amber-400">1a2b3c4d5e6f7g8h9i0j</span>/edit
-                      </p>
-                    </div>
-                    <div className="pt-2 border-t border-blue-500/20">
-                      <p className="font-semibold text-white text-xs mb-2">Steps:</p>
-                      <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-                        <li>Create a Google Sheet at sheets.google.com</li>
-                        <li>Share it (Anyone with link can edit)</li>
-                        <li>Paste the full URL or just the ID below</li>
-                      </ol>
-                    </div>
-                  </div>
                   <Input
                     value={tempSheetsId}
                     onChange={(e) => setTempSheetsId(e.target.value)}
@@ -861,11 +775,7 @@ export default function Home() {
               {!showTelegramForm && !telegramBotToken && (
                 <div className="mt-4 space-y-3">
                   <Button
-                    onClick={() => {
-                      setTempTelegramBotToken("");
-                      setTempTelegramChannelId("");
-                      setShowTelegramForm(true);
-                    }}
+                    onClick={() => setShowTelegramForm(true)}
                     className="w-full bg-purple-500 hover:bg-purple-600 text-white font-semibold"
                     data-testid="button-add-telegram"
                   >
@@ -891,21 +801,10 @@ export default function Home() {
 
               {showTelegramForm && (
                 <div className="mt-4 space-y-3">
-                  <div className="text-xs bg-purple-500/10 p-4 rounded border border-purple-500/20 space-y-2">
-                    <p className="font-semibold text-white">🤖 How to connect Telegram?</p>
-                    <ol className="list-decimal list-inside space-y-1 text-muted-foreground text-xs">
-                      <li>Chat with <span className="text-purple-400 font-semibold">@BotFather</span> on Telegram</li>
-                      <li>Create a new bot with <span className="font-mono text-purple-400">/newbot</span></li>
-                      <li>Copy your <span className="text-purple-400 font-semibold">bot token</span></li>
-                      <li>Create a public Telegram channel</li>
-                      <li>Add your bot to the channel as admin</li>
-                      <li>Get your <span className="text-purple-400 font-semibold">channel ID</span> (starts with @)</li>
-                    </ol>
-                  </div>
                   <Input
                     value={tempTelegramBotToken}
                     onChange={(e) => setTempTelegramBotToken(e.target.value)}
-                    placeholder="Bot Token (e.g., 123456789:ABCDEFGH...)"
+                    placeholder="Bot Token"
                     className="h-10 bg-gray-900 border-gray-700 text-white text-sm"
                     type="password"
                     data-testid="input-telegram-token"
@@ -913,7 +812,7 @@ export default function Home() {
                   <Input
                     value={tempTelegramChannelId}
                     onChange={(e) => setTempTelegramChannelId(e.target.value)}
-                    placeholder="Channel ID (e.g., @mychannel or -100123456789)"
+                    placeholder="Channel ID"
                     className="h-10 bg-gray-900 border-gray-700 text-white text-sm"
                     data-testid="input-telegram-channel"
                   />
@@ -922,106 +821,11 @@ export default function Home() {
                       onClick={handleSaveTelegram}
                       disabled={telegramLoading || !tempTelegramBotToken.trim() || !tempTelegramChannelId.trim()}
                       className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-                      data-testid="button-save-telegram"
                     >
-                      {telegramLoading ? "Connecting..." : "Connect"}
+                      Connect
                     </Button>
                     <Button
-                      onClick={() => {
-                        setShowTelegramForm(false);
-                        setTempTelegramBotToken("");
-                        setTempTelegramChannelId("");
-                      }}
-                      variant="outline"
-                      className="flex-1"
-                    >
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3 }}
-          className="mb-8"
-        >
-          <Card className={`glass-card overflow-hidden border-2 ${whatsappChannelUrl ? "border-emerald-500/30" : "border-green-500/30"}`}>
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className={`w-12 h-12 rounded-lg flex items-center justify-center ${whatsappChannelUrl ? "bg-emerald-500/20" : "bg-green-500/20"}`}>
-                    <MessageCircle className={`w-6 h-6 ${whatsappChannelUrl ? "text-emerald-400" : "text-green-400"}`} />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-white">WhatsApp Channel</p>
-                    <p className={`text-sm ${whatsappChannelUrl ? "text-emerald-400" : "text-green-400"}`}>
-                      {whatsappChannelUrl ? "✓ Connected" : "Auto-send messages to your WhatsApp"}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {!showWhatsappForm && !whatsappChannelUrl && (
-                <div className="mt-4 space-y-3">
-                  <Button
-                    onClick={() => {
-                      setTempWhatsappChannelUrl("");
-                      setShowWhatsappForm(true);
-                    }}
-                    className="w-full bg-green-500 hover:bg-green-600 text-white font-semibold"
-                    data-testid="button-add-whatsapp"
-                  >
-                    Connect WhatsApp
-                  </Button>
-                </div>
-              )}
-
-              {!showWhatsappForm && whatsappChannelUrl && (
-                <Button
-                  onClick={() => {
-                    setTempWhatsappChannelUrl(whatsappChannelUrl);
-                    setShowWhatsappForm(true);
-                  }}
-                  variant="outline"
-                  className="mt-4 w-full"
-                  data-testid="button-edit-whatsapp"
-                >
-                  Edit Connection
-                </Button>
-              )}
-
-              {showWhatsappForm && (
-                <div className="mt-4 space-y-3">
-                  <div className="text-xs bg-green-500/10 p-4 rounded border border-green-500/20 space-y-2">
-                    <p className="font-semibold text-white">📱 WhatsApp Channel URL</p>
-                    <p className="text-muted-foreground">Paste your WhatsApp channel link to auto-send messages</p>
-                  </div>
-                  <Input
-                    value={tempWhatsappChannelUrl}
-                    onChange={(e) => setTempWhatsappChannelUrl(e.target.value)}
-                    placeholder="https://chat.whatsapp.com/... or your channel URL"
-                    className="h-10 bg-gray-900 border-gray-700 text-white text-sm"
-                    data-testid="input-whatsapp-url"
-                  />
-                  <div className="flex gap-2">
-                    <Button
-                      onClick={handleSaveWhatsapp}
-                      disabled={whatsappLoading || !tempWhatsappChannelUrl.trim()}
-                      className="flex-1 bg-emerald-600 hover:bg-emerald-700"
-                      data-testid="button-save-whatsapp"
-                    >
-                      {whatsappLoading ? "Saving..." : "Save"}
-                    </Button>
-                    <Button
-                      onClick={() => {
-                        setShowWhatsappForm(false);
-                        setTempWhatsappChannelUrl("");
-                      }}
+                      onClick={() => setShowTelegramForm(false)}
                       variant="outline"
                       className="flex-1"
                     >
@@ -1051,13 +855,9 @@ export default function Home() {
                     value={affiliateTag}
                     onChange={(e) => setAffiliateTag(e.target.value)}
                     placeholder="yourtag-21"
-                    className="h-14 text-lg bg-background/50 border-white/10 placeholder:text-muted-foreground/50"
+                    className="h-14 text-lg bg-background/50 border-white/10"
                     disabled={isLoading}
-                    data-testid="input-affiliate-tag-tour"
                   />
-                  <p className="text-xs text-muted-foreground mt-2">
-                    Find your tag at affiliate-program.amazon.in
-                  </p>
                 </div>
                 <div>
                   <label className="text-sm font-medium text-muted-foreground mb-3 block">
@@ -1067,28 +867,14 @@ export default function Home() {
                     type="number"
                     value={productLimit}
                     onChange={(e) => setProductLimit(Math.max(1, Math.min(weeklyStats.remaining, parseInt(e.target.value) || 1)))}
-                    min={1}
-                    max={weeklyStats.remaining}
                     className="h-14 text-lg bg-background/50 border-white/10 text-center"
-                    disabled={isLoading || weeklyStats.remaining <= 0}
-                    data-testid="input-product-limit"
+                    disabled={isLoading}
                   />
-                  <p className="text-xs text-muted-foreground mt-2">
-                    {weeklyStats.remaining > 0 
-                      ? `${weeklyStats.remaining} remaining this week`
-                      : "Weekly limit reached"}
-                  </p>
                 </div>
               </div>
 
-              <div className="mb-8 p-4 rounded-lg bg-amber-500/10 border border-amber-500/20">
-                <p className="text-sm text-muted-foreground">
-                  <span className="text-amber-400 font-semibold">{weeklyStats.weeklyCount} / {weeklyStats.weeklyLimit}</span> products scraped this week
-                </p>
-              </div>
-
               <div className="mb-8">
-                <label className="text-sm font-medium text-muted-foreground mb-4 block">
+                <label className="text-sm font-medium text-muted-foreground mb-4 block text-center">
                   Select Product Category
                 </label>
                 <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3">
@@ -1096,22 +882,15 @@ export default function Home() {
                     <button
                       key={cat.id}
                       onClick={() => setSelectedCategory(cat.id)}
-                      className={`group relative p-4 rounded-2xl border-2 transition-all duration-300 text-center overflow-hidden ${
+                      className={`p-4 rounded-2xl border-2 transition-all duration-300 text-center ${
                         selectedCategory === cat.id
-                          ? "bg-gradient-to-b from-amber-500/20 to-orange-600/10 border-amber-500/50 shadow-lg glow-amber"
-                          : "bg-card/40 border-white/5 hover:border-white/20 hover:bg-card/60"
+                          ? "bg-amber-500/20 border-amber-500/50 shadow-lg"
+                          : "bg-card/40 border-white/5 hover:border-white/20"
                       }`}
                       disabled={isLoading}
-                      data-testid={`button-category-${cat.id}`}
                     >
-                      <span className="text-3xl block mb-2 group-hover:scale-110 transition-transform">
-                        {cat.icon}
-                      </span>
-                      <span className={`text-xs font-semibold block ${
-                        selectedCategory === cat.id ? "text-amber-400" : "text-white/80"
-                      }`}>
-                        {cat.name}
-                      </span>
+                      <span className="text-3xl block mb-2">{cat.icon}</span>
+                      <span className="text-xs font-semibold block text-white/80">{cat.name}</span>
                     </button>
                   ))}
                 </div>
@@ -1120,18 +899,17 @@ export default function Home() {
               <Button
                 onClick={handleDiscover}
                 disabled={isLoading || !affiliateTag || weeklyStats.remaining <= 0}
-                className="w-full h-16 text-lg font-bold bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-xl glow-amber transition-all duration-300 disabled:opacity-50"
-                data-testid="button-discover"
+                className="w-full h-16 text-lg font-bold bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-xl transition-all duration-300"
               >
                 {isLoading ? (
                   <span className="flex items-center gap-3">
                     <Loader2 className="w-6 h-6 animate-spin" />
-                    Scraping Amazon India...
+                    Scraping...
                   </span>
                 ) : (
                   <span className="flex items-center gap-3">
                     <Zap className="w-6 h-6" />
-                    Scrape {productLimit} Products & Generate Messages
+                    Scrape & Generate
                     <ArrowRight className="w-5 h-5" />
                   </span>
                 )}
@@ -1148,142 +926,160 @@ export default function Home() {
               exit={{ opacity: 0, y: 30 }}
               className="space-y-6"
             >
-              <Card className="glass-card border-emerald-500/30 glow-green overflow-hidden">
+              <Card className="glass-card border-emerald-500/30 overflow-hidden">
                 <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-full bg-emerald-500/20 flex items-center justify-center">
                         <Check className="w-6 h-6 text-emerald-400" />
                       </div>
-                      <div>
-                        <h3 className="text-xl font-bold text-white">Results Found!</h3>
-                        <p className="text-sm text-emerald-400/80">Pushed to your Google Sheet</p>
-                      </div>
+                      <h3 className="text-xl font-bold text-white">Found {discoveryResult.count} Products!</h3>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <Button
-                        onClick={handleSendAllToChannels}
-                        disabled={isLoading}
-                        className="bg-purple-600 hover:bg-purple-700 text-white shadow-lg shadow-purple-500/20"
-                      >
-                        {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
-                        Post All to Channels
-                      </Button>
-                      <a 
-                        href={`https://docs.google.com/spreadsheets/d/${sheetsId || discoveryResult.spreadsheetId}`} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                      >
-                        <Button variant="outline" className="border-white/10 hover:bg-white/5">
-                          <FileSpreadsheet className="w-4 h-4 mr-2" />
-                          View Spreadsheet
-                        </Button>
-                      </a>
-                    </div>
-                  </div>
-
-                  <div className="grid gap-6">
-                    {discoveryResult.results.map((res, idx) => (
-                      <div key={idx} className="p-6 rounded-2xl bg-white/5 border border-white/10 group hover:border-amber-500/30 transition-all duration-300">
-                        <div className="grid md:grid-cols-4 gap-6">
-                          <div className="md:col-span-1">
-                            <div className="relative rounded-xl overflow-hidden aspect-square bg-white flex items-center justify-center">
-                              <img src={res.product.image} alt={res.product.title} className="max-w-full max-h-full object-contain p-2" />
-                              <div className="absolute top-2 right-2">
-                                <Badge className="bg-amber-500 text-black font-bold">-{res.product.discount}</Badge>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="md:col-span-3 space-y-4">
-                            <div>
-                              <h4 className="font-bold text-lg text-white line-clamp-2 mb-1">{res.product.title}</h4>
-                              <div className="flex items-center gap-4">
-                                <span className="text-2xl font-bold text-amber-400">₹{res.product.price}</span>
-                                <span className="text-sm text-muted-foreground line-through">₹{res.product.originalPrice}</span>
-                                <div className="flex items-center gap-1 text-yellow-400 text-sm">
-                                  <Star className="w-4 h-4 fill-current" />
-                                  <span>{res.product.rating}</span>
-                                </div>
-                              </div>
-                            </div>
-
-                            <Tabs defaultValue="whatsapp" className="w-full">
-                              <TabsList className="grid grid-cols-2 bg-black/40 border border-white/10 rounded-xl p-1">
-                                <TabsTrigger value="whatsapp" className="rounded-lg data-[state=active]:bg-green-500/20 data-[state=active]:text-green-400">
-                                  <MessageCircle className="w-4 h-4 mr-2" />
-                                  WhatsApp
-                                </TabsTrigger>
-                                <TabsTrigger value="telegram" className="rounded-lg data-[state=active]:bg-blue-500/20 data-[state=active]:text-blue-400">
-                                  <Send className="w-4 h-4 mr-2" />
-                                  Telegram
-                                </TabsTrigger>
-                              </TabsList>
-                              <TabsContent value="whatsapp" className="mt-4">
-                                <div className="relative">
-                                  <div className="absolute top-2 right-2 flex gap-2">
-                                    <Button size="icon" variant="ghost" className="h-8 w-8 text-gray-400 hover:text-green-400" onClick={() => copyToClipboard(res.whatsappMessage, "WhatsApp")}>
-                                      <Copy className="w-4 h-4" />
-                                    </Button>
-                                  </div>
-                                  <pre className="p-4 rounded-xl bg-black/60 border border-white/5 text-xs text-gray-300 whitespace-pre-wrap font-sans min-h-[100px]">
-                                    {res.whatsappMessage}
-                                  </pre>
-                                </div>
-                              </TabsContent>
-                              <TabsContent value="telegram" className="mt-4">
-                                <div className="relative">
-                                  <div className="absolute top-2 right-2 flex gap-2">
-                                    <Button size="icon" variant="ghost" className="h-8 w-8 text-gray-400 hover:text-blue-400" onClick={() => copyToClipboard(res.telegramMessage, "Telegram")}>
-                                      <Copy className="w-4 h-4" />
-                                    </Button>
-                                  </div>
-                                  <pre className="p-4 rounded-xl bg-black/60 border border-white/5 text-xs text-gray-300 whitespace-pre-wrap font-sans min-h-[100px]">
-                                    {res.telegramMessage}
-                                  </pre>
-                                </div>
-                              </TabsContent>
-                            </Tabs>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
+                    <Button
+                      onClick={handleSendAllToChannels}
+                      disabled={isLoading}
+                      className="bg-purple-600 hover:bg-purple-700"
+                    >
+                      {isLoading ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+                      Post All to Channels
+                    </Button>
                   </div>
                 </CardContent>
               </Card>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {discoveryResult.results.map((result, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ delay: index * 0.05 }}
+                  >
+                    <Card className="glass-card h-full flex flex-col overflow-hidden group">
+                      <div className="relative aspect-video overflow-hidden">
+                        <img 
+                          src={result.product.image} 
+                          alt={result.product.title}
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        />
+                        <div className="absolute top-2 right-2">
+                          <Badge className="bg-amber-500 text-black font-bold">
+                            {result.product.discount}
+                          </Badge>
+                        </div>
+                      </div>
+                      
+                      <CardContent className="p-6 flex-1 flex flex-col">
+                        <h4 className="font-semibold text-white line-clamp-2 mb-4">
+                          {result.product.title}
+                        </h4>
+                        
+                        <div className="flex items-center justify-between mb-6">
+                          <div className="flex items-baseline gap-2">
+                            <span className="text-2xl font-bold text-white">₹{result.product.price}</span>
+                            <span className="text-sm text-muted-foreground line-through">₹{result.product.originalPrice}</span>
+                          </div>
+                          <div className="flex items-center gap-1 text-amber-400">
+                            <Star className="w-4 h-4 fill-current" />
+                            <span className="text-sm font-medium">{result.product.rating}</span>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3 mt-auto">
+                          <Tabs defaultValue="whatsapp" className="w-full">
+                            <TabsList className="w-full bg-background/40">
+                              <TabsTrigger value="whatsapp" className="flex-1 gap-2">
+                                <MessageCircle className="w-4 h-4" /> WhatsApp
+                              </TabsTrigger>
+                              <TabsTrigger value="telegram" className="flex-1 gap-2">
+                                <Send className="w-4 h-4" /> Telegram
+                              </TabsTrigger>
+                            </TabsList>
+                            <TabsContent value="whatsapp" className="mt-2">
+                              <div className="relative">
+                                <pre className="text-xs p-3 bg-black/40 rounded-lg whitespace-pre-wrap h-32 overflow-y-auto text-muted-foreground border border-white/5">
+                                  {result.whatsappMessage}
+                                </pre>
+                                <Button
+                                  onClick={() => copyToClipboard(result.whatsappMessage, "WhatsApp")}
+                                  variant="ghost" size="icon"
+                                  className="absolute top-2 right-2 hover:bg-white/10"
+                                >
+                                  <Copy className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </TabsContent>
+                            <TabsContent value="telegram" className="mt-2">
+                              <div className="relative">
+                                <pre className="text-xs p-3 bg-black/40 rounded-lg whitespace-pre-wrap h-32 overflow-y-auto text-muted-foreground border border-white/5">
+                                  {result.telegramMessage}
+                                </pre>
+                                <Button
+                                  onClick={() => copyToClipboard(result.telegramMessage, "Telegram")}
+                                  variant="ghost" size="icon"
+                                  className="absolute top-2 right-2 hover:bg-white/10"
+                                >
+                                  <Copy className="w-4 h-4" />
+                                </Button>
+                              </div>
+                            </TabsContent>
+                          </Tabs>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
+                ))}
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
 
-      <footer className="w-full max-w-7xl px-6 py-12 border-t border-white/5 relative z-10 flex flex-col items-center gap-8 text-sm text-gray-500 mx-auto mt-20">
-        <div className="flex flex-col md:flex-row items-center justify-center gap-4 text-center w-full">
-          <span>© 2026 Affiliate Bot India</span>
-          <div className="hidden md:block w-1 h-1 rounded-full bg-gray-800" />
-          <span>Built by Yanik Jain</span>
-        </div>
-        <div className="flex items-center justify-center gap-8 w-full">
-          <Link href="/support">
-            <span className="hover:text-white transition-colors cursor-pointer">Support</span>
-          </Link>
-          <Link href="/privacy">
-            <span className="hover:text-white transition-colors cursor-pointer">Privacy</span>
-          </Link>
-          <Link href="/terms">
-            <span className="hover:text-white transition-colors cursor-pointer">Terms</span>
-          </Link>
-        </div>
-      </footer>
-
-      {/* AI Chat Widget */}
-      {showAIChat && (
-        <div className="fixed bottom-6 right-6 w-[400px] h-[600px] z-50 shadow-2xl rounded-2xl overflow-hidden border border-white/10 bg-black/90 backdrop-blur-xl">
-          <iframe 
-            src="/chat" 
-            className="w-full h-full border-none"
-            title="AI Assistant"
-          />
-        </div>
-      )}
+      <AnimatePresence>
+        {showAIChat && (
+          <motion.div
+            initial={{ opacity: 0, x: 300 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: 300 }}
+            className="fixed bottom-6 right-6 w-[400px] h-[600px] z-50"
+          >
+            <Card className="glass-card h-full shadow-2xl flex flex-col border-2 border-purple-500/30">
+              <div className="p-4 border-b border-white/10 flex items-center justify-between bg-purple-500/10">
+                <div className="flex items-center gap-2">
+                  <Bot className="w-5 h-5 text-purple-400" />
+                  <span className="font-bold text-white">SaleLooterz AI Assistant</span>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => setShowAIChat(false)}>
+                  <span className="text-xl">×</span>
+                </Button>
+              </div>
+              <div className="flex-1 p-4 overflow-y-auto space-y-4">
+                <div className="flex gap-2">
+                  <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0">
+                    <Bot className="w-4 h-4 text-purple-400" />
+                  </div>
+                  <div className="bg-white/5 p-3 rounded-2xl rounded-tl-none border border-white/10 max-w-[80%]">
+                    <p className="text-sm text-gray-200">
+                      Hi! I'm your AI assistant. I can help you find hot products, optimize your affiliate tags, or troubleshoot your sheets connection. What's on your mind?
+                    </p>
+                  </div>
+                </div>
+              </div>
+              <div className="p-4 border-t border-white/10 bg-black/20">
+                <div className="relative">
+                  <Input 
+                    placeholder="Ask me anything..." 
+                    className="pr-12 bg-white/5 border-white/10"
+                  />
+                  <Button size="icon" className="absolute right-1 top-1 bottom-1 h-auto bg-purple-600 hover:bg-purple-700">
+                    <Send className="w-4 h-4" />
+                  </Button>
+                </div>
+              </div>
+            </Card>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
