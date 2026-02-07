@@ -407,14 +407,14 @@ export default function Home() {
             </div>
             <span className="text-xl font-bold text-white tracking-tight">SaleLooterz AI</span>
           </div>
-          <div className="flex items-center gap-6">
+          <div className="flex items-center gap-4 sm:gap-6">
             <Link href="/features">
-              <span className="text-sm text-gray-400 hover:text-white transition-colors cursor-pointer">Features</span>
+              <span className="hidden sm:inline text-sm text-gray-400 hover:text-white transition-colors cursor-pointer">Features</span>
             </Link>
             <Button 
               onClick={() => setLocation("/login")}
               variant="outline" 
-              className="rounded-full px-6 bg-white/5 border-white/10 text-white hover:bg-white/10 h-10"
+              className="rounded-full px-4 sm:px-6 bg-white/5 border-white/10 text-white hover:bg-white/10 h-9 sm:h-10 text-xs sm:text-sm"
               data-testid="button-nav-login"
             >
               Sign In
@@ -578,7 +578,7 @@ export default function Home() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
           <Card className="lg:col-span-2 bg-white/5 border-white/10 backdrop-blur-sm overflow-hidden">
-            <CardContent className="p-6">
+            <CardContent className="p-4 sm:p-6">
               <div className="flex items-center justify-between mb-6">
                 <div>
                   <h3 className="text-lg font-semibold text-white">Scraping Activity</h3>
@@ -588,7 +588,7 @@ export default function Home() {
                   <TrendingUp className="w-5 h-5 text-purple-400" />
                 </div>
               </div>
-              <div className="h-[240px] w-full">
+              <div className="h-[200px] sm:h-[240px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={analyticsData}>
                     <defs>
@@ -845,9 +845,9 @@ export default function Home() {
         >
           <Card className="glass-card mb-8 overflow-hidden">
             <CardContent className="p-8">
-              <div className="grid md:grid-cols-3 gap-6 mb-8">
+              <div className="grid md:grid-cols-3 gap-4 sm:gap-6 mb-8">
                 <div className="md:col-span-2">
-                  <label className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
+                  <label className="text-sm font-medium text-muted-foreground mb-2 sm:mb-3 flex items-center gap-2">
                     <IndianRupee className="w-4 h-4" />
                     Your Amazon India Affiliate Tag
                   </label>
@@ -855,19 +855,19 @@ export default function Home() {
                     value={affiliateTag}
                     onChange={(e) => setAffiliateTag(e.target.value)}
                     placeholder="yourtag-21"
-                    className="h-14 text-lg bg-background/50 border-white/10"
+                    className="h-12 sm:h-14 text-base sm:text-lg bg-background/50 border-white/10"
                     disabled={isLoading}
                   />
                 </div>
                 <div>
-                  <label className="text-sm font-medium text-muted-foreground mb-3 block">
+                  <label className="text-sm font-medium text-muted-foreground mb-2 sm:mb-3 block">
                     Products to Scrape
                   </label>
                   <Input
                     type="number"
                     value={productLimit}
                     onChange={(e) => setProductLimit(Math.max(1, Math.min(weeklyStats.remaining, parseInt(e.target.value) || 1)))}
-                    className="h-14 text-lg bg-background/50 border-white/10 text-center"
+                    className="h-12 sm:h-14 text-base sm:text-lg bg-background/50 border-white/10 text-center"
                     disabled={isLoading}
                   />
                 </div>
@@ -1041,7 +1041,7 @@ export default function Home() {
             initial={{ opacity: 0, x: 300 }}
             animate={{ opacity: 1, x: 0 }}
             exit={{ opacity: 0, x: 300 }}
-            className="fixed bottom-6 right-6 w-[400px] h-[600px] z-50"
+            className="fixed bottom-6 right-6 w-[90vw] sm:w-[400px] h-[500px] sm:h-[600px] z-50"
           >
             <Card className="glass-card h-full shadow-2xl flex flex-col border-2 border-purple-500/30">
               <div className="p-4 border-b border-white/10 flex items-center justify-between bg-purple-500/10">

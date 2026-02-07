@@ -82,7 +82,7 @@ export async function registerRoutes(
   // but we keep existing API structure where needed
   app.post("/api/auth/signup", async (req, res) => {
     try {
-      const { username, email, password } = signupSchemaServer.parse(req.body);
+      const { username, email, password } = signupSchema.parse(req.body);
       const existingEmail = await storage.getUserByEmail(email);
       
       if (existingEmail) {
@@ -104,7 +104,10 @@ export async function registerRoutes(
       
       res.json({ userId: user.id, username: user.username, email: user.email, trialEndsAt });
     } catch (error) {
-      res.status(400).json({ error: error instanceof Error ? error.message : "Signup failed" });
+      const errorMsg = error instanceof z.ZodError 
+        ? error.errors[0].message 
+        : (error instanceof Error ? error.message : "Signup failed");
+      res.status(400).json({ error: errorMsg });
     }
   });
 
@@ -134,14 +137,17 @@ export async function registerRoutes(
       if (!isOwner && user.trialEndsAt && new Date() > user.trialEndsAt && user.isPaid !== "true") {
         await storage.deleteUser(user.id);
         return res.status(400).json({ 
-          error: "Your 3-day free trial has expired. Please sign up again to get another 3 days free!",
+          error: "Free trial expired. Please sign up again!",
           accountDeleted: true 
         });
       }
 
       res.json({ userId: user.id, username: user.username, email: user.email, trialEndsAt: user.trialEndsAt });
     } catch (error) {
-      res.status(400).json({ error: error instanceof Error ? error.message : "Login failed" });
+      const errorMsg = error instanceof z.ZodError 
+        ? error.errors[0].message 
+        : (error instanceof Error ? error.message : "Login failed");
+      res.status(400).json({ error: errorMsg });
     }
   });
 

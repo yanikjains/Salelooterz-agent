@@ -33,22 +33,22 @@ export const insertUserSchema = createInsertSchema(users).pick({
 
 // Password validation: min 8 chars, uppercase, lowercase, number, special char
 export const passwordSchema = z.string()
-  .min(8, "Password must be at least 8 characters")
-  .regex(/[A-Z]/, "Password must contain an uppercase letter")
-  .regex(/[a-z]/, "Password must contain a lowercase letter")
-  .regex(/[0-9]/, "Password must contain a number")
-  .regex(/[^a-zA-Z0-9]/, "Password must contain a special character");
+  .min(8, "Min 8 characters")
+  .regex(/[A-Z]/, "Include uppercase")
+  .regex(/[a-z]/, "Include lowercase")
+  .regex(/[0-9]/, "Include a number")
+  .regex(/[^a-zA-Z0-9]/, "Include special char");
 
 // Username validation: alphanumeric and underscores only, 3-20 chars
 export const usernameSchema = z.string()
-  .min(3, "Username must be at least 3 characters")
-  .max(20, "Username must be at most 20 characters")
-  .regex(/^[a-zA-Z0-9_]+$/, "Username can only contain letters, numbers, and underscores");
+  .min(3, "Min 3 characters")
+  .max(20, "Max 20 characters")
+  .regex(/^[a-zA-Z0-9_]+$/, "Alphanumeric only");
 
 export const signupSchema = z.object({
   username: usernameSchema,
   password: passwordSchema,
-  email: z.string().email("Please enter a valid email"),
+  email: z.string().email("Invalid email format"),
 });
 
 export const loginSchema = z.object({

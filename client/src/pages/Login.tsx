@@ -231,11 +231,24 @@ export default function Login() {
             <div className="flex justify-center" data-testid="button-google-login">
               <Button
                 type="button"
-                onClick={() => window.location.href = "/api/login"}
+                onClick={() => {
+                  setIsLoading(true);
+                  window.location.href = "/api/login";
+                }}
+                disabled={isLoading}
                 className="w-full h-14 bg-white text-black hover:bg-gray-100 font-bold rounded-2xl shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-3"
               >
-                <img src="https://www.google.com/favicon.ico" className="w-5 h-5" alt="Google" />
-                <span>Continue with Google</span>
+                {isLoading ? (
+                  <div className="flex items-center gap-2">
+                    <div className="w-4 h-4 border-2 border-black/30 border-t-black rounded-full animate-spin" />
+                    <span>Connecting...</span>
+                  </div>
+                ) : (
+                  <>
+                    <img src="https://www.google.com/favicon.ico" className="w-5 h-5" alt="Google" />
+                    <span>Continue with Google</span>
+                  </>
+                )}
               </Button>
             </div>
           </form>
