@@ -238,24 +238,24 @@ export async function registerRoutes(
       if (!user) return res.status(404).json({ error: "User not found" });
 
       const isPaid = user.isPaid === "true";
-      const OWNER_USERNAMES = ["Yanik Jain", "yanik"];
-      const OWNER_EMAIL = "yaniikjain21@gmail.com";
-      const isOwner = OWNER_USERNAMES.some(name => user.username.toLowerCase().includes(name.toLowerCase())) || user.email?.toLowerCase() === OWNER_EMAIL.toLowerCase();
-      
+      const OWNER_EMAILS = ["yaniikjain21@gmail.com", "salelooterz@gmail.com"];
+      const isOwner = OWNER_EMAILS.includes(user.email?.toLowerCase() || "");
+      const isInTrial = !isPaid && user.trialEndsAt && new Date() <= user.trialEndsAt;
+
       let dailyCount = 0;
       let dailyLimit = 50;
-      
-      if (!isOwner && !isPaid) {
+
+      if (!isOwner && !isPaid && !isInTrial) {
         return res.status(403).json({
           success: false,
           error: "Payment Required",
           requiresPayment: true,
-          price: 1299,
-          message: "₹1,299 lifetime access required to use this bot. Enjoy 10 days free!"
+          price: 199900,
+          message: "₹1,999 lifetime access required. Your free trial has expired."
         });
       }
 
-      if (!isOwner && isPaid) {
+      if (!isOwner) {
         dailyCount = await storage.getDailyProductCount(userId);
         if (dailyCount >= dailyLimit) {
           return res.status(429).json({
@@ -336,7 +336,7 @@ export async function registerRoutes(
         });
       }
       
-      const updatedDailyCount = !isOwner && isPaid ? await storage.getDailyProductCount(userId) : 0;
+      const updatedDailyCount = !isOwner ? await storage.getDailyProductCount(userId) : 0;
       
       res.json({
         success: true,
@@ -345,7 +345,7 @@ export async function registerRoutes(
         spreadsheetUrl: `https://docs.google.com/spreadsheets/d/${spreadsheetId}`,
         results,
         dailyCount: updatedDailyCount,
-        remaining: !isOwner && isPaid ? dailyLimit - updatedDailyCount : -1,
+        remaining: !isOwner ? dailyLimit - updatedDailyCount : -1,
       });
       
     } catch (error) {

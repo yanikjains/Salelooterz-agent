@@ -3,7 +3,7 @@ import { useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, LogOut } from "lucide-react";
+import { Check, LogOut, ShoppingBag } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
 export default function Pricing() {
@@ -11,27 +11,15 @@ export default function Pricing() {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleLogout = () => {
-    localStorage.removeItem("userId");
-    localStorage.removeItem("username");
-    setLocation("/login");
-    toast({ title: "Logged out successfully" });
+    window.location.href = "/api/logout";
   };
 
   const handlePayment = async () => {
     setIsLoading(true);
     try {
-      const userId = localStorage.getItem("userId");
-      if (!userId) {
-        setLocation("/login");
-        return;
-      }
-
       const response = await fetch("/api/payment/create-order", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-user-id": userId
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount: 199900, currency: "INR" })
       });
 
@@ -43,8 +31,8 @@ export default function Pricing() {
           amount: 199900,
           currency: "INR",
           order_id: data.orderId,
-          name: "Smart Amazon Affiliate Bot",
-          description: "₹1,999 lifetime access",
+          name: "SaleLooterz AI",
+          description: "₹1,999 Lifetime Access",
           handler: async (response: any) => {
             await verifyPayment(response.razorpay_payment_id, data.orderId);
           }
@@ -53,7 +41,7 @@ export default function Pricing() {
       } else {
         toast({
           title: "Payment Error",
-          description: "Razorpay not available",
+          description: "Payment gateway not available. Please contact support.",
           variant: "destructive"
         });
       }
@@ -70,31 +58,28 @@ export default function Pricing() {
 
   const verifyPayment = async (paymentId: string, orderId: string) => {
     try {
-      const userId = localStorage.getItem("userId");
       const response = await fetch("/api/payment/verify", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-user-id": userId!
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ paymentId, orderId })
       });
 
       if (response.ok) {
         toast({
           title: "Payment Successful!",
-          description: "Your monthly subscription is active!",
+          description: "Lifetime access activated. Welcome to SaleLooterz AI!",
         });
         setLocation("/");
       } else {
         toast({
-          title: "Payment verification failed",
+          title: "Verification Failed",
+          description: "Please contact support with your payment ID.",
           variant: "destructive"
         });
       }
     } catch (error) {
       toast({
-        title: "Verification error",
+        title: "Verification Error",
         description: error instanceof Error ? error.message : "Something went wrong",
         variant: "destructive"
       });
@@ -102,69 +87,93 @@ export default function Pricing() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950 text-white p-6">
-      <div className="max-w-2xl mx-auto">
-        <div className="flex justify-between items-center mb-12">
-          <h1 className="text-3xl font-bold">Unlock Premium Access</h1>
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleLogout}
-            className="text-muted-foreground hover:text-white"
-            data-testid="button-logout"
-          >
-            <LogOut className="w-4 h-4 mr-2" />
-            Logout
-          </Button>
+    <div className="min-h-screen bg-[#030303] text-white">
+      <div className="fixed inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(120,50,255,0.08)_0%,transparent_50%)] pointer-events-none" />
+
+      <header className="w-full max-w-7xl mx-auto px-6 py-6 flex justify-between items-center relative z-10">
+        <div className="flex items-center gap-2">
+          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
+            <ShoppingBag className="w-6 h-6 text-white" />
+          </div>
+          <span className="text-xl font-bold text-white tracking-tight">SaleLooterz AI</span>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={handleLogout}
+          className="text-muted-foreground hover:text-white"
+          data-testid="button-logout"
+        >
+          <LogOut className="w-4 h-4 mr-2" />
+          Logout
+        </Button>
+      </header>
+
+      <div className="max-w-lg mx-auto px-6 py-12 relative z-10">
+        <div className="text-center mb-10">
+          <Badge className="bg-amber-500/20 text-amber-400 border-amber-500/30 mb-4">
+            Trial Expired
+          </Badge>
+          <h1 className="text-4xl font-bold text-white mb-3">Unlock Full Access</h1>
+          <p className="text-gray-400">Get unlimited product scraping and viral message generation, forever.</p>
         </div>
 
-        <Card className="glass-card border-white/10">
-          <CardHeader>
-            <div className="flex items-center justify-center gap-3 mb-4">
-              <Badge className="bg-emerald-500 text-white">3 Days Free Trial!</Badge>
+        <Card className="bg-white/5 border-white/10 backdrop-blur-sm overflow-hidden">
+          <CardHeader className="text-center pb-4">
+            <div className="flex justify-center mb-4">
+              <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30 px-4 py-1 text-sm">
+                3-Day Free Trial Included
+              </Badge>
             </div>
-            <CardTitle className="text-4xl text-center">₹1,999</CardTitle>
-            <CardDescription className="text-center text-lg mt-2">Lifetime Access</CardDescription>
+            <CardTitle className="text-5xl font-bold text-white">₹1,999</CardTitle>
+            <CardDescription className="text-lg text-gray-300 mt-1">One-time payment · Lifetime Access</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-8">
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold flex items-center gap-2">
-                <Badge>Premium Features</Badge>
-              </h3>
-              <ul className="space-y-3">
-                {[
-                  "Scrape up to 50 products per day",
-                  "Generate viral WhatsApp & Telegram messages",
-                  "Auto-export to personal Google Sheets",
-                  "Professional affiliate link injection",
-                  "Hindi-English hybrid messaging",
-                  "Cancel anytime",
-                ].map((feature, i) => (
-                  <li key={i} className="flex items-center gap-3">
-                    <Check className="w-5 h-5 text-amber-400" />
-                    <span>{feature}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+
+          <CardContent className="space-y-6 px-8 pb-8">
+            <ul className="space-y-3">
+              {[
+                "Scrape up to 50 products per day",
+                "Generate viral WhatsApp & Telegram messages",
+                "Auto-export to your Google Sheets",
+                "Professional affiliate link injection",
+                "Hindi-English hybrid messaging",
+                "Telegram bot auto-posting",
+                "Lifetime updates included",
+                "Priority support",
+              ].map((feature, i) => (
+                <li key={i} className="flex items-center gap-3">
+                  <div className="w-5 h-5 rounded-full bg-emerald-500/20 flex items-center justify-center shrink-0">
+                    <Check className="w-3 h-3 text-emerald-400" />
+                  </div>
+                  <span className="text-gray-200 text-sm">{feature}</span>
+                </li>
+              ))}
+            </ul>
 
             <Button
               onClick={handlePayment}
               disabled={isLoading}
-              className="w-full h-14 text-lg font-bold bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-xl"
+              className="w-full h-14 text-lg font-bold bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-xl shadow-amber-500/20"
               data-testid="button-pay"
             >
-              {isLoading ? "Processing..." : "Pay ₹399 Now"}
+              {isLoading ? "Processing..." : "Pay ₹1,999 — Get Lifetime Access"}
             </Button>
 
-            <p className="text-center text-sm text-muted-foreground">
-              Recurring monthly charge. Cancel anytime from your dashboard.
+            <p className="text-center text-xs text-gray-500">
+              One-time payment. No subscription. No hidden fees.
             </p>
-            <p className="text-center text-sm text-emerald-400 font-medium">
-              ✓ 7 days free trial • PayTM, Google Pay, Cards accepted
+            <p className="text-center text-xs text-emerald-400 font-medium">
+              ✓ UPI, Cards, Net Banking, Wallets accepted via Razorpay
             </p>
           </CardContent>
         </Card>
+
+        <p className="text-center text-sm text-gray-600 mt-6">
+          Need help?{" "}
+          <a href="mailto:salelooterz@gmail.com" className="text-purple-400 hover:underline">
+            salelooterz@gmail.com
+          </a>
+        </p>
       </div>
     </div>
   );

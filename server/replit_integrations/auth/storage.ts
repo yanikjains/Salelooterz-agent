@@ -1,6 +1,5 @@
-import { users, type User, type UpsertUser } from "@shared/models/auth";
+import { type User, type UpsertUser } from "@shared/models/auth";
 import { storage } from "../../storage";
-import { eq } from "drizzle-orm";
 
 // Interface for auth storage operations
 // (IMPORTANT) These user operations are mandatory for Replit Auth.
@@ -23,26 +22,13 @@ class AuthStorage implements IAuthStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
-    const existing = await storage.getUser(userData.id!);
-    if (existing) {
-      const updated = await storage.updateUser(userData.id!, {
-        email: userData.email,
-      });
-      return {
-        ...updated,
-        firstName: userData.firstName || null,
-        lastName: userData.lastName || null,
-        profileImageUrl: userData.profileImageUrl || null,
-        updatedAt: new Date(),
-      } as User;
-    }
-    
-    const user = await storage.createUser({
-      username: userData.email?.split('@')[0] || userData.id!,
-      email: userData.email || null,
-      password: null,
-    });
-    
+    const id = userData.id!;
+    const username = userData.firstName
+      ? `${userData.firstName}${userData.lastName ? userData.lastName : ""}`.replace(/\s+/g, "").slice(0, 20)
+      : (userData.email?.split("@")[0] || id).slice(0, 20);
+
+    const user = await storage.upsertUserWithId(id, username, userData.email || null);
+
     return {
       ...user,
       firstName: userData.firstName || null,

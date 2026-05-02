@@ -7,6 +7,7 @@ export interface IStorage {
   getUserByEmail(email: string): Promise<User | undefined>;
   getUserByResetToken(resetToken: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  upsertUserWithId(id: string, username: string, email: string | null): Promise<User>;
   createOrUpdateUserWithEmail(username: string, email: string): Promise<User>;
   updateUserSpreadsheet(userId: string, spreadsheetId: string): Promise<User>;
   updateUser(userId: string, updates: Partial<User>): Promise<User>;
@@ -74,6 +75,40 @@ export class MemStorage implements IStorage {
       isPaid: "false",
       subscriptionEndsAt,
       trialEndsAt: null,
+      razorpayOrderId: null,
+      failedLoginAttempts: 0,
+      lockedUntil: null,
+      resetToken: null,
+      resetTokenExpiry: null,
+      createdAt: now,
+    };
+    this.users.set(id, user);
+    return user;
+  }
+
+  async upsertUserWithId(id: string, username: string, email: string | null): Promise<User> {
+    const existing = this.users.get(id);
+    if (existing) {
+      const updated = { ...existing, email: email ?? existing.email };
+      this.users.set(id, updated);
+      return updated;
+    }
+    const now = new Date();
+    const trialEndsAt = new Date(now.getTime() + 3 * 24 * 60 * 60 * 1000);
+    const user: User = {
+      id,
+      username,
+      password: null,
+      email,
+      spreadsheetId: null,
+      googleAccessToken: null,
+      googleRefreshToken: null,
+      telegramBotToken: null,
+      telegramChannelId: null,
+      whatsappChannelUrl: null,
+      isPaid: "false",
+      subscriptionEndsAt: null,
+      trialEndsAt,
       razorpayOrderId: null,
       failedLoginAttempts: 0,
       lockedUntil: null,

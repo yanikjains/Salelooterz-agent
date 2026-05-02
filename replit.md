@@ -6,7 +6,7 @@ Affiliate Bot is a web application that automates the creation and distribution 
 
 **Creator:** Yanik Jain | **Email:** salelooterz@gmail.com
 
-## Recent Updates (December 29, 2025)
+## Recent Updates (May 2, 2026)
 
 ### Latest Features
 - **Google OAuth**: Complete login/signup with Google - users can sign in with their Google account

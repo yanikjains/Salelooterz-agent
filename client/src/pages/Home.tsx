@@ -75,6 +75,12 @@ export default function Home() {
   const [discoveryResult, setDiscoveryResult] = useState<DiscoveryResult | null>(null);
   const [weeklyStats, setWeeklyStats] = useState({ weeklyCount: 0, remaining: 50, weeklyLimit: 50 });
   const [showAIChat, setShowAIChat] = useState(false);
+  const [chatMessages, setChatMessages] = useState<Array<{role: string; content: string}>>([
+    { role: "assistant", content: "Hi! I'm your AI assistant. I can help you find hot products, optimize your affiliate tags, or troubleshoot your setup. What's on your mind?" }
+  ]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const [conversationId, setConversationId] = useState<number | null>(null);
 
   const fetchWithAuth = async (url: string) => {
     const res = await fetch(url);
@@ -242,10 +248,17 @@ export default function Home() {
 
       if (data.success) {
         setDiscoveryResult(data);
+        setWeeklyStats(prev => ({
+          ...prev,
+          weeklyCount: data.dailyCount,
+          remaining: data.remaining >= 0 ? data.remaining : prev.remaining,
+        }));
         toast({
           title: `Found ${data.count} Products!`,
-          description: "All products with viral messages pushed to Google Sheets",
+          description: "All products with viral messages generated successfully",
         });
+      } else if (data.requiresPayment) {
+        setLocation("/pricing");
       } else {
         throw new Error(data.error || "Discovery failed");
       }
@@ -386,6 +399,71 @@ export default function Home() {
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleSendChat = async () => {
+    const message = chatInput.trim();
+    if (!message || chatLoading) return;
+
+    setChatInput("");
+    setChatMessages(prev => [...prev, { role: "user", content: message }]);
+    setChatLoading(true);
+
+    try {
+      let convId = conversationId;
+      if (!convId) {
+        const res = await fetch("/api/conversations", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: "SaleLooterz Chat" })
+        });
+        const conv = await res.json();
+        convId = conv.id;
+        setConversationId(convId);
+      }
+
+      let assistantMsg = "";
+      setChatMessages(prev => [...prev, { role: "assistant", content: "" }]);
+
+      const res = await fetch(`/api/conversations/${convId}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: message })
+      });
+
+      if (!res.ok || !res.body) throw new Error("Failed to get response");
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const text = decoder.decode(value);
+        const lines = text.split("\n").filter(l => l.startsWith("data: "));
+        for (const line of lines) {
+          try {
+            const data = JSON.parse(line.slice(6));
+            if (data.content) {
+              assistantMsg += data.content;
+              setChatMessages(prev => {
+                const updated = [...prev];
+                updated[updated.length - 1] = { role: "assistant", content: assistantMsg };
+                return updated;
+              });
+            }
+          } catch {}
+        }
+      }
+    } catch {
+      setChatMessages(prev => {
+        const updated = [...prev];
+        updated[updated.length - 1] = { role: "assistant", content: "Sorry, I couldn't get a response. Please try again." };
+        return updated;
+      });
+    } finally {
+      setChatLoading(false);
     }
   };
 
@@ -1050,29 +1128,52 @@ export default function Home() {
                   <span className="font-bold text-white">SaleLooterz AI Assistant</span>
                 </div>
                 <Button variant="ghost" size="icon" onClick={() => setShowAIChat(false)}>
-                  <span className="text-xl">×</span>
+                  <span className="text-xl leading-none">×</span>
                 </Button>
               </div>
-              <div className="flex-1 p-4 overflow-y-auto space-y-4">
-                <div className="flex gap-2">
-                  <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0">
-                    <Bot className="w-4 h-4 text-purple-400" />
+              <div className="flex-1 p-4 overflow-y-auto space-y-4" id="chat-messages">
+                {chatMessages.map((msg, i) => (
+                  <div key={i} className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
+                    {msg.role === "assistant" && (
+                      <div className="w-8 h-8 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0">
+                        <Bot className="w-4 h-4 text-purple-400" />
+                      </div>
+                    )}
+                    <div className={`p-3 rounded-2xl border max-w-[80%] text-sm ${
+                      msg.role === "user"
+                        ? "bg-purple-600/30 border-purple-500/30 text-white rounded-tr-none"
+                        : "bg-white/5 border-white/10 text-gray-200 rounded-tl-none"
+                    }`}>
+                      {msg.content || (chatLoading && i === chatMessages.length - 1 ? (
+                        <span className="flex gap-1 items-center">
+                          <span className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce" style={{animationDelay: "0ms"}} />
+                          <span className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce" style={{animationDelay: "150ms"}} />
+                          <span className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce" style={{animationDelay: "300ms"}} />
+                        </span>
+                      ) : "")}
+                    </div>
                   </div>
-                  <div className="bg-white/5 p-3 rounded-2xl rounded-tl-none border border-white/10 max-w-[80%]">
-                    <p className="text-sm text-gray-200">
-                      Hi! I'm your AI assistant. I can help you find hot products, optimize your affiliate tags, or troubleshoot your sheets connection. What's on your mind?
-                    </p>
-                  </div>
-                </div>
+                ))}
               </div>
               <div className="p-4 border-t border-white/10 bg-black/20">
                 <div className="relative">
-                  <Input 
-                    placeholder="Ask me anything..." 
+                  <Input
+                    placeholder="Ask me anything..."
                     className="pr-12 bg-white/5 border-white/10"
+                    value={chatInput}
+                    onChange={(e) => setChatInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendChat(); } }}
+                    disabled={chatLoading}
+                    data-testid="input-chat"
                   />
-                  <Button size="icon" className="absolute right-1 top-1 bottom-1 h-auto bg-purple-600 hover:bg-purple-700">
-                    <Send className="w-4 h-4" />
+                  <Button
+                    size="icon"
+                    className="absolute right-1 top-1 bottom-1 h-auto bg-purple-600 hover:bg-purple-700"
+                    onClick={handleSendChat}
+                    disabled={chatLoading || !chatInput.trim()}
+                    data-testid="button-send-chat"
+                  >
+                    {chatLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
                   </Button>
                 </div>
               </div>
