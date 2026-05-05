@@ -215,16 +215,34 @@ function WhatsAppPanel() {
         </Button>
       )}
 
-      {/* How-to steps */}
+      {/* Safety notice — always visible */}
+      <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-2">
+        <p className="text-sm font-semibold text-amber-300 flex items-center gap-2">
+          <AlertCircle className="w-4 h-4 shrink-0" />
+          Use a Dedicated Bot Number — Never Your Personal WhatsApp
+        </p>
+        <p className="text-xs text-amber-300/80 leading-relaxed">
+          WhatsApp has no "channel-only" API. The QR scan links a <em>full</em> WhatsApp account to this server. To keep your personal account completely private, use a <strong>separate secondary number</strong> as the bot:
+        </p>
+        <ol className="text-xs text-amber-300/70 space-y-1 list-decimal list-inside">
+          <li>Get a spare SIM or free virtual number (TextNow, Google Voice, etc.)</li>
+          <li>Create a new WhatsApp account on that secondary number</li>
+          <li>Go to your WhatsApp Channel → <strong>Edit</strong> → <strong>Add Collaborator</strong> → add the secondary number</li>
+          <li>Come back here and click <strong>Connect</strong> — scan the QR using the secondary phone only</li>
+          <li>Your personal WhatsApp is never linked. The bot only controls the secondary account.</li>
+        </ol>
+      </div>
+
+      {/* Step-by-step connect guide */}
       {waState.status === "disconnected" && (
         <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl space-y-2">
-          <p className="text-sm font-semibold text-blue-300">How to set up WhatsApp auto-send:</p>
+          <p className="text-sm font-semibold text-blue-300">Ready to connect your bot number?</p>
           <ol className="text-xs text-blue-300/80 space-y-1.5 list-decimal list-inside">
-            <li>Click <strong>Connect</strong> above — a QR code will appear</li>
-            <li>Open WhatsApp on your phone → Settings → Linked Devices → Link a Device</li>
+            <li>Click <strong>Connect</strong> above — a QR code appears on screen</li>
+            <li>Open WhatsApp on your <strong>bot/secondary phone</strong> → Settings → Linked Devices → Link a Device</li>
             <li>Scan the QR code</li>
-            <li>Paste your channel/group JID and click Save</li>
-            <li>Start the automation — messages auto-send to your channel</li>
+            <li>Paste your channel JID below and click Save</li>
+            <li>Start the automation — it auto-posts to your channel every 20 minutes</li>
           </ol>
         </div>
       )}
