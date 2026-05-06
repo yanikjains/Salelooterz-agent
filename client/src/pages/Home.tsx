@@ -216,33 +216,76 @@ function WhatsAppPanel() {
         </Button>
       )}
 
-      {/* Safety notice — always visible */}
-      <div className="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl space-y-2">
-        <p className="text-sm font-semibold text-amber-300 flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 shrink-0" />
-          Use a Dedicated Bot Number — Never Your Personal WhatsApp
+      {/* Full transparency breakdown */}
+      <div className="rounded-xl border border-white/10 overflow-hidden">
+        <div className="px-5 py-4 bg-white/5 border-b border-white/10">
+          <p className="font-bold text-white text-sm">Full Transparency — What SaleLooterz Can & Cannot Do</p>
+          <p className="text-xs text-muted-foreground mt-0.5">Read every line of the code yourself at <code className="text-amber-400">server/whatsapp.ts</code></p>
+        </div>
+        <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-white/10">
+          {/* CAN */}
+          <div className="p-5 space-y-2">
+            <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-3">✅ What it CAN do</p>
+            {[
+              "Send text messages to the ONE channel JID you configure",
+              "Maintain the connection (auto-reconnect if dropped)",
+              "Show you a QR code to log in",
+            ].map((t, i) => (
+              <div key={i} className="flex items-start gap-2 text-xs text-gray-300">
+                <span className="text-emerald-400 mt-0.5 shrink-0">✓</span>{t}
+              </div>
+            ))}
+          </div>
+          {/* CANNOT */}
+          <div className="p-5 space-y-2">
+            <p className="text-xs font-bold text-red-400 uppercase tracking-widest mb-3">❌ What it CANNOT do</p>
+            {[
+              "Read your chats, DMs, or group messages",
+              "See your contacts or call logs",
+              "Download your chat history (disabled in code)",
+              "Send to any number other than your channel",
+              "Mark messages as read or show you as online",
+              "Edit, delete, or do anything to your account",
+            ].map((t, i) => (
+              <div key={i} className="flex items-start gap-2 text-xs text-gray-300">
+                <span className="text-red-400 mt-0.5 shrink-0">✗</span>{t}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="px-5 py-3 bg-amber-500/10 border-t border-amber-500/20">
+          <p className="text-xs text-amber-300 leading-relaxed">
+            <strong>Honest limitation:</strong> WhatsApp has no "channel-only" permission system — the QR scan is technically a full WhatsApp Web session at the protocol level. However, <strong>our code only ever calls one function: <code>sendMessage()</code></strong>. No message listeners, no chat reads, nothing else — you can verify this yourself.
+          </p>
+        </div>
+      </div>
+
+      {/* Recommended: secondary account */}
+      <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl space-y-2">
+        <p className="text-sm font-semibold text-blue-300 flex items-center gap-2">
+          <Smartphone className="w-4 h-4 shrink-0" />
+          Recommended: Use a Dedicated Bot Number
         </p>
-        <p className="text-xs text-amber-300/80 leading-relaxed">
-          WhatsApp has no "channel-only" API. The QR scan links a <em>full</em> WhatsApp account to this server. To keep your personal account completely private, use a <strong>separate secondary number</strong> as the bot:
+        <p className="text-xs text-blue-300/80 leading-relaxed">
+          For 100% peace of mind, use a <strong>separate secondary phone number</strong> as the bot — not your personal WhatsApp. That way your personal chats are never involved at any level.
         </p>
-        <ol className="text-xs text-amber-300/70 space-y-1 list-decimal list-inside">
-          <li>Get a spare SIM or free virtual number (TextNow, Google Voice, etc.)</li>
-          <li>Create a new WhatsApp account on that secondary number</li>
-          <li>Go to your WhatsApp Channel → <strong>Edit</strong> → <strong>Add Collaborator</strong> → add the secondary number</li>
-          <li>Come back here and click <strong>Connect</strong> — scan the QR using the secondary phone only</li>
-          <li>Your personal WhatsApp is never linked. The bot only controls the secondary account.</li>
+        <ol className="text-xs text-blue-300/70 space-y-1 list-decimal list-inside">
+          <li>Get a free virtual number (TextNow, Google Voice, 2ndLine, etc.)</li>
+          <li>Create a new WhatsApp account on that number</li>
+          <li>Go to your Channel → <strong>Add Collaborator</strong> → add the secondary number</li>
+          <li>Scan the QR here with the secondary account — your personal WhatsApp is never touched</li>
         </ol>
       </div>
 
       {/* Step-by-step connect guide */}
       {waState.status === "disconnected" && (
-        <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl space-y-2">
-          <p className="text-sm font-semibold text-blue-300">Ready to connect your bot number?</p>
-          <ol className="text-xs text-blue-300/80 space-y-1.5 list-decimal list-inside">
-            <li>Click <strong>Connect</strong> above — a QR code appears on screen</li>
-            <li>Open WhatsApp on your <strong>bot/secondary phone</strong> → Settings → Linked Devices → Link a Device</li>
+        <div className="p-4 bg-white/5 border border-white/10 rounded-xl space-y-2">
+          <p className="text-sm font-semibold text-white">Ready to connect?</p>
+          <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside">
+            <li>Click <strong className="text-white">Connect</strong> above — a QR code appears</li>
+            <li>Open WhatsApp on your bot/secondary phone → Settings → Linked Devices → Link a Device</li>
             <li>Scan the QR code</li>
-            <li>Paste your channel JID below and click Save</li>
+            <li>Paste your channel JID in the field above and click Save</li>
             <li>Start the automation — it auto-posts to your channel every 20 minutes</li>
           </ol>
         </div>
