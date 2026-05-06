@@ -307,6 +307,7 @@ export default function Home() {
   const [telegramChannelId, setTelegramChannelId] = useState("");
   const [spreadsheetId, setSpreadsheetId] = useState("");
   const [showTokens, setShowTokens] = useState(false);
+  const [testingTelegram, setTestingTelegram] = useState(false);
 
   // AI Chat
   const [showAIChat, setShowAIChat] = useState(false);
@@ -399,6 +400,25 @@ export default function Home() {
       });
       if (res.ok) { toast({ title: "Settings saved!" }); localStorage.setItem("sl_tag", affiliateTag.trim()); }
     } catch { toast({ title: "Failed to save", variant: "destructive" }); }
+  };
+
+  const handleTestTelegram = async () => {
+    if (!telegramBotToken.trim() || !telegramChannelId.trim()) {
+      toast({ title: "Fill in both Bot Token and Channel ID first", variant: "destructive" });
+      return;
+    }
+    setTestingTelegram(true);
+    try {
+      const res = await fetch("/api/telegram/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ botToken: telegramBotToken.trim(), channelId: telegramChannelId.trim() }),
+      });
+      const data = await res.json();
+      if (data.success) toast({ title: "✅ Telegram connected! Test message sent to your channel." });
+      else toast({ title: "Failed", description: data.error, variant: "destructive" });
+    } catch { toast({ title: "Network error", variant: "destructive" }); }
+    finally { setTestingTelegram(false); }
   };
 
   const handleSendChat = async () => {
@@ -718,6 +738,40 @@ export default function Home() {
                       <Input value={telegramChannelId} onChange={e => setTelegramChannelId(e.target.value)} placeholder="@yourchannel or -100..." className="bg-background/50 border-white/10" data-testid="input-telegram-channel" />
                     </div>
                   </div>
+
+                  {/* Telegram setup guide */}
+                  <div className="rounded-xl border border-sky-500/20 overflow-hidden">
+                    <div className="px-5 py-3 bg-sky-500/10 border-b border-sky-500/20 flex items-center gap-2">
+                      <Send className="w-4 h-4 text-sky-400" />
+                      <p className="text-sm font-semibold text-sky-300">How to connect your Telegram channel</p>
+                    </div>
+                    <div className="px-5 py-4 space-y-2">
+                      <ol className="space-y-2">
+                        {[
+                          <>Open Telegram → search <code className="text-amber-400 bg-amber-400/10 px-1 rounded">@BotFather</code> → send <code className="text-amber-400 bg-amber-400/10 px-1 rounded">/newbot</code></>,
+                          <>Give it any name (e.g. <em>SaleLooterz Bot</em>) and a username ending in <code className="text-amber-400 bg-amber-400/10 px-1 rounded">_bot</code></>,
+                          <>BotFather replies with your <strong className="text-white">Bot Token</strong> — paste it above</>,
+                          <>Go to your Telegram channel → <strong className="text-white">Edit Channel</strong> → <strong className="text-white">Administrators</strong> → Add Admin → search your bot username → add it as admin with <em>Post Messages</em> permission</>,
+                          <>For Channel ID: open your channel, the link looks like <code className="text-amber-400 bg-amber-400/10 px-1 rounded">t.me/yourchannelname</code> → use <code className="text-amber-400 bg-amber-400/10 px-1 rounded">@yourchannelname</code> as the Channel ID above. Or forward any channel message to <code className="text-amber-400 bg-amber-400/10 px-1 rounded">@userinfobot</code> to get the numeric ID.</>,
+                          <>Click <strong className="text-white">Test Telegram</strong> below — if it shows ✅ you're done!</>,
+                        ].map((step, i) => (
+                          <li key={i} className="flex items-start gap-3 text-xs text-gray-300">
+                            <span className="shrink-0 w-5 h-5 rounded-full bg-sky-500/20 text-sky-400 text-[11px] font-bold flex items-center justify-center mt-0.5">{i + 1}</span>
+                            <span className="leading-relaxed">{step}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                  </div>
+
+                  {/* Test Telegram button */}
+                  {(telegramBotToken || telegramChannelId) && (
+                    <Button onClick={handleTestTelegram} disabled={testingTelegram} variant="outline" className="border-sky-500/30 text-sky-400 hover:bg-sky-500/10" data-testid="button-test-telegram">
+                      {testingTelegram ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+                      Test Telegram
+                    </Button>
+                  )}
+
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <input type="checkbox" id="show-tokens" checked={showTokens} onChange={e => setShowTokens(e.target.checked)} className="accent-purple-500" />
                     <label htmlFor="show-tokens">Show sensitive values</label>

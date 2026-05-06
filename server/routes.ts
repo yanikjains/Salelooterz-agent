@@ -116,6 +116,25 @@ export async function registerRoutes(
     });
   });
 
+  // ── TELEGRAM TEST ────────────────────────────────────────────
+  app.post("/api/telegram/test", async (req, res) => {
+    const { botToken, channelId } = req.body;
+    if (!botToken || !channelId) {
+      return res.status(400).json({ success: false, error: "botToken and channelId are required" });
+    }
+    const { sendTelegramMessage } = await import("./telegram");
+    const ok = await sendTelegramMessage(
+      botToken,
+      channelId,
+      "🔥 <b>SaleLooterz AI</b> — Test message! Your Telegram bot is connected and working perfectly. ✅"
+    );
+    if (ok) {
+      res.json({ success: true });
+    } else {
+      res.status(400).json({ success: false, error: "Failed to send. Check your bot token and channel ID. Make sure the bot is an admin of the channel." });
+    }
+  });
+
   // ── ADMIN SCHEDULER ROUTES ───────────────────────────────────
 
   app.get("/api/admin/status", async (req, res) => {
