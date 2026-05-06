@@ -46,18 +46,9 @@ export function generateWhatsAppMessage(product: ProductData | DiscoveredProduct
 
 `;
 
-  const dealNum = parseFloat(product.price.replace(/[₹,]/g, '')) || 0;
-  const origNum = parseFloat((product.originalPrice || '').replace(/[₹,]/g, '')) || 0;
-  const hasMrp = origNum > dealNum && dealNum > 0;
-
-  if (hasMrp) {
-    message += `❌ ~MRP: ${formatIndianPrice(product.originalPrice)}~
-`;
-  }
-  
   message += `✅ *Deal Price: ${formatIndianPrice(product.price)}*`;
   
-  if (hasMrp && product.discount) {
+  if (product.discount) {
     message += ` (${product.discount})`;
   }
   
@@ -104,18 +95,9 @@ export function generateTelegramMessage(product: ProductData | DiscoveredProduct
 
 `;
 
-  const tDealNum = parseFloat(product.price.replace(/[₹,]/g, '')) || 0;
-  const tOrigNum = parseFloat((product.originalPrice || '').replace(/[₹,]/g, '')) || 0;
-  const tHasMrp = tOrigNum > tDealNum && tDealNum > 0;
-
-  if (tHasMrp) {
-    message += `💸 ~~MRP: ${formatIndianPrice(product.originalPrice)}~~
-`;
-  }
-  
   message += `💰 **Deal Price:** ${formatIndianPrice(product.price)}`;
   
-  if (tHasMrp && product.discount) {
+  if (product.discount) {
     message += ` 🏷️ ${product.discount}`;
   }
   
