@@ -128,35 +128,65 @@ export async function scrapeAmazonProduct(url: string): Promise<ProductData> {
       throw new Error('Could not extract product details. Amazon may be blocking the request.');
     }
 
+    // ── Deal price (the actual amount you pay) ─────────────────────────────
+    // We try very specific containers first to avoid picking up per-unit prices.
+    // Per-unit prices (e.g. ₹62.67/count) appear in secondary price blocks —
+    // the real deal price is always in the primary "apex" or "core" price display.
     let price = '';
-    const priceWhole = $('.a-price-whole').first().text().trim().replace(/,/g, '');
-    const priceFraction = $('.a-price-fraction').first().text().trim();
-    if (priceWhole) {
-      price = `₹${priceWhole}${priceFraction ? '.' + priceFraction : ''}`;
-    } else {
-      const altPrice = $('#priceblock_ourprice, #priceblock_dealprice, .a-price .a-offscreen').first().text().trim();
-      price = altPrice || '₹0';
+    const dealPriceSelectors = [
+      '#apex_offerDisplay_desktop_feature_div .a-price:not(.a-text-price) .a-offscreen',
+      '#corePriceDisplay_desktop_feature_div .a-price:not(.a-text-price) .a-offscreen',
+      '#corePrice_desktop_feature_div .a-price:not(.a-text-price) .a-offscreen',
+      '#price_inside_buybox',
+      '#priceblock_dealprice',
+      '#priceblock_ourprice',
+      '.a-price.priceToPay .a-offscreen',
+      '.a-price:not(.a-text-price) .a-offscreen',
+    ];
+    for (const sel of dealPriceSelectors) {
+      const val = $(sel).first().text().trim();
+      if (val && val.includes('₹')) { price = val; break; }
     }
+    // Fallback: reconstruct from whole + fraction but ONLY from apex container
+    if (!price) {
+      const whole = $('#apex_offerDisplay_desktop_feature_div .a-price-whole, #corePriceDisplay_desktop_feature_div .a-price-whole').first().text().trim().replace(/[,\.]/g, '');
+      if (whole) price = `₹${whole}`;
+    }
+    if (!price) price = '₹0';
 
+    // ── MRP / Original price (the strikethrough price) ─────────────────────
+    // Must be HIGHER than the deal price. The strikethrough element is always
+    // inside .a-text-price. We pick the one that corresponds to the deal price
+    // block, not a per-unit breakdown.
     let originalPrice = '';
-    const mrpText = $('.a-text-price .a-offscreen').first().text().trim();
-    if (mrpText) {
-      originalPrice = mrpText;
-    } else {
-      const strikeThroughPrice = $('.a-price.a-text-price span.a-offscreen').first().text().trim();
-      originalPrice = strikeThroughPrice || price;
+    const mrpSelectors = [
+      '#apex_offerDisplay_desktop_feature_div .a-text-price .a-offscreen',
+      '#corePriceDisplay_desktop_feature_div .a-text-price .a-offscreen',
+      '#corePrice_desktop_feature_div .a-text-price .a-offscreen',
+      '.a-price.a-text-price span.a-offscreen',
+      '.a-text-price .a-offscreen',
+    ];
+    const dealNum = parseFloat(price.replace(/[₹,]/g, '')) || 0;
+    for (const sel of mrpSelectors) {
+      const val = $(sel).first().text().trim();
+      if (val && val.includes('₹')) {
+        const candidate = parseFloat(val.replace(/[₹,]/g, '')) || 0;
+        // Only accept as MRP if it's genuinely higher than the deal price
+        if (candidate > dealNum) { originalPrice = val; break; }
+      }
     }
+    if (!originalPrice) originalPrice = price; // no valid MRP found → same as price
 
+    // ── Discount ────────────────────────────────────────────────────────────
     let discount = '';
     const savingsPercent = $('.savingsPercentage').first().text().trim();
     if (savingsPercent) {
       discount = savingsPercent.replace('-', '').replace('%', '') + '% OFF';
     } else {
-      const priceNum = parseFloat(price.replace(/[₹,]/g, '')) || 0;
       const origNum = parseFloat(originalPrice.replace(/[₹,]/g, '')) || 0;
-      if (origNum > priceNum) {
-        const discountPercent = Math.round(((origNum - priceNum) / origNum) * 100);
-        discount = `${discountPercent}% OFF`;
+      if (origNum > dealNum && dealNum > 0) {
+        const discountPercent = Math.round(((origNum - dealNum) / origNum) * 100);
+        if (discountPercent > 0 && discountPercent < 100) discount = `${discountPercent}% OFF`;
       }
     }
 
@@ -225,13 +255,27 @@ export async function searchAmazonIndia(query: string, limit: number = 5): Promi
       
       if (!title || title.length < 10) return;
 
-      const priceWhole = $(element).find('.a-price-whole').first().text().trim().replace(/,/g, '');
-      const price = priceWhole ? `₹${priceWhole}` : '';
-      
+      // ── Deal price: prefer the .a-offscreen text inside a non-strikethrough
+      // price element. Avoid per-unit prices by using the offscreen full text.
+      let price = $(element).find('.a-price:not(.a-text-price) .a-offscreen').first().text().trim();
+      if (!price) {
+        const whole = $(element).find('.a-price-whole').first().text().trim().replace(/[,\.]/g, '');
+        if (whole) price = `₹${whole}`;
+      }
       if (!price) return;
 
-      const originalPriceEl = $(element).find('.a-price.a-text-price .a-offscreen').first();
-      const originalPrice = originalPriceEl.text().trim() || price;
+      const priceNum = parseFloat(price.replace(/[₹,]/g, '')) || 0;
+      if (priceNum <= 0) return;
+
+      // ── MRP: must be strictly higher than the deal price
+      let originalPrice = '';
+      $(element).find('.a-price.a-text-price .a-offscreen').each((_, el) => {
+        if (originalPrice) return;
+        const val = $(el).text().trim();
+        const candidate = parseFloat(val.replace(/[₹,]/g, '')) || 0;
+        if (candidate > priceNum) originalPrice = val;
+      });
+      if (!originalPrice) originalPrice = price; // no valid MRP → same as price
 
       const ratingText = $(element).find('.a-icon-alt').first().text().trim();
       const ratingMatch = ratingText.match(/(\d+\.?\d*)/);
@@ -243,12 +287,11 @@ export async function searchAmazonIndia(query: string, limit: number = 5): Promi
 
       const image = $(element).find('img.s-image').attr('src') || '';
 
-      const priceNum = parseFloat(price.replace(/[₹,]/g, '')) || 0;
       const origNum = parseFloat(originalPrice.replace(/[₹,]/g, '')) || 0;
       let discount = '';
       if (origNum > priceNum && priceNum > 0) {
         const discountPercent = Math.round(((origNum - priceNum) / origNum) * 100);
-        discount = `${discountPercent}% OFF`;
+        if (discountPercent > 0 && discountPercent < 100) discount = `${discountPercent}% OFF`;
       }
 
       products.push({

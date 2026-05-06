@@ -46,14 +46,18 @@ export function generateWhatsAppMessage(product: ProductData | DiscoveredProduct
 
 `;
 
-  if (product.originalPrice && product.originalPrice !== product.price) {
+  const dealNum = parseFloat(product.price.replace(/[₹,]/g, '')) || 0;
+  const origNum = parseFloat((product.originalPrice || '').replace(/[₹,]/g, '')) || 0;
+  const hasMrp = origNum > dealNum && dealNum > 0;
+
+  if (hasMrp) {
     message += `❌ ~MRP: ${formatIndianPrice(product.originalPrice)}~
 `;
   }
   
   message += `✅ *Deal Price: ${formatIndianPrice(product.price)}*`;
   
-  if (product.discount) {
+  if (hasMrp && product.discount) {
     message += ` (${product.discount})`;
   }
   
@@ -100,14 +104,18 @@ export function generateTelegramMessage(product: ProductData | DiscoveredProduct
 
 `;
 
-  if (product.originalPrice && product.originalPrice !== product.price) {
+  const tDealNum = parseFloat(product.price.replace(/[₹,]/g, '')) || 0;
+  const tOrigNum = parseFloat((product.originalPrice || '').replace(/[₹,]/g, '')) || 0;
+  const tHasMrp = tOrigNum > tDealNum && tDealNum > 0;
+
+  if (tHasMrp) {
     message += `💸 ~~MRP: ${formatIndianPrice(product.originalPrice)}~~
 `;
   }
   
   message += `💰 **Deal Price:** ${formatIndianPrice(product.price)}`;
   
-  if (product.discount) {
+  if (tHasMrp && product.discount) {
     message += ` 🏷️ ${product.discount}`;
   }
   
