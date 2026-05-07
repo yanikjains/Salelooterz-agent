@@ -97,3 +97,14 @@ export const insertAutomationSchema = createInsertSchema(automations).omit({
 
 export type InsertAutomation = z.infer<typeof insertAutomationSchema>;
 export type Automation = typeof automations.$inferSelect;
+
+// Tracks every ASIN ever posted so we don't repeat within 6 months
+export const seenAsins = pgTable("seen_asins", {
+  asin: text("asin").primaryKey(),
+  title: text("title").notNull(),
+  firstSeenAt: timestamp("first_seen_at").defaultNow().notNull(),
+  lastSeenAt: timestamp("last_seen_at").defaultNow().notNull(),
+  timesPosted: integer("times_posted").default(1).notNull(),
+});
+
+export type SeenAsin = typeof seenAsins.$inferSelect;

@@ -4,6 +4,7 @@ import { sendTelegramMessage } from "./telegram";
 import { appendToSheet } from "./sheets";
 import { storage } from "./storage";
 import { waManager } from "./whatsapp";
+import { wasRecentlyPosted, markAsPosted, getTotalMemoryCount } from "./asinMemory";
 import { log } from "./index";
 
 export const ADMIN_USER_ID = "admin-scheduler";
@@ -26,10 +27,12 @@ export interface SchedulerStats {
   todayCount: number;
   thisHourCount: number;
   lastBatchCount: number;
+  lastBatchSkipped: number;
   lastBatchSuccess: boolean;
   totalSent: number;
   telegramSent: number;
   whatsappSent: number;
+  memoryCount: number;
   config: SchedulerConfig | null;
 }
 
@@ -39,11 +42,13 @@ class Scheduler {
   private nextRunAt: Date | null = null;
   private lastRunAt: Date | null = null;
   private lastBatchCount = 0;
+  private lastBatchSkipped = 0;
   private lastBatchSuccess = true;
   private categoryIndex = 0;
   private totalSent = 0;
   private telegramSent = 0;
   private whatsappSent = 0;
+  private memoryCount = 0;
   private hourCounts = new Map<string, number>();
   private dayCounts = new Map<string, number>();
   private config: SchedulerConfig | null = null;
@@ -95,10 +100,12 @@ class Scheduler {
       todayCount: this.dayCounts.get(this.dayKey()) || 0,
       thisHourCount: this.hourCounts.get(this.hourKey()) || 0,
       lastBatchCount: this.lastBatchCount,
+      lastBatchSkipped: this.lastBatchSkipped,
       lastBatchSuccess: this.lastBatchSuccess,
       totalSent: this.totalSent,
       telegramSent: this.telegramSent,
       whatsappSent: this.whatsappSent,
+      memoryCount: this.memoryCount,
       config: this.config,
     };
   }
@@ -115,13 +122,38 @@ class Scheduler {
     log(`[Scheduler] Batch — category: "${category}"`);
 
     try {
-      const products = useHot
+      const rawProducts = useHot
         ? await discoverHotDeals(PRODUCTS_PER_BATCH)
         : await discoverProducts(category, PRODUCTS_PER_BATCH);
 
-      if (!products?.length) {
+      if (!rawProducts?.length) {
         log("[Scheduler] No products found, skipping");
         this.lastBatchSuccess = false;
+        this.lastRunAt = new Date();
+        this.nextRunAt = new Date(Date.now() + BATCH_INTERVAL_MS);
+        return;
+      }
+
+      // ── Deduplicate: skip any ASIN posted within the last 6 months ──
+      const products = [];
+      let skipped = 0;
+      for (const p of rawProducts) {
+        if (!p.asin) { products.push(p); continue; }
+        const recent = await wasRecentlyPosted(p.asin);
+        if (recent) {
+          skipped++;
+          log(`[Scheduler] Skipping ${p.asin} (posted within 6 months)`);
+        } else {
+          products.push(p);
+        }
+      }
+      this.lastBatchSkipped = skipped;
+      if (skipped > 0) log(`[Scheduler] Deduplication: ${skipped} skipped, ${products.length} new`);
+
+      if (!products.length) {
+        log("[Scheduler] All products in this batch were duplicates — skipping batch");
+        this.lastBatchCount = 0;
+        this.lastBatchSuccess = true;
         this.lastRunAt = new Date();
         this.nextRunAt = new Date(Date.now() + BATCH_INTERVAL_MS);
         return;
@@ -139,7 +171,7 @@ class Scheduler {
             const ok = await sendTelegramMessage(telegramBotToken, telegramChannelId, telegramMessage);
             if (ok) { tgSent++; this.telegramSent++; }
           } catch (e) { log(`[Scheduler] Telegram error: ${e}`); }
-          await sleep(2000); // Telegram rate limit
+          await sleep(2000);
         }
 
         // ── Send to WhatsApp ──
@@ -148,7 +180,7 @@ class Scheduler {
             const ok = await waManager.sendToChannel(whatsappMessage);
             if (ok) { waSent++; this.whatsappSent++; }
           } catch (e) { log(`[Scheduler] WhatsApp error: ${e}`); }
-          await sleep(3000); // WhatsApp rate limit (more conservative)
+          await sleep(3000);
         }
 
         // ── Google Sheets ──
@@ -167,7 +199,7 @@ class Scheduler {
           } catch {}
         }
 
-        // ── Store ──
+        // ── Store in automations log ──
         try {
           await storage.createAutomation({
             userId: ADMIN_USER_ID,
@@ -181,14 +213,22 @@ class Scheduler {
             spreadsheetId: spreadsheetId || null,
           });
         } catch {}
+
+        // ── Record in ASIN memory (after successful processing) ──
+        if (product.asin) {
+          await markAsPosted(product.asin, product.title);
+        }
       }
+
+      // Refresh memory count
+      this.memoryCount = await getTotalMemoryCount();
 
       this.increment(products.length);
       this.lastBatchCount = products.length;
       this.lastBatchSuccess = true;
       this.lastRunAt = new Date();
       this.nextRunAt = new Date(Date.now() + BATCH_INTERVAL_MS);
-      log(`[Scheduler] Done: ${products.length} products | TG: ${tgSent} | WA: ${waSent}`);
+      log(`[Scheduler] Done: ${products.length} sent, ${skipped} skipped (duplicates) | TG: ${tgSent} | WA: ${waSent} | Memory: ${this.memoryCount} ASINs`);
     } catch (err) {
       log(`[Scheduler] Batch error: ${err}`);
       this.lastBatchSuccess = false;

@@ -12,7 +12,7 @@ import {
   CheckCircle, XCircle, Clock, BarChart3, MessageCircle,
   ChevronDown, ChevronUp, Star, IndianRupee, FileSpreadsheet,
   Smartphone, Activity, QrCode, Wifi, WifiOff, PhoneCall,
-  AlertCircle,
+  AlertCircle, Brain,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 
@@ -31,10 +31,12 @@ interface SchedulerStatus {
   todayCount: number;
   thisHourCount: number;
   lastBatchCount: number;
+  lastBatchSkipped: number;
   lastBatchSuccess: boolean;
   totalSent: number;
   telegramSent: number;
   whatsappSent: number;
+  memoryCount: number;
   config: {
     affiliateTag: string;
     telegramBotToken?: string;
@@ -500,7 +502,6 @@ export default function Home() {
           {[
             { label: "Today", value: status?.todayCount ?? 0, color: "text-emerald-400", bg: "bg-emerald-500/10", icon: <TrendingUp className="w-4 h-4" /> },
             { label: "This Hour", value: status?.thisHourCount ?? 0, color: "text-purple-400", bg: "bg-purple-500/10", icon: <Activity className="w-4 h-4" /> },
-            { label: "Last Batch", value: status?.lastBatchCount ?? 0, color: "text-amber-400", bg: "bg-amber-500/10", icon: <BarChart3 className="w-4 h-4" /> },
             { label: "Telegram", value: status?.telegramSent ?? 0, color: "text-sky-400", bg: "bg-sky-500/10", icon: <Send className="w-4 h-4" /> },
             { label: "WhatsApp", value: status?.whatsappSent ?? 0, color: "text-green-400", bg: "bg-green-500/10", icon: <MessageCircle className="w-4 h-4" /> },
           ].map((s, i) => (
@@ -514,6 +515,17 @@ export default function Home() {
               </CardContent>
             </Card>
           ))}
+          {/* Memory card */}
+          <Card className="bg-white/5 border-white/10">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <p className="text-xs text-muted-foreground">Memory</p>
+                <div className="p-1.5 rounded-lg bg-violet-500/10 text-violet-400"><Brain className="w-4 h-4" /></div>
+              </div>
+              <p className="text-2xl font-bold text-violet-400">{(status?.memoryCount ?? 0).toLocaleString()}</p>
+              <p className="text-[10px] text-muted-foreground mt-1">ASINs remembered</p>
+            </CardContent>
+          </Card>
         </motion.div>
 
         {/* ── Tabs ── */}

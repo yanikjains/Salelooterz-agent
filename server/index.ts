@@ -4,6 +4,7 @@ import { serveStatic } from "./static";
 import { createServer } from "http";
 import { storage } from "./storage";
 import { ADMIN_USER_ID } from "./scheduler";
+import { initAsinMemory, getTotalMemoryCount } from "./asinMemory";
 
 const app = express();
 const httpServer = createServer(app);
@@ -65,6 +66,11 @@ app.use((req, res, next) => {
   if (!existing) {
     await storage.upsertUserWithId(ADMIN_USER_ID, "admin", "salelooterz@gmail.com");
   }
+
+  // Initialize ASIN memory table (creates it if not exists)
+  await initAsinMemory();
+  const memCount = await getTotalMemoryCount();
+  log(`[AsinMemory] ${memCount} ASINs in lifetime memory`);
 
   await registerRoutes(httpServer, app);
 
