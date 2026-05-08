@@ -283,17 +283,16 @@ class WhatsAppManager {
 
 /**
  * Normalize a JID or phone number entered by the user.
- * - If it already has @g.us or @newsletter or @s.whatsapp.net → return as-is
- * - If it looks like a phone number (digits only) → append @s.whatsapp.net
- * - Otherwise → return trimmed as-is
+ * - Already has @  → return as-is
+ * - Pure digits     → phone number  → append @s.whatsapp.net
+ * - Alphanumeric    → channel ID    → append @newsletter
  */
 function normalizeJid(input: string): string {
   const trimmed = input.trim();
-  if (trimmed.includes("@")) return trimmed; // already has domain
-  // Strip any non-digit characters (spaces, dashes, +) from phone numbers
-  const digits = trimmed.replace(/\D/g, "");
-  if (digits.length > 7) return `${digits}@s.whatsapp.net`;
-  return trimmed;
+  if (trimmed.includes("@")) return trimmed;           // already a valid JID
+  const isDigitsOnly = /^\d+$/.test(trimmed);
+  if (isDigitsOnly && trimmed.length > 7) return `${trimmed}@s.whatsapp.net`;  // phone number
+  return `${trimmed}@newsletter`;                       // WhatsApp Channel ID
 }
 
 export const waManager = new WhatsAppManager();
