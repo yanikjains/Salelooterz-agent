@@ -152,10 +152,25 @@ class WhatsAppManager {
         defaultQueryTimeoutMs: 30000,
         keepAliveIntervalMs: 25000,
 
+        // ── SEND-ONLY LOCKDOWN ────────────────────────────────────────────────
+        // Never download or process chat history
         syncFullHistory: false,
+        // Reject every history-sync notification — no messages, no chats
+        shouldSyncHistoryMessage: () => false,
+        // Ignore ALL incoming JIDs — Baileys will not decrypt any incoming message
+        shouldIgnoreJid: () => true,
+        // Don't emit events for our own sent messages
+        emitOwnEvents: false,
+        // Don't show as online
         markOnlineOnConnect: false,
+        // No link preview uploads
         generateHighQualityLinkPreview: false,
+        // Refuse to fetch any message content (blocks history resync)
         getMessage: async () => undefined,
+        // Don't cache messages
+        enableRecentMessageCache: false,
+        // Don't auto-recreate sessions (would trigger re-sync)
+        enableAutoSessionRecreation: false,
       });
 
       this.sock.ev.on("creds.update", saveCreds);
