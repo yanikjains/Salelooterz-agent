@@ -47,3 +47,4 @@ expertMode = true
 
 [userenv.shared]
 VITE_GOOGLE_CLIENT_ID = "785297123506-pddv23q43qj4rj0esu95n3fhtk234htr.apps.googleusercontent.com"
+ADMIN_PIN = "123456"

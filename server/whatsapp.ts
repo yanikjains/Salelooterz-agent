@@ -98,6 +98,11 @@ class WhatsAppManager {
 
   setChannelJid(jid: string) {
     const normalized = normalizeJid(jid.trim());
+    // Hard-reject anything that is not a newsletter (channel) JID
+    if (!normalized.endsWith("@newsletter")) {
+      log(`[WhatsApp] REJECTED non-newsletter JID: ${normalized} — only @newsletter channels allowed`);
+      throw new Error("Only WhatsApp Channel JIDs (@newsletter) are allowed. Individual chats and groups are blocked.");
+    }
     this.state.channelJid = normalized;
     this.emit();
     // Persist to disk so it survives restarts
@@ -276,13 +281,18 @@ class WhatsAppManager {
       log("[WhatsApp] No channel JID set — cannot send. Set it in the WhatsApp tab.");
       return false;
     }
+    // Hard-block: ONLY allow @newsletter (owned channel) JIDs — never chats or individuals
+    if (!jid.endsWith("@newsletter")) {
+      log(`[WhatsApp] BLOCKED send to non-newsletter JID: ${jid} — only owner channels allowed`);
+      return false;
+    }
     if (!this.sock || this.state.status !== "connected") {
       log("[WhatsApp] Not connected — cannot send");
       return false;
     }
     try {
       await this.sock.sendMessage(jid, { text });
-      log(`[WhatsApp] ✓ Sent to ${jid}`);
+      log(`[WhatsApp] ✓ Sent to channel ${jid}`);
       return true;
     } catch (err: any) {
       log(`[WhatsApp] Send failed to ${jid}: ${err?.message || err}`);
@@ -297,17 +307,19 @@ class WhatsAppManager {
 }
 
 /**
- * Normalize a JID or phone number entered by the user.
- * - Already has @  → return as-is
- * - Pure digits     → phone number  → append @s.whatsapp.net
- * - Alphanumeric    → channel ID    → append @newsletter
+ * Normalize a channel ID entered by the user.
+ * ONLY @newsletter (WhatsApp Channels) are accepted.
+ * - Already a @newsletter JID → return as-is
+ * - Raw alphanumeric ID       → append @newsletter
+ * - Anything else (phone, @g.us, @s.whatsapp.net) → kept as-is so the
+ *   @newsletter guard in setChannelJid / sendToChannel can reject it.
  */
 function normalizeJid(input: string): string {
   const trimmed = input.trim();
-  if (trimmed.includes("@")) return trimmed;           // already a valid JID
-  const isDigitsOnly = /^\d+$/.test(trimmed);
-  if (isDigitsOnly && trimmed.length > 7) return `${trimmed}@s.whatsapp.net`;  // phone number
-  return `${trimmed}@newsletter`;                       // WhatsApp Channel ID
+  // Already has @ suffix — return unchanged (guard will reject non-newsletter)
+  if (trimmed.includes("@")) return trimmed;
+  // Raw channel ID (alphanumeric, may start with digits) → @newsletter
+  return `${trimmed}@newsletter`;
 }
 
 export const waManager = new WhatsAppManager();

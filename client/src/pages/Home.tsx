@@ -192,12 +192,14 @@ function WhatsAppPanel() {
 
       {/* Channel JID */}
       <div>
-        <label className="text-sm font-medium text-muted-foreground mb-2 block">WhatsApp Channel / Group JID</label>
+        <label className="text-sm font-medium text-muted-foreground mb-2 block flex items-center gap-2">
+          WhatsApp Channel JID <span className="text-xs text-emerald-400 font-normal">(Owner channels only — no chats, no individuals)</span>
+        </label>
         <div className="flex gap-2">
           <Input
             value={channelJid}
             onChange={e => setChannelJid(e.target.value)}
-            placeholder="120363xxxxxxxx@newsletter  or  xxxxxxxx@g.us"
+            placeholder="120363xxxxxxxx@newsletter"
             className="bg-background/50 border-white/10 font-mono text-sm"
             data-testid="input-wa-jid"
           />
@@ -206,7 +208,10 @@ function WhatsAppPanel() {
           </Button>
         </div>
         <p className="text-xs text-muted-foreground mt-2">
-          For WhatsApp Channels: copy the channel link, the ID is in the URL (format: <code className="text-amber-400">120363...@newsletter</code>). For groups: use the group JID ending in <code className="text-amber-400">@g.us</code>
+          Only <code className="text-amber-400">@newsletter</code> JIDs are accepted. Open your WhatsApp Channel → invite link → the long alphanumeric ID is in the URL. Paste it here (with or without <code className="text-amber-400">@newsletter</code>).
+        </p>
+        <p className="text-xs text-red-400/80 mt-1 flex items-center gap-1">
+          <XCircle className="w-3 h-3 shrink-0" /> Groups (<code>@g.us</code>), personal chats (<code>@s.whatsapp.net</code>) and individuals are <strong>blocked</strong> at the code level.
         </p>
       </div>
 
@@ -296,8 +301,81 @@ function WhatsAppPanel() {
   );
 }
 
-// ─── Main Dashboard ───────────────────────────────────────────────────────────
-export default function Home() {
+// ─── Admin PIN Screen (standalone page) ─────────────────────────────────────
+function PinScreen({ onVerified }: { onVerified: () => void }) {
+  const [pin, setPin] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/verify-pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        sessionStorage.setItem("admin_pin_ok", "1");
+        onVerified();
+      } else {
+        setError("Wrong PIN. Try again.");
+        setPin("");
+      }
+    } catch {
+      setError("Connection error — try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
+      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm">
+        <Card className="border border-white/10 bg-black/60 backdrop-blur shadow-2xl">
+          <CardContent className="pt-8 pb-8 px-8 space-y-6">
+            <div className="text-center space-y-2">
+              <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center mx-auto mb-4">
+                <Bot className="w-8 h-8 text-amber-400" />
+              </div>
+              <h1 className="text-2xl font-bold text-white">SaleLooterz AI</h1>
+              <p className="text-sm text-muted-foreground">Enter your admin PIN to access the dashboard</p>
+            </div>
+            <form onSubmit={handleVerify} className="space-y-4">
+              <Input
+                type="password"
+                inputMode="numeric"
+                placeholder="PIN"
+                value={pin}
+                onChange={e => setPin(e.target.value)}
+                autoFocus
+                className="text-center text-xl tracking-widest bg-white/5 border-white/10 placeholder:tracking-normal"
+                data-testid="input-admin-pin"
+              />
+              {error && (
+                <p className="text-xs text-red-400 text-center flex items-center justify-center gap-1">
+                  <XCircle className="w-3.5 h-3.5" />{error}
+                </p>
+              )}
+              <Button type="submit" disabled={!pin || loading} className="w-full bg-amber-500 hover:bg-amber-600 text-black font-bold" data-testid="button-pin-submit">
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Unlock Dashboard"}
+              </Button>
+            </form>
+            <p className="text-xs text-muted-foreground text-center">
+              Change PIN anytime via the <span className="text-amber-400">ADMIN_PIN</span> secret in Replit
+            </p>
+          </CardContent>
+        </Card>
+      </motion.div>
+    </div>
+  );
+}
+
+// ─── Main Dashboard (inner — only rendered after PIN) ─────────────────────────
+function HomeDashboard() {
   const [status, setStatus] = useState<SchedulerStatus | null>(null);
   const [isActioning, setIsActioning] = useState(false);
   const [activeTab, setActiveTab] = useState<"control" | "whatsapp" | "settings">("control");
@@ -851,4 +929,13 @@ export default function Home() {
       </AnimatePresence>
     </div>
   );
+}
+
+// ─── PIN-gated entry point ─────────────────────────────────────────────────────
+export default function Home() {
+  const [pinVerified, setPinVerified] = useState<boolean>(() => sessionStorage.getItem("admin_pin_ok") === "1");
+  if (!pinVerified) {
+    return <PinScreen onVerified={() => setPinVerified(true)} />;
+  }
+  return <HomeDashboard />;
 }

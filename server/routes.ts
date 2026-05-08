@@ -29,6 +29,20 @@ export async function registerRoutes(
 ): Promise<Server> {
   registerChatRoutes(app);
 
+  // ── ADMIN PIN AUTH ───────────────────────────────────────────
+  app.post("/api/admin/verify-pin", (req, res) => {
+    const { pin } = req.body;
+    const correctPin = process.env.ADMIN_PIN || "123456";
+    if (!pin || typeof pin !== "string") {
+      return res.status(400).json({ success: false, error: "PIN required" });
+    }
+    if (pin.trim() === correctPin) {
+      res.json({ success: true });
+    } else {
+      res.status(401).json({ success: false, error: "Incorrect PIN" });
+    }
+  });
+
   // ── WHATSAPP ROUTES ──────────────────────────────────────────
 
   // Get WhatsApp connection status + QR
@@ -70,8 +84,12 @@ export async function registerRoutes(
     if (!jid || typeof jid !== "string") {
       return res.status(400).json({ error: "jid is required" });
     }
-    waManager.setChannelJid(jid.trim());
-    res.json({ success: true, channelJid: jid.trim() });
+    try {
+      waManager.setChannelJid(jid.trim());
+      res.json({ success: true, channelJid: jid.trim() });
+    } catch (err: any) {
+      res.status(400).json({ success: false, error: err?.message || "Invalid JID" });
+    }
   });
 
   // Send a test message to the channel
