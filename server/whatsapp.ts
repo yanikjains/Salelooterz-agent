@@ -1,31 +1,18 @@
 /**
  * WHATSAPP SEND-ONLY MANAGER
  *
- * This module connects to WhatsApp using the WhatsApp Web protocol (Baileys).
- *
  * WHAT THIS CODE DOES:
  *   ✅ Sends messages to ONE specific channel/group JID you configure
  *   ✅ Maintains the connection (reconnects if dropped)
  *   ✅ Generates QR code for initial login
+ *   ✅ Persists the channel JID to disk (survives server restarts)
  *
  * WHAT THIS CODE DELIBERATELY DOES NOT DO:
- *   ❌ No listener for incoming messages (messages.upsert is never registered)
+ *   ❌ No listener for incoming messages
  *   ❌ No reading of any chats, contacts, or call logs
- *   ❌ No syncing of chat history (syncFullHistory: false, getMessage returns undefined)
+ *   ❌ No syncing of chat history
  *   ❌ No marking messages as read
- *   ❌ No presence updates (markOnlineOnConnect: false)
- *   ❌ No storing or logging of any received data
- *   ❌ Cannot send to any JID other than the one channel you configure
- *
- * HONEST LIMITATION:
- *   The WhatsApp Web protocol does not have a "channel-only" permission system.
- *   At the protocol level the session is technically a full WhatsApp Web session.
- *   However, this code only ever calls sock.sendMessage() — nothing else.
- *   You can audit every line below to verify this.
- *
- * RECOMMENDATION:
- *   For maximum safety, use a dedicated secondary phone number as the bot account.
- *   That way your personal chats are never involved at all.
+ *   ❌ No presence updates
  */
 
 import makeWASocket, {
@@ -37,12 +24,14 @@ import makeWASocket, {
   type ConnectionState,
 } from "@whiskeysockets/baileys";
 import { Boom } from "@hapi/boom";
-import { mkdir } from "fs/promises";
+import { mkdir, readFile, writeFile } from "fs/promises";
 import { existsSync } from "fs";
 import qrcode from "qrcode";
+import pino from "pino";
 import { log } from "./index";
 
 const AUTH_DIR = "./whatsapp-auth";
+const CONFIG_FILE = "./whatsapp-config.json";
 
 type WAStatus = "disconnected" | "connecting" | "qr" | "connected";
 
@@ -52,6 +41,31 @@ interface WAState {
   phoneNumber: string | null;
   channelJid: string | null;
   error: string | null;
+}
+
+interface WAConfig {
+  channelJid: string | null;
+}
+
+// Silent pino logger — suppresses Baileys noise but still captures errors
+const baileysLogger = pino({ level: "silent" });
+
+async function loadConfig(): Promise<WAConfig> {
+  try {
+    if (existsSync(CONFIG_FILE)) {
+      const raw = await readFile(CONFIG_FILE, "utf-8");
+      return JSON.parse(raw) as WAConfig;
+    }
+  } catch {}
+  return { channelJid: null };
+}
+
+async function saveConfig(config: WAConfig): Promise<void> {
+  try {
+    await writeFile(CONFIG_FILE, JSON.stringify(config, null, 2), "utf-8");
+  } catch (err) {
+    log(`[WhatsApp] Failed to save config: ${err}`);
+  }
 }
 
 class WhatsAppManager {
@@ -68,12 +82,27 @@ class WhatsAppManager {
   private reconnectTimer: NodeJS.Timeout | null = null;
   private shouldReconnect = true;
 
+  constructor() {
+    // Load persisted channel JID on startup
+    loadConfig().then((cfg) => {
+      if (cfg.channelJid) {
+        this.state.channelJid = cfg.channelJid;
+        log(`[WhatsApp] Loaded saved channel JID: ${cfg.channelJid}`);
+      }
+    });
+  }
+
   getState(): WAState {
     return { ...this.state };
   }
 
   setChannelJid(jid: string) {
-    this.state.channelJid = jid;
+    const normalized = normalizeJid(jid.trim());
+    this.state.channelJid = normalized;
+    this.emit();
+    // Persist to disk so it survives restarts
+    saveConfig({ channelJid: normalized });
+    log(`[WhatsApp] Channel JID set to: ${normalized}`);
   }
 
   onQR(cb: (qr: string) => void) {
@@ -114,30 +143,23 @@ class WhatsAppManager {
         version,
         auth: {
           creds: state.creds,
-          keys: makeCacheableSignalKeyStore(state.keys, undefined as any),
+          keys: makeCacheableSignalKeyStore(state.keys, baileysLogger),
         },
+        logger: baileysLogger,
         printQRInTerminal: false,
         browser: ["SaleLooterz Bot", "Chrome", "120.0.0"],
         connectTimeoutMs: 60000,
         defaultQueryTimeoutMs: 30000,
-        keepAliveIntervalMs: 10000,
+        keepAliveIntervalMs: 25000,
 
-        // ── PRIVACY / SEND-ONLY SETTINGS ───────────────────────────────────
-        syncFullHistory: false,           // Do NOT download chat history
-        markOnlineOnConnect: false,       // Do NOT show as online
-        generateHighQualityLinkPreview: false, // No link previews needed
-
-        // Returning undefined here means we deliberately refuse to fetch
-        // any message content — this prevents history sync entirely.
+        syncFullHistory: false,
+        markOnlineOnConnect: false,
+        generateHighQualityLinkPreview: false,
         getMessage: async () => undefined,
       });
 
-      // ── ONLY TWO EVENT LISTENERS ─────────────────────────────────────────
-      // 1. Save credentials (required to stay logged in across restarts)
       this.sock.ev.on("creds.update", saveCreds);
 
-      // 2. Connection state updates (QR, open, close)
-      // NO messages.upsert, NO contacts.update, NO chats.update, NOTHING else.
       this.sock.ev.on("connection.update", async (update: Partial<ConnectionState>) => {
         const { connection, lastDisconnect, qr } = update;
 
@@ -163,7 +185,7 @@ class WhatsAppManager {
             this.state.phoneNumber = creds.me.id.split(":")[0].split("@")[0];
           }
           this.emit();
-          log(`[WhatsApp] Connected in send-only mode. Number: +${this.state.phoneNumber || "unknown"}`);
+          log(`[WhatsApp] Connected. Number: +${this.state.phoneNumber || "unknown"}`);
         }
 
         if (connection === "close") {
@@ -178,22 +200,15 @@ class WhatsAppManager {
             this.clearAuth();
           }
           this.emit();
-          log(`[WhatsApp] Disconnected. Reason: ${reason}`);
+          log(`[WhatsApp] Disconnected. Reason code: ${reason}`);
 
           if (this.shouldReconnect && !loggedOut) {
             const delay = reason === DisconnectReason.restartRequired ? 1000 : 8000;
+            log(`[WhatsApp] Reconnecting in ${delay / 1000}s...`);
             this.reconnectTimer = setTimeout(() => this.connect(), delay);
           }
         }
       });
-
-      // ── INTENTIONALLY NO OTHER LISTENERS ─────────────────────────────────
-      // If you inspect this file, you will see there is no:
-      //   sock.ev.on("messages.upsert", ...)     ← would read incoming messages
-      //   sock.ev.on("contacts.update", ...)     ← would read contacts
-      //   sock.ev.on("chats.update", ...)        ← would read chat list
-      //   sock.ev.on("presence.update", ...)     ← would read online status
-      // None of these are registered. This is intentional.
 
     } catch (err) {
       log(`[WhatsApp] Connection error: ${err}`);
@@ -217,7 +232,9 @@ class WhatsAppManager {
       this.sock = null;
     }
     this.clearAuth();
-    this.state = { status: "disconnected", qrBase64: null, phoneNumber: null, channelJid: null, error: null };
+    // Keep channelJid so user doesn't have to re-enter it
+    const savedJid = this.state.channelJid;
+    this.state = { status: "disconnected", qrBase64: null, phoneNumber: null, channelJid: savedJid, error: null };
     this.emit();
     log("[WhatsApp] Disconnected and session cleared");
   }
@@ -237,12 +254,11 @@ class WhatsAppManager {
   /**
    * THE ONLY WHATSAPP FUNCTION THIS APP CALLS.
    * Sends a text message to the configured channel JID only.
-   * This is the entire extent of what SaleLooterz does with WhatsApp.
    */
   async sendToChannel(text: string): Promise<boolean> {
     const jid = this.state.channelJid;
     if (!jid) {
-      log("[WhatsApp] No channel JID set — cannot send");
+      log("[WhatsApp] No channel JID set — cannot send. Set it in the WhatsApp tab.");
       return false;
     }
     if (!this.sock || this.state.status !== "connected") {
@@ -251,10 +267,11 @@ class WhatsAppManager {
     }
     try {
       await this.sock.sendMessage(jid, { text });
-      log(`[WhatsApp] Sent to channel ${jid}`);
+      log(`[WhatsApp] ✓ Sent to ${jid}`);
       return true;
-    } catch (err) {
-      log(`[WhatsApp] Send failed: ${err}`);
+    } catch (err: any) {
+      log(`[WhatsApp] Send failed to ${jid}: ${err?.message || err}`);
+      if (err?.stack) log(`[WhatsApp] Stack: ${err.stack}`);
       return false;
     }
   }
@@ -262,6 +279,21 @@ class WhatsAppManager {
   isConnected(): boolean {
     return this.state.status === "connected";
   }
+}
+
+/**
+ * Normalize a JID or phone number entered by the user.
+ * - If it already has @g.us or @newsletter or @s.whatsapp.net → return as-is
+ * - If it looks like a phone number (digits only) → append @s.whatsapp.net
+ * - Otherwise → return trimmed as-is
+ */
+function normalizeJid(input: string): string {
+  const trimmed = input.trim();
+  if (trimmed.includes("@")) return trimmed; // already has domain
+  // Strip any non-digit characters (spaces, dashes, +) from phone numbers
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.length > 7) return `${digits}@s.whatsapp.net`;
+  return trimmed;
 }
 
 export const waManager = new WhatsAppManager();
