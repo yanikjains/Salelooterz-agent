@@ -160,22 +160,19 @@ class WhatsAppManager {
         // ── SEND-ONLY LOCKDOWN ────────────────────────────────────────────────
         // Never download or process chat history
         syncFullHistory: false,
-        // Reject every history-sync notification — no messages, no chats
+        // Reject every history-sync notification — no messages, no chats downloaded
         shouldSyncHistoryMessage: () => false,
-        // Ignore ALL incoming JIDs — Baileys will not decrypt any incoming message
-        shouldIgnoreJid: () => true,
         // Don't emit events for our own sent messages
         emitOwnEvents: false,
-        // Don't show as online
+        // Don't show as online when connected
         markOnlineOnConnect: false,
         // No link preview uploads
         generateHighQualityLinkPreview: false,
-        // Refuse to fetch any message content (blocks history resync)
+        // Refuse to fetch any message content (blocks history re-sync requests)
         getMessage: async () => undefined,
-        // Don't cache messages
-        enableRecentMessageCache: false,
-        // Don't auto-recreate sessions (would trigger re-sync)
-        enableAutoSessionRecreation: false,
+        // NOTE: shouldIgnoreJid is intentionally NOT set — setting it to () => true
+        // breaks newsletter message delivery because it drops the server's ACK/response
+        // node for the sent message, causing the channel to never receive it.
       });
 
       this.sock.ev.on("creds.update", saveCreds);
