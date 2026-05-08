@@ -344,6 +344,10 @@ export default function Home() {
         setTelegramBotToken(data.telegramBotToken || "");
         setTelegramChannelId(data.telegramChannelId || "");
         setSpreadsheetId(data.spreadsheetId || "");
+        if (data.affiliateTag) {
+          setAffiliateTag(data.affiliateTag);
+          localStorage.setItem("sl_tag", data.affiliateTag);
+        }
       }
     } catch {}
   }, []);
@@ -557,7 +561,14 @@ export default function Home() {
                           {isRunning ? <Activity className="w-6 h-6 text-emerald-400 animate-pulse" /> : <Square className="w-6 h-6 text-gray-400" />}
                         </div>
                         <div>
-                          <h2 className="text-xl font-bold text-white">{isRunning ? "Automation Active" : "Automation Stopped"}</h2>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <h2 className="text-xl font-bold text-white">{isRunning ? "Automation Active" : "Automation Stopped"}</h2>
+                            {isRunning && (
+                              <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                                Runs 24/7 · Even when closed
+                              </span>
+                            )}
+                          </div>
                           <p className="text-sm text-muted-foreground">
                             {isRunning ? "15 products / 20 min · 45/hour · ~1,080/day" : "Configure settings then start"}
                           </p>

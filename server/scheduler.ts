@@ -6,11 +6,14 @@ import { storage } from "./storage";
 import { waManager } from "./whatsapp";
 import { wasRecentlyPosted, markAsPosted, getTotalMemoryCount } from "./asinMemory";
 import { log } from "./index";
+import { readFile, writeFile } from "fs/promises";
+import { existsSync } from "fs";
 
 export const ADMIN_USER_ID = "admin-scheduler";
 
 const PRODUCTS_PER_BATCH = 15;
-const BATCH_INTERVAL_MS = 20 * 60 * 1000; // every 20 min → 45/hr → ~1080/day
+const BATCH_INTERVAL_MS = 20 * 60 * 1000; // every 20 min
+const SCHEDULER_CONFIG_FILE = "./scheduler-config.json";
 
 export interface SchedulerConfig {
   affiliateTag: string;
@@ -34,6 +37,34 @@ export interface SchedulerStats {
   whatsappSent: number;
   memoryCount: number;
   config: SchedulerConfig | null;
+}
+
+async function loadSchedulerConfig(): Promise<SchedulerConfig | null> {
+  try {
+    if (existsSync(SCHEDULER_CONFIG_FILE)) {
+      const raw = await readFile(SCHEDULER_CONFIG_FILE, "utf-8");
+      const parsed = JSON.parse(raw);
+      if (parsed?.affiliateTag) return parsed as SchedulerConfig;
+    }
+  } catch {}
+  return null;
+}
+
+async function saveSchedulerConfig(config: SchedulerConfig): Promise<void> {
+  try {
+    await writeFile(SCHEDULER_CONFIG_FILE, JSON.stringify(config, null, 2), "utf-8");
+  } catch (err) {
+    log(`[Scheduler] Failed to save config: ${err}`);
+  }
+}
+
+async function clearSchedulerConfig(): Promise<void> {
+  try {
+    const { rm } = await import("fs/promises");
+    if (existsSync(SCHEDULER_CONFIG_FILE)) {
+      await rm(SCHEDULER_CONFIG_FILE, { force: true });
+    }
+  } catch {}
 }
 
 class Scheduler {
@@ -68,13 +99,39 @@ class Scheduler {
     this.totalSent += count;
   }
 
+  /**
+   * Called once on server boot. Loads any saved config from disk and
+   * auto-starts the scheduler so it keeps running without manual clicks.
+   */
+  async autoStart(): Promise<void> {
+    const saved = await loadSchedulerConfig();
+    if (!saved) {
+      log("[Scheduler] No saved config — waiting for manual start.");
+      return;
+    }
+    log(`[Scheduler] Auto-starting from saved config (tag: ${saved.affiliateTag})`);
+    // Apply saved WhatsApp JID if present (waManager loads its own JID from disk too)
+    if (saved.whatsappChannelJid) {
+      waManager.setChannelJid(saved.whatsappChannelJid);
+    }
+    await this.start(saved);
+  }
+
   async start(config: SchedulerConfig) {
     if (this.isRunning) { this.config = config; return; }
     this.config = config;
     this.isRunning = true;
 
+    // Persist config so we can auto-restart after server reboots
+    await saveSchedulerConfig(config);
+
     const existing = await storage.getUser(ADMIN_USER_ID);
     if (!existing) await storage.upsertUserWithId(ADMIN_USER_ID, "admin", null);
+    await storage.updateUser(ADMIN_USER_ID, {
+      telegramBotToken: config.telegramBotToken || null,
+      telegramChannelId: config.telegramChannelId || null,
+      spreadsheetId: config.spreadsheetId || null,
+    });
 
     log("[Scheduler] Starting — first batch running now...");
     await this.runBatch();
@@ -87,10 +144,17 @@ class Scheduler {
     if (this.intervalId) { clearInterval(this.intervalId); this.intervalId = null; }
     this.isRunning = false;
     this.nextRunAt = null;
+    // Clear the saved config so it does NOT auto-restart after the next reboot
+    clearSchedulerConfig();
     log("[Scheduler] Stopped.");
   }
 
-  updateConfig(config: SchedulerConfig) { this.config = config; }
+  updateConfig(config: SchedulerConfig) {
+    this.config = config;
+    // Update persisted config too
+    saveSchedulerConfig(config);
+    if (config.whatsappChannelJid) waManager.setChannelJid(config.whatsappChannelJid);
+  }
 
   getStatus(): SchedulerStats {
     return {
@@ -134,7 +198,7 @@ class Scheduler {
         return;
       }
 
-      // ── Deduplicate: skip any ASIN posted within the last 6 months ──
+      // Deduplicate: skip any ASIN posted within the last 6 months
       const products = [];
       let skipped = 0;
       for (const p of rawProducts) {
@@ -151,7 +215,7 @@ class Scheduler {
       if (skipped > 0) log(`[Scheduler] Deduplication: ${skipped} skipped, ${products.length} new`);
 
       if (!products.length) {
-        log("[Scheduler] All products in this batch were duplicates — skipping batch");
+        log("[Scheduler] All products in this batch were duplicates — skipping");
         this.lastBatchCount = 0;
         this.lastBatchSuccess = true;
         this.lastRunAt = new Date();
@@ -165,7 +229,7 @@ class Scheduler {
         const whatsappMessage = generateWhatsAppMessageFromDiscovered(product, affiliateTag);
         const telegramMessage = generateTelegramMessageFromDiscovered(product, affiliateTag);
 
-        // ── Send to Telegram ──
+        // Send to Telegram
         if (telegramBotToken && telegramChannelId) {
           try {
             const ok = await sendTelegramMessage(telegramBotToken, telegramChannelId, telegramMessage);
@@ -174,7 +238,7 @@ class Scheduler {
           await sleep(2000);
         }
 
-        // ── Send to WhatsApp ──
+        // Send to WhatsApp
         if (waManager.isConnected()) {
           try {
             const ok = await waManager.sendToChannel(whatsappMessage);
@@ -183,7 +247,7 @@ class Scheduler {
           await sleep(3000);
         }
 
-        // ── Google Sheets ──
+        // Google Sheets
         if (spreadsheetId) {
           try {
             await appendToSheet(spreadsheetId, {
@@ -199,7 +263,7 @@ class Scheduler {
           } catch {}
         }
 
-        // ── Store in automations log ──
+        // Store in automations log
         try {
           await storage.createAutomation({
             userId: ADMIN_USER_ID,
@@ -214,21 +278,19 @@ class Scheduler {
           });
         } catch {}
 
-        // ── Record in ASIN memory (after successful processing) ──
+        // Record in ASIN memory
         if (product.asin) {
           await markAsPosted(product.asin, product.title);
         }
       }
 
-      // Refresh memory count
       this.memoryCount = await getTotalMemoryCount();
-
       this.increment(products.length);
       this.lastBatchCount = products.length;
       this.lastBatchSuccess = true;
       this.lastRunAt = new Date();
       this.nextRunAt = new Date(Date.now() + BATCH_INTERVAL_MS);
-      log(`[Scheduler] Done: ${products.length} sent, ${skipped} skipped (duplicates) | TG: ${tgSent} | WA: ${waSent} | Memory: ${this.memoryCount} ASINs`);
+      log(`[Scheduler] Done: ${products.length} sent, ${skipped} skipped | TG: ${tgSent} | WA: ${waSent} | Memory: ${this.memoryCount} ASINs`);
     } catch (err) {
       log(`[Scheduler] Batch error: ${err}`);
       this.lastBatchSuccess = false;

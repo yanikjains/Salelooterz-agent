@@ -198,13 +198,17 @@ export async function registerRoutes(
 
   app.get("/api/admin/config", async (req, res) => {
     try {
-      const user = await storage.getUser(ADMIN_USER_ID);
+      const schedulerStatus = scheduler.getStatus();
       const waState = waManager.getState();
+      // Prefer the live running config (in-memory); fall back to user record
+      const savedConfig = schedulerStatus.config;
+      const user = await storage.getUser(ADMIN_USER_ID);
       res.json({
-        telegramBotToken: user?.telegramBotToken || "",
-        telegramChannelId: user?.telegramChannelId || "",
-        spreadsheetId: user?.spreadsheetId || "",
-        whatsappChannelJid: waState.channelJid || "",
+        telegramBotToken: savedConfig?.telegramBotToken || user?.telegramBotToken || "",
+        telegramChannelId: savedConfig?.telegramChannelId || user?.telegramChannelId || "",
+        spreadsheetId: savedConfig?.spreadsheetId || user?.spreadsheetId || "",
+        whatsappChannelJid: waState.channelJid || savedConfig?.whatsappChannelJid || "",
+        affiliateTag: savedConfig?.affiliateTag || "",
       });
     } catch (error) {
       res.status(500).json({ error: "Failed to load config" });

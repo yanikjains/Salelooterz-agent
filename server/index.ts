@@ -3,7 +3,7 @@ import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
 import { storage } from "./storage";
-import { ADMIN_USER_ID } from "./scheduler";
+import { ADMIN_USER_ID, scheduler } from "./scheduler";
 import { initAsinMemory, getTotalMemoryCount } from "./asinMemory";
 
 const app = express();
@@ -73,6 +73,9 @@ app.use((req, res, next) => {
   log(`[AsinMemory] ${memCount} ASINs in lifetime memory`);
 
   await registerRoutes(httpServer, app);
+
+  // Auto-resume scheduler if it was running before restart
+  scheduler.autoStart();
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
