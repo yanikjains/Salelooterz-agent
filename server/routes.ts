@@ -32,7 +32,7 @@ export async function registerRoutes(
   // ── ADMIN PIN AUTH ───────────────────────────────────────────
   app.post("/api/admin/verify-pin", (req, res) => {
     const { pin } = req.body;
-    const correctPin = process.env.ADMIN_PIN || "123456";
+    const correctPin = process.env.ADMIN_PIN || "2412";
     if (!pin || typeof pin !== "string") {
       return res.status(400).json({ success: false, error: "PIN required" });
     }

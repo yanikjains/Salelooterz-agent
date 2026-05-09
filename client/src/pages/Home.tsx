@@ -365,7 +365,7 @@ function PinScreen({ onVerified }: { onVerified: () => void }) {
               </Button>
             </form>
             <p className="text-xs text-muted-foreground text-center">
-              Change PIN anytime via the <span className="text-amber-400">ADMIN_PIN</span> secret in Replit
+              Default PIN is <span className="text-amber-400">2412</span>. You can change it via the <span className="text-amber-400">ADMIN_PIN</span> secret in Replit
             </p>
           </CardContent>
         </Card>
