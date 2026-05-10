@@ -92,6 +92,33 @@ export async function registerRoutes(
     }
   });
 
+  // Resolve a channel invite link / raw code / JID → JID + channel name
+  // Accepts: https://whatsapp.com/channel/XXX, raw code, or JID@newsletter
+  app.post("/api/whatsapp/resolve", async (req, res) => {
+    const { input } = req.body;
+    if (!input || typeof input !== "string") {
+      return res.status(400).json({ error: "input is required" });
+    }
+    try {
+      const result = await waManager.resolveChannelInput(input.trim());
+      if (!result) {
+        return res.status(400).json({ success: false, error: "Could not resolve — make sure WhatsApp is connected and the link/JID is correct" });
+      }
+      res.json({ success: true, ...result });
+    } catch (err: any) {
+      res.status(500).json({ success: false, error: err?.message || "Resolve failed" });
+    }
+  });
+
+  // Fetch channel info for an already-configured JID
+  app.get("/api/whatsapp/channel-info", async (req, res) => {
+    const state = waManager.getState();
+    if (!state.channelJid) return res.json({ success: false, error: "No channel JID configured" });
+    const info = await waManager.fetchChannelInfo(state.channelJid);
+    if (!info) return res.json({ success: false, error: "Not connected or fetch failed" });
+    res.json({ success: true, jid: state.channelJid, ...info });
+  });
+
   // Send a test message to the channel
   app.post("/api/whatsapp/test", async (req, res) => {
     const { message } = req.body;

@@ -278,7 +278,6 @@ class WhatsAppManager {
       log("[WhatsApp] No channel JID set — cannot send. Set it in the WhatsApp tab.");
       return false;
     }
-    // Hard-block: ONLY allow @newsletter (owned channel) JIDs — never chats or individuals
     if (!jid.endsWith("@newsletter")) {
       log(`[WhatsApp] BLOCKED send to non-newsletter JID: ${jid} — only owner channels allowed`);
       return false;
@@ -289,13 +288,115 @@ class WhatsAppManager {
     }
     try {
       await this.sock.sendMessage(jid, { text });
-      log(`[WhatsApp] ✓ Sent to channel ${jid}`);
+      log(`[WhatsApp] ✓ Sent text to channel ${jid}`);
       return true;
     } catch (err: any) {
       log(`[WhatsApp] Send failed to ${jid}: ${err?.message || err}`);
-      if (err?.stack) log(`[WhatsApp] Stack: ${err.stack}`);
       return false;
     }
+  }
+
+  /**
+   * Send an image with caption to the channel.
+   * Falls back to text-only if image URL is empty or send fails.
+   */
+  async sendImageToChannel(imageUrl: string, caption: string): Promise<boolean> {
+    const jid = this.state.channelJid;
+    if (!jid || !jid.endsWith("@newsletter")) {
+      log("[WhatsApp] No valid @newsletter JID set — cannot send image");
+      return false;
+    }
+    if (!this.sock || this.state.status !== "connected") {
+      log("[WhatsApp] Not connected — cannot send image");
+      return false;
+    }
+    if (!imageUrl || !imageUrl.startsWith("http")) {
+      // No image — fall back to text only
+      return this.sendToChannel(caption);
+    }
+    try {
+      await this.sock.sendMessage(jid, {
+        image: { url: imageUrl },
+        caption,
+        // No link preview for images
+      } as any);
+      log(`[WhatsApp] ✓ Sent image+caption to channel ${jid}`);
+      return true;
+    } catch (err: any) {
+      log(`[WhatsApp] Image send failed (${err?.message || err}), falling back to text`);
+      // Graceful fallback to text-only
+      return this.sendToChannel(caption);
+    }
+  }
+
+  /**
+   * Fetch newsletter metadata for a given JID (channel name, subscriber count).
+   * Returns null if not connected or fetch fails.
+   */
+  async fetchChannelInfo(jid: string): Promise<{ name: string; subscribers: number; description: string } | null> {
+    if (!this.sock || this.state.status !== "connected") return null;
+    const normalized = normalizeJid(jid.trim());
+    if (!normalized.endsWith("@newsletter")) return null;
+    try {
+      const info = await (this.sock as any).newsletterMetadata("jid", normalized);
+      return {
+        name: info?.name || info?.id || normalized,
+        subscribers: info?.subscribers || 0,
+        description: info?.description || "",
+      };
+    } catch (err: any) {
+      log(`[WhatsApp] fetchChannelInfo failed: ${err?.message || err}`);
+      return null;
+    }
+  }
+
+  /**
+   * Resolve a WhatsApp channel invite link or raw code to a JID + name.
+   * Accepts:
+   *   https://whatsapp.com/channel/0029VbBCq7B3LdQZryJPsY1r
+   *   https://www.whatsapp.com/channel/0029VbBCq7B3LdQZryJPsY1r
+   *   0029VbBCq7B3LdQZryJPsY1r
+   *   0029VbBCq7B3LdQZryJPsY1r@newsletter
+   */
+  async resolveChannelInput(input: string): Promise<{ jid: string; name: string; subscribers: number } | null> {
+    if (!this.sock || this.state.status !== "connected") return null;
+    const trimmed = input.trim();
+
+    // Extract code from invite URL
+    const urlMatch = trimmed.match(/whatsapp\.com\/channel\/([A-Za-z0-9_-]+)/i);
+    const code = urlMatch ? urlMatch[1] : (trimmed.includes("@") ? null : trimmed);
+
+    let jid: string | null = null;
+
+    if (trimmed.endsWith("@newsletter")) {
+      jid = trimmed;
+    } else if (code) {
+      // Try to get JID from invite code via newsletterMetadata
+      try {
+        const info = await (this.sock as any).newsletterMetadata("invite", code);
+        if (info?.id) {
+          jid = info.id.endsWith("@newsletter") ? info.id : `${info.id}@newsletter`;
+          return {
+            jid,
+            name: info?.name || jid,
+            subscribers: info?.subscribers || 0,
+          };
+        }
+      } catch {
+        // If invite resolution fails, construct JID from the code directly
+        jid = `${code}@newsletter`;
+      }
+    }
+
+    if (!jid) return null;
+
+    // Fetch info for the resolved JID
+    const info = await this.fetchChannelInfo(jid);
+    return {
+      jid,
+      name: info?.name || jid,
+      subscribers: info?.subscribers || 0,
+    };
   }
 
   isConnected(): boolean {

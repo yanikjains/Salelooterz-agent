@@ -79,7 +79,12 @@ function WhatsAppPanel() {
   const [connecting, setConnecting] = useState(false);
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [resolving, setResolving] = useState(false);
+  const [channelInfo, setChannelInfo] = useState<{ name: string; subscribers: number } | null>(null);
   const esRef = useRef<EventSource | null>(null);
+
+  // Detect if input looks like an invite link or raw code (not already a @newsletter JID)
+  const isInviteLink = channelJid.includes("whatsapp.com/channel/") || (channelJid.length > 10 && !channelJid.includes("@") && !channelJid.includes("."));
 
   // SSE stream for real-time updates
   useEffect(() => {
@@ -100,6 +105,18 @@ function WhatsAppPanel() {
     return () => es.close();
   }, []);
 
+  // Auto-fetch channel info when connected and JID is set
+  useEffect(() => {
+    if (waState.status === "connected" && waState.channelJid) {
+      fetch("/api/whatsapp/channel-info")
+        .then(r => r.json())
+        .then(d => { if (d.success) setChannelInfo({ name: d.name, subscribers: d.subscribers }); })
+        .catch(() => {});
+    } else {
+      setChannelInfo(null);
+    }
+  }, [waState.status, waState.channelJid]);
+
   const handleConnect = async () => {
     setConnecting(true);
     setQrBase64(null);
@@ -118,12 +135,46 @@ function WhatsAppPanel() {
     try {
       await fetch("/api/whatsapp/disconnect", { method: "POST" });
       setQrBase64(null);
+      setChannelInfo(null);
       toast({ title: "WhatsApp disconnected" });
     } catch {}
   };
 
+  // Resolve invite link / raw code → real JID + channel name
+  const handleResolve = async () => {
+    if (!channelJid.trim()) return;
+    setResolving(true);
+    try {
+      const res = await fetch("/api/whatsapp/resolve", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ input: channelJid.trim() }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setChannelJid(data.jid);
+        setChannelInfo({ name: data.name, subscribers: data.subscribers });
+        // Auto-save the resolved JID
+        await fetch("/api/whatsapp/channel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ jid: data.jid }),
+        });
+        toast({ title: `✅ Channel found: ${data.name}`, description: `JID saved automatically` });
+      } else {
+        toast({ title: "Could not resolve", description: data.error, variant: "destructive" });
+      }
+    } catch (err) {
+      toast({ title: "Resolve failed", description: String(err), variant: "destructive" });
+    } finally {
+      setResolving(false);
+    }
+  };
+
   const handleSaveChannel = async () => {
     if (!channelJid.trim()) { toast({ title: "Enter a JID first", variant: "destructive" }); return; }
+    // If looks like an invite link, resolve first
+    if (isInviteLink) { await handleResolve(); return; }
     setSaving(true);
     try {
       const res = await fetch("/api/whatsapp/channel", {
@@ -131,7 +182,16 @@ function WhatsAppPanel() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ jid: channelJid.trim() }),
       });
-      if (res.ok) toast({ title: "Channel saved!" });
+      const data = await res.json();
+      if (res.ok) {
+        toast({ title: "Channel saved!" });
+        // Fetch channel info after saving
+        const infoRes = await fetch("/api/whatsapp/channel-info");
+        const info = await infoRes.json();
+        if (info.success) setChannelInfo({ name: info.name, subscribers: info.subscribers });
+      } else {
+        toast({ title: "Error", description: data.error, variant: "destructive" });
+      }
     } catch {} finally { setSaving(false); }
   };
 
@@ -190,37 +250,70 @@ function WhatsAppPanel() {
         )}
       </AnimatePresence>
 
-      {/* Channel JID */}
+      {/* Channel JID / Invite Link */}
       <div>
-        <label className="text-sm font-medium text-muted-foreground mb-2 block flex items-center gap-2">
-          WhatsApp Channel JID <span className="text-xs text-emerald-400 font-normal">(Owner channels only — no chats, no individuals)</span>
+        <label className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+          WhatsApp Channel
+          <span className="text-xs text-emerald-400 font-normal">(channels only — no chats, no individuals)</span>
         </label>
         <div className="flex gap-2">
           <Input
             value={channelJid}
-            onChange={e => setChannelJid(e.target.value)}
-            placeholder="120363xxxxxxxx@newsletter"
+            onChange={e => { setChannelJid(e.target.value); setChannelInfo(null); }}
+            placeholder="Paste invite link or JID@newsletter"
             className="bg-background/50 border-white/10 font-mono text-sm"
             data-testid="input-wa-jid"
           />
-          <Button onClick={handleSaveChannel} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0">
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
-          </Button>
+          {isInviteLink ? (
+            <Button onClick={handleResolve} disabled={resolving} className="bg-blue-600 hover:bg-blue-700 text-white shrink-0 gap-1.5">
+              {resolving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+              {resolving ? "Resolving…" : "Resolve"}
+            </Button>
+          ) : (
+            <Button onClick={handleSaveChannel} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0">
+              {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
+            </Button>
+          )}
         </div>
-        <p className="text-xs text-muted-foreground mt-2">
-          Only <code className="text-amber-400">@newsletter</code> JIDs are accepted. Open your WhatsApp Channel → invite link → the long alphanumeric ID is in the URL. Paste it here (with or without <code className="text-amber-400">@newsletter</code>).
-        </p>
-        <p className="text-xs text-red-400/80 mt-1 flex items-center gap-1">
-          <XCircle className="w-3 h-3 shrink-0" /> Groups (<code>@g.us</code>), personal chats (<code>@s.whatsapp.net</code>) and individuals are <strong>blocked</strong> at the code level.
-        </p>
+
+        {/* Channel info card — shown when channel name is known */}
+        <AnimatePresence>
+          {channelInfo && (
+            <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+              className="mt-2 flex items-center gap-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+              <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-emerald-300 truncate">{channelInfo.name}</p>
+                {channelInfo.subscribers > 0 && (
+                  <p className="text-xs text-emerald-400/70">{channelInfo.subscribers.toLocaleString("en-IN")} subscribers</p>
+                )}
+              </div>
+              <Badge className="bg-emerald-500/20 text-emerald-300 border-0 text-xs shrink-0">📸 Image posts</Badge>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        <div className="mt-2 space-y-1">
+          <p className="text-xs text-muted-foreground">
+            <strong className="text-amber-300">New:</strong> Paste the full invite link — <code className="text-blue-400">https://whatsapp.com/channel/0029Vb…</code> — and click <strong>Resolve</strong> to auto-fill the JID and channel name.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            Or enter the raw JID ending in <code className="text-amber-400">@newsletter</code> and click <strong>Save</strong>.
+          </p>
+          <p className="text-xs text-red-400/80 flex items-center gap-1">
+            <XCircle className="w-3 h-3 shrink-0" /> Groups, personal chats and individuals are <strong>blocked</strong> at the code level.
+          </p>
+        </div>
       </div>
 
       {/* Test button */}
       {waState.status === "connected" && waState.channelJid && (
-        <Button onClick={handleTest} disabled={testing} variant="outline" className="w-full border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10">
-          {testing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
-          Send Test Message
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={handleTest} disabled={testing} variant="outline" className="flex-1 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10">
+            {testing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+            Send Test Message
+          </Button>
+        </div>
       )}
 
       {/* Full transparency breakdown */}

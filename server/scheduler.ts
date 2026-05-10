@@ -238,10 +238,13 @@ class Scheduler {
           await sleep(2000);
         }
 
-        // Send to WhatsApp
+        // Send to WhatsApp (image + caption when product image available)
         if (waManager.isConnected()) {
           try {
-            const ok = await waManager.sendToChannel(whatsappMessage);
+            const imageUrl = (product as any).image || "";
+            const ok = imageUrl
+              ? await waManager.sendImageToChannel(imageUrl, whatsappMessage)
+              : await waManager.sendToChannel(whatsappMessage);
             if (ok) { waSent++; this.whatsappSent++; }
           } catch (e) { log(`[Scheduler] WhatsApp error: ${e}`); }
           await sleep(3000);
