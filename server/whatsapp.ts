@@ -47,8 +47,8 @@ interface WAConfig {
   channelJid: string | null;
 }
 
-// Silent pino logger — suppresses Baileys noise but still captures errors
-const baileysLogger = pino({ level: "silent" });
+// Only show errors from Baileys — suppress debug/info noise but keep real errors visible
+const baileysLogger = pino({ level: "error" });
 
 async function loadConfig(): Promise<WAConfig> {
   try {
@@ -108,6 +108,27 @@ class WhatsAppManager {
     // Persist to disk so it survives restarts
     saveConfig({ channelJid: normalized });
     log(`[WhatsApp] Channel JID set to: ${normalized}`);
+
+    // Subscribe to newsletter live updates so admin posting is ready immediately
+    if (this.sock && this.state.status === "connected") {
+      this.subscribeToNewsletter(normalized).catch(() => {});
+    }
+  }
+
+  /**
+   * Subscribe to newsletter live updates for the given JID.
+   * This activates the admin posting channel on WhatsApp's servers —
+   * without it, sendMessage to a @newsletter JID silently succeeds
+   * locally but the message never appears in the channel.
+   */
+  private async subscribeToNewsletter(jid: string): Promise<void> {
+    if (!this.sock) return;
+    try {
+      await (this.sock as any).subscribeNewsletterUpdates(jid);
+      log(`[WhatsApp] ✓ Subscribed to newsletter live updates: ${jid}`);
+    } catch (err: any) {
+      log(`[WhatsApp] subscribeNewsletterUpdates failed (non-fatal): ${err?.message || err}`);
+    }
   }
 
   onQR(cb: (qr: string) => void) {
@@ -203,6 +224,12 @@ class WhatsAppManager {
           }
           this.emit();
           log(`[WhatsApp] Connected. Number: +${this.state.phoneNumber || "unknown"}`);
+
+          // Subscribe to newsletter live updates right after connecting so
+          // admin posting works immediately without needing an explicit send first.
+          if (this.state.channelJid) {
+            this.subscribeToNewsletter(this.state.channelJid).catch(() => {});
+          }
         }
 
         if (connection === "close") {
@@ -287,6 +314,11 @@ class WhatsAppManager {
       return false;
     }
     try {
+      // Always subscribe to newsletter live updates before sending.
+      // WhatsApp silently drops admin posts from accounts that haven't
+      // activated live updates for the channel in the current session.
+      await this.subscribeToNewsletter(jid);
+
       await this.sock.sendMessage(jid, { text });
       log(`[WhatsApp] ✓ Sent text to channel ${jid}`);
       return true;
@@ -315,10 +347,11 @@ class WhatsAppManager {
       return this.sendToChannel(caption);
     }
     try {
+      await this.subscribeToNewsletter(jid);
+
       await this.sock.sendMessage(jid, {
         image: { url: imageUrl },
         caption,
-        // No link preview for images
       } as any);
       log(`[WhatsApp] ✓ Sent image+caption to channel ${jid}`);
       return true;
