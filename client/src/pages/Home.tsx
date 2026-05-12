@@ -472,9 +472,6 @@ function PinScreen({ onVerified }: { onVerified: () => void }) {
             </Button>
           </form>
 
-          <p className="text-xs text-muted-foreground text-center">
-            Default PIN: <span className="text-amber-400 font-mono font-bold">2412</span> · Change via <span className="text-amber-400 font-mono">ADMIN_PIN</span> secret
-          </p>
         </div>
       </motion.div>
     </div>
