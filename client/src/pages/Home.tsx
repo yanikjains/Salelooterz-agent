@@ -83,10 +83,10 @@ function WhatsAppPanel() {
   const [channelInfo, setChannelInfo] = useState<{ name: string; subscribers: number } | null>(null);
   const esRef = useRef<EventSource | null>(null);
 
-  // Detect if input looks like an invite link or raw code (not already a @newsletter JID)
-  const isInviteLink = channelJid.includes("whatsapp.com/channel/") || (channelJid.length > 10 && !channelJid.includes("@") && !channelJid.includes("."));
+  const isInviteLink = channelJid.includes("whatsapp.com/channel/") ||
+    (channelJid.length > 8 && !channelJid.includes("@") && !channelJid.includes("."));
 
-  // SSE stream for real-time updates
+  // SSE stream for real-time QR / status updates
   useEffect(() => {
     const es = new EventSource("/api/whatsapp/stream");
     esRef.current = es;
@@ -105,12 +105,12 @@ function WhatsAppPanel() {
     return () => es.close();
   }, []);
 
-  // Auto-fetch channel info when connected and JID is set
+  // Fetch channel name when connected
   useEffect(() => {
     if (waState.status === "connected" && waState.channelJid) {
       fetch("/api/whatsapp/channel-info")
         .then(r => r.json())
-        .then(d => { if (d.success) setChannelInfo({ name: d.name, subscribers: d.subscribers }); })
+        .then(d => { if (d.success && d.name && d.name !== d.jid) setChannelInfo({ name: d.name, subscribers: d.subscribers }); })
         .catch(() => {});
     } else {
       setChannelInfo(null);
@@ -121,11 +121,9 @@ function WhatsAppPanel() {
     setConnecting(true);
     setQrBase64(null);
     try {
-      const res = await fetch("/api/whatsapp/connect", { method: "POST" });
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error);
+      await fetch("/api/whatsapp/connect", { method: "POST" });
     } catch (err) {
-      toast({ title: "Failed to connect", description: String(err), variant: "destructive" });
+      toast({ title: "Failed to start connection", description: String(err), variant: "destructive" });
     } finally {
       setConnecting(false);
     }
@@ -140,7 +138,6 @@ function WhatsAppPanel() {
     } catch {}
   };
 
-  // Resolve invite link / raw code → real JID + channel name
   const handleResolve = async () => {
     if (!channelJid.trim()) return;
     setResolving(true);
@@ -153,14 +150,13 @@ function WhatsAppPanel() {
       const data = await res.json();
       if (data.success) {
         setChannelJid(data.jid);
-        setChannelInfo({ name: data.name, subscribers: data.subscribers });
-        // Auto-save the resolved JID
+        if (data.name && data.name !== data.jid) setChannelInfo({ name: data.name, subscribers: data.subscribers });
         await fetch("/api/whatsapp/channel", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ jid: data.jid }),
         });
-        toast({ title: `✅ Channel found: ${data.name}`, description: `JID saved automatically` });
+        toast({ title: `✅ Channel JID saved`, description: data.jid });
       } else {
         toast({ title: "Could not resolve", description: data.error, variant: "destructive" });
       }
@@ -172,8 +168,7 @@ function WhatsAppPanel() {
   };
 
   const handleSaveChannel = async () => {
-    if (!channelJid.trim()) { toast({ title: "Enter a JID first", variant: "destructive" }); return; }
-    // If looks like an invite link, resolve first
+    if (!channelJid.trim()) { toast({ title: "Enter a channel JID first", variant: "destructive" }); return; }
     if (isInviteLink) { await handleResolve(); return; }
     setSaving(true);
     try {
@@ -184,11 +179,7 @@ function WhatsAppPanel() {
       });
       const data = await res.json();
       if (res.ok) {
-        toast({ title: "Channel saved!" });
-        // Fetch channel info after saving
-        const infoRes = await fetch("/api/whatsapp/channel-info");
-        const info = await infoRes.json();
-        if (info.success) setChannelInfo({ name: info.name, subscribers: info.subscribers });
+        toast({ title: "✅ Channel JID saved!" });
       } else {
         toast({ title: "Error", description: data.error, variant: "destructive" });
       }
@@ -200,196 +191,188 @@ function WhatsAppPanel() {
     try {
       const res = await fetch("/api/whatsapp/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({}) });
       const data = await res.json();
-      if (data.success) toast({ title: "✅ Test message sent to your WhatsApp channel!" });
-      else toast({ title: "Failed", description: data.error, variant: "destructive" });
+      if (data.success) toast({ title: "✅ Test message posted to your channel!" });
+      else toast({ title: "Send failed", description: data.error, variant: "destructive" });
     } catch {} finally { setTesting(false); }
   };
 
   const statusColor = { disconnected: "text-red-400", connecting: "text-amber-400", qr: "text-amber-400", connected: "text-emerald-400" }[waState.status];
-  const statusLabel = { disconnected: "Disconnected", connecting: "Connecting…", qr: "Scan QR Code", connected: `Connected` }[waState.status];
+  const statusLabel = { disconnected: "Disconnected", connecting: "Connecting…", qr: "Scan QR Code", connected: "Connected" }[waState.status];
 
   return (
     <div className="space-y-5">
-      {/* Status bar */}
-      <div className={`flex items-center gap-3 p-4 rounded-xl border ${waState.status === "connected" ? "bg-emerald-500/10 border-emerald-500/20" : waState.status === "qr" ? "bg-amber-500/10 border-amber-500/20" : "bg-white/5 border-white/10"}`}>
-        {waState.status === "connected"
-          ? <Wifi className="w-5 h-5 text-emerald-400 shrink-0" />
-          : waState.status === "qr"
-          ? <QrCode className="w-5 h-5 text-amber-400 shrink-0" />
-          : <WifiOff className="w-5 h-5 text-red-400 shrink-0" />}
-        <div className="flex-1">
-          <p className={`font-semibold ${statusColor}`}>{statusLabel}</p>
+
+      {/* ── Critical requirement banner ── */}
+      <div className="flex items-start gap-3 p-4 rounded-xl bg-amber-500/10 border border-amber-500/25">
+        <AlertCircle className="w-5 h-5 text-amber-400 shrink-0 mt-0.5" />
+        <div>
+          <p className="text-sm font-bold text-amber-300">Important — Admin account required</p>
+          <p className="text-xs text-amber-300/80 mt-1 leading-relaxed">
+            The phone you scan the QR with <strong>must be the owner or admin of your WhatsApp Channel</strong>.
+            If you scan with a regular subscriber account, messages will silently fail.
+            Go to your Channel → Manage → Admins to verify.
+          </p>
+        </div>
+      </div>
+
+      {/* ── Status bar ── */}
+      <div className={`flex items-center gap-3 p-4 rounded-xl border transition-all ${
+        waState.status === "connected" ? "bg-emerald-500/10 border-emerald-500/25" :
+        waState.status === "qr"        ? "bg-amber-500/10  border-amber-500/25"  :
+        "bg-white/[0.04] border-white/[0.08]"
+      }`}>
+        {waState.status === "connected" ? <Wifi    className="w-5 h-5 text-emerald-400 shrink-0" /> :
+         waState.status === "qr"        ? <QrCode  className="w-5 h-5 text-amber-400  shrink-0" /> :
+                                          <WifiOff className="w-5 h-5 text-red-400    shrink-0" />}
+        <div className="flex-1 min-w-0">
+          <p className={`font-bold ${statusColor}`}>{statusLabel}</p>
           {waState.status === "connected" && waState.phoneNumber && (
-            <p className="text-xs text-muted-foreground flex items-center gap-1"><PhoneCall className="w-3 h-3" /> +{waState.phoneNumber}</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1 mt-0.5">
+              <PhoneCall className="w-3 h-3" /> +{waState.phoneNumber}
+              {waState.channelJid && <span className="ml-2 text-emerald-400/70 truncate max-w-[180px]">→ {waState.channelJid}</span>}
+            </p>
           )}
-          {waState.status === "qr" && <p className="text-xs text-amber-300/80">Open WhatsApp → Settings → Linked Devices → Link a Device</p>}
-          {waState.error && <p className="text-xs text-red-400">{waState.error}</p>}
+          {waState.status === "qr" && (
+            <p className="text-xs text-amber-300/80 mt-0.5">
+              WhatsApp → Linked Devices → Link a Device → scan below
+            </p>
+          )}
+          {waState.status === "connecting" && (
+            <p className="text-xs text-amber-300/80 mt-0.5">Launching browser — QR will appear in 30–60 seconds…</p>
+          )}
+          {waState.error && <p className="text-xs text-red-400 mt-0.5">{waState.error}</p>}
         </div>
         {waState.status === "connected" ? (
-          <Button onClick={handleDisconnect} variant="outline" size="sm" className="border-red-500/30 text-red-400 hover:bg-red-500/10 shrink-0">Disconnect</Button>
+          <Button onClick={handleDisconnect} size="sm" className="rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 shrink-0">
+            Disconnect
+          </Button>
         ) : (
-          <Button onClick={handleConnect} disabled={connecting || waState.status === "qr"} size="sm" className="bg-green-600 hover:bg-green-700 text-white shrink-0">
-            {connecting ? <Loader2 className="w-4 h-4 animate-spin" /> : "Connect"}
+          <Button onClick={handleConnect} disabled={connecting || waState.status === "qr" || waState.status === "connecting"} size="sm"
+            className="btn-shine rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 hover:from-green-400 hover:to-emerald-400 text-black font-bold border-0 shrink-0 shadow-lg shadow-green-500/20">
+            {connecting ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Wifi className="w-4 h-4 mr-1" />}
+            {connecting ? "Starting…" : "Connect"}
           </Button>
         )}
       </div>
 
-      {/* QR Code */}
+      {/* ── QR Code ── */}
       <AnimatePresence>
         {(waState.status === "qr" || qrBase64) && (
-          <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} className="flex flex-col items-center gap-4 p-6 bg-white rounded-2xl">
+          <motion.div initial={{ opacity: 0, scale: 0.92 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.92 }}
+            className="flex flex-col items-center gap-4 p-6 bg-white rounded-2xl shadow-xl shadow-black/40">
             {qrBase64 ? (
-              <img src={qrBase64} alt="WhatsApp QR Code" className="w-56 h-56" />
+              <img src={qrBase64} alt="WhatsApp QR Code" className="w-56 h-56 rounded-lg" />
             ) : (
-              <div className="w-56 h-56 flex items-center justify-center">
+              <div className="w-56 h-56 flex flex-col items-center justify-center gap-3">
                 <Loader2 className="w-10 h-10 animate-spin text-gray-400" />
+                <p className="text-xs text-gray-400 text-center">Generating QR…</p>
               </div>
             )}
-            <p className="text-sm text-gray-600 text-center font-medium">Scan with your phone's WhatsApp<br /><span className="text-xs text-gray-400">QR code refreshes every 60 seconds</span></p>
+            <div className="text-center">
+              <p className="text-sm text-gray-700 font-semibold">Scan with your channel admin phone</p>
+              <p className="text-xs text-gray-400 mt-1">QR refreshes every ~60 seconds</p>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* Channel JID / Invite Link */}
-      <div>
-        <label className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
-          WhatsApp Channel
-          <span className="text-xs text-emerald-400 font-normal">(channels only — no chats, no individuals)</span>
+      {/* ── Channel JID ── */}
+      <div className="space-y-2">
+        <label className="text-sm font-semibold text-white flex items-center gap-2">
+          WhatsApp Channel JID
+          <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-green-500/15 text-green-400 border border-green-500/20">
+            @newsletter only
+          </span>
         </label>
+
         <div className="flex gap-2">
           <Input
             value={channelJid}
             onChange={e => { setChannelJid(e.target.value); setChannelInfo(null); }}
-            placeholder="Paste invite link or JID@newsletter"
-            className="bg-background/50 border-white/10 font-mono text-sm"
+            placeholder="0029VbBCq7B3LdQZryJPsY1r@newsletter  or  paste invite link"
+            className="bg-black/20 border-white/10 font-mono text-sm rounded-xl focus:border-emerald-500/40"
             data-testid="input-wa-jid"
           />
           {isInviteLink ? (
-            <Button onClick={handleResolve} disabled={resolving} className="bg-blue-600 hover:bg-blue-700 text-white shrink-0 gap-1.5">
+            <Button onClick={handleResolve} disabled={resolving}
+              className="bg-blue-600/80 hover:bg-blue-500 text-white rounded-xl shrink-0 border-0">
               {resolving ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
-              {resolving ? "Resolving…" : "Resolve"}
+              <span className="ml-1.5">{resolving ? "Resolving…" : "Resolve"}</span>
             </Button>
           ) : (
-            <Button onClick={handleSaveChannel} disabled={saving} className="bg-emerald-600 hover:bg-emerald-700 text-white shrink-0">
+            <Button onClick={handleSaveChannel} disabled={saving}
+              className="btn-shine bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-xl shrink-0 border-0 font-semibold">
               {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : "Save"}
             </Button>
           )}
         </div>
 
-        {/* Channel info card — shown when channel name is known */}
+        {/* Saved channel badge */}
         <AnimatePresence>
           {channelInfo && (
-            <motion.div initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
-              className="mt-2 flex items-center gap-3 p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
+            <motion.div initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }}
+              className="flex items-center gap-2 px-3 py-2 bg-emerald-500/10 border border-emerald-500/20 rounded-xl">
               <CheckCircle className="w-4 h-4 text-emerald-400 shrink-0" />
-              <div className="flex-1 min-w-0">
-                <p className="text-sm font-semibold text-emerald-300 truncate">{channelInfo.name}</p>
-                {channelInfo.subscribers > 0 && (
-                  <p className="text-xs text-emerald-400/70">{channelInfo.subscribers.toLocaleString("en-IN")} subscribers</p>
-                )}
-              </div>
-              <Badge className="bg-emerald-500/20 text-emerald-300 border-0 text-xs shrink-0">📸 Image posts</Badge>
+              <p className="text-sm font-semibold text-emerald-300 truncate flex-1">{channelInfo.name}</p>
+              {channelInfo.subscribers > 0 && (
+                <span className="text-xs text-emerald-400/70 shrink-0">{channelInfo.subscribers.toLocaleString("en-IN")} subscribers</span>
+              )}
             </motion.div>
           )}
         </AnimatePresence>
 
-        <div className="mt-2 space-y-1">
-          <p className="text-xs text-muted-foreground">
-            <strong className="text-amber-300">New:</strong> Paste the full invite link — <code className="text-blue-400">https://whatsapp.com/channel/0029Vb…</code> — and click <strong>Resolve</strong> to auto-fill the JID and channel name.
+        <div className="space-y-1 pt-1">
+          <p className="text-xs text-muted-foreground leading-relaxed">
+            <strong className="text-white">How to find your Channel JID:</strong> Open WhatsApp Web → your channel → copy the invite link
+            (<code className="text-blue-400 text-[11px]">https://whatsapp.com/channel/0029Vb…</code>). Paste it above and click <strong className="text-white">Resolve</strong>.
           </p>
           <p className="text-xs text-muted-foreground">
-            Or enter the raw JID ending in <code className="text-amber-400">@newsletter</code> and click <strong>Save</strong>.
-          </p>
-          <p className="text-xs text-red-400/80 flex items-center gap-1">
-            <XCircle className="w-3 h-3 shrink-0" /> Groups, personal chats and individuals are <strong>blocked</strong> at the code level.
+            Or paste the raw JID directly: <code className="text-amber-400 text-[11px]">0029VbXXXXXXXX@newsletter</code>
           </p>
         </div>
       </div>
 
-      {/* Test button */}
+      {/* ── Test send ── */}
       {waState.status === "connected" && waState.channelJid && (
-        <div className="flex gap-2">
-          <Button onClick={handleTest} disabled={testing} variant="outline" className="flex-1 border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/10">
-            {testing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
-            Send Test Message
-          </Button>
-        </div>
+        <Button onClick={handleTest} disabled={testing}
+          className="w-full h-11 rounded-xl bg-emerald-500/10 border border-emerald-500/25 text-emerald-400 hover:bg-emerald-500/20 font-semibold">
+          {testing ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Send className="w-4 h-4 mr-2" />}
+          Send Test Message to Channel
+        </Button>
       )}
 
-      {/* Full transparency breakdown */}
-      <div className="rounded-xl border border-white/10 overflow-hidden">
-        <div className="px-5 py-4 bg-white/5 border-b border-white/10">
-          <p className="font-bold text-white text-sm">Full Transparency — What SaleLooterz Can & Cannot Do</p>
-          <p className="text-xs text-muted-foreground mt-0.5">Read every line of the code yourself at <code className="text-amber-400">server/whatsapp.ts</code></p>
+      {/* ── Setup guide ── */}
+      <div className="rounded-2xl border border-white/[0.07] overflow-hidden">
+        <div className="px-5 py-3 bg-white/[0.04] border-b border-white/[0.07] flex items-center gap-2">
+          <Smartphone className="w-4 h-4 text-amber-400" />
+          <p className="font-bold text-white text-sm">Step-by-step Setup</p>
         </div>
-        <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-white/10">
-          {/* CAN */}
-          <div className="p-5 space-y-2">
-            <p className="text-xs font-bold text-emerald-400 uppercase tracking-widest mb-3">✅ What it CAN do</p>
-            {[
-              "Send text messages to the ONE channel JID you configure",
-              "Maintain the connection (auto-reconnect if dropped)",
-              "Show you a QR code to log in",
-            ].map((t, i) => (
-              <div key={i} className="flex items-start gap-2 text-xs text-gray-300">
-                <span className="text-emerald-400 mt-0.5 shrink-0">✓</span>{t}
+        <div className="p-5 space-y-3">
+          {[
+            { n: "1", label: "Verify admin access", desc: "In your WhatsApp Channel → Manage → confirm your phone number is listed as Owner or Admin." },
+            { n: "2", label: "Click Connect", desc: "Press Connect above. Within ~10 seconds a QR code appears." },
+            { n: "3", label: "Scan with admin phone", desc: "Open WhatsApp on the admin phone → Settings → Linked Devices → Link a Device → scan the QR." },
+            { n: "4", label: "Set the channel JID", desc: "Paste your channel's invite link above and click Resolve. The JID is saved automatically." },
+            { n: "5", label: "Test & start", desc: "Hit \"Send Test Message\" to confirm it works, then start the automation. Messages will auto-post every 20 min." },
+          ].map((s) => (
+            <div key={s.n} className="flex items-start gap-3">
+              <div className="w-6 h-6 rounded-full bg-amber-500/20 border border-amber-500/30 flex items-center justify-center shrink-0 mt-0.5">
+                <span className="text-[11px] font-black text-amber-400">{s.n}</span>
               </div>
-            ))}
-          </div>
-          {/* CANNOT */}
-          <div className="p-5 space-y-2">
-            <p className="text-xs font-bold text-red-400 uppercase tracking-widest mb-3">❌ What it CANNOT do</p>
-            {[
-              "Read your chats, DMs, or group messages",
-              "See your contacts or call logs",
-              "Download your chat history (disabled in code)",
-              "Send to any number other than your channel",
-              "Mark messages as read or show you as online",
-              "Edit, delete, or do anything to your account",
-            ].map((t, i) => (
-              <div key={i} className="flex items-start gap-2 text-xs text-gray-300">
-                <span className="text-red-400 mt-0.5 shrink-0">✗</span>{t}
+              <div>
+                <p className="text-sm font-semibold text-white">{s.label}</p>
+                <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{s.desc}</p>
               </div>
-            ))}
-          </div>
+            </div>
+          ))}
         </div>
-        <div className="px-5 py-3 bg-amber-500/10 border-t border-amber-500/20">
-          <p className="text-xs text-amber-300 leading-relaxed">
-            <strong>Honest limitation:</strong> WhatsApp has no "channel-only" permission system — the QR scan is technically a full WhatsApp Web session at the protocol level. However, <strong>our code only ever calls one function: <code>sendMessage()</code></strong>. No message listeners, no chat reads, nothing else — you can verify this yourself.
+        <div className="px-5 py-3 bg-blue-500/[0.08] border-t border-blue-500/15">
+          <p className="text-xs text-blue-300/90 leading-relaxed">
+            <strong>Pro tip:</strong> Use a dedicated secondary WhatsApp number as the bot admin — add it as a channel admin, then scan the QR with that number. Your personal phone is never involved.
           </p>
         </div>
       </div>
 
-      {/* Recommended: secondary account */}
-      <div className="p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl space-y-2">
-        <p className="text-sm font-semibold text-blue-300 flex items-center gap-2">
-          <Smartphone className="w-4 h-4 shrink-0" />
-          Recommended: Use a Dedicated Bot Number
-        </p>
-        <p className="text-xs text-blue-300/80 leading-relaxed">
-          For 100% peace of mind, use a <strong>separate secondary phone number</strong> as the bot — not your personal WhatsApp. That way your personal chats are never involved at any level.
-        </p>
-        <ol className="text-xs text-blue-300/70 space-y-1 list-decimal list-inside">
-          <li>Get a free virtual number (TextNow, Google Voice, 2ndLine, etc.)</li>
-          <li>Create a new WhatsApp account on that number</li>
-          <li>Go to your Channel → <strong>Add Collaborator</strong> → add the secondary number</li>
-          <li>Scan the QR here with the secondary account — your personal WhatsApp is never touched</li>
-        </ol>
-      </div>
-
-      {/* Step-by-step connect guide */}
-      {waState.status === "disconnected" && (
-        <div className="p-4 bg-white/5 border border-white/10 rounded-xl space-y-2">
-          <p className="text-sm font-semibold text-white">Ready to connect?</p>
-          <ol className="text-xs text-muted-foreground space-y-1.5 list-decimal list-inside">
-            <li>Click <strong className="text-white">Connect</strong> above — a QR code appears</li>
-            <li>Open WhatsApp on your bot/secondary phone → Settings → Linked Devices → Link a Device</li>
-            <li>Scan the QR code</li>
-            <li>Paste your channel JID in the field above and click Save</li>
-            <li>Start the automation — it auto-posts to your channel every 20 minutes</li>
-          </ol>
-        </div>
-      )}
     </div>
   );
 }

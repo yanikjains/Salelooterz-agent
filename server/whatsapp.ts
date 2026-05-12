@@ -1,31 +1,25 @@
 /**
- * WHATSAPP SEND-ONLY MANAGER — whatsapp-web.js edition
+ * WHATSAPP CHANNEL MANAGER — whatsapp-web.js v1.34.7
  *
- * Uses a real WhatsApp Web browser session (puppeteer + Chromium) which is
- * far more reliable than the Baileys multi-device protocol for sending messages
- * to groups and individual chats.
- *
- * WHAT THIS CODE DOES:
- *   ✅ Connects via QR code scan (same as WhatsApp Web)
- *   ✅ Sends messages to ONE group or phone number you configure
- *   ✅ Auto-reconnects if the session drops
- *   ✅ Persists session to disk (survives server restarts)
- *
- * WHAT THIS CODE DELIBERATELY DOES NOT DO:
- *   ❌ No reading of any chats or messages
- *   ❌ No contact or call log access
- *   ❌ No message listeners
- *   ❌ No marking messages as read
+ * Uses the real WhatsApp Web client (Chromium via Puppeteer) so that
+ * channel-admin posting works correctly.  Baileys' protocol-level
+ * newsletter send is silently dropped by WhatsApp servers; this approach
+ * uses window.WWebJS.sendMessage which the WhatsApp Web frontend uses.
  */
 
-import { Client, LocalAuth, MessageMedia } from "whatsapp-web.js";
-import qrcode from "qrcode";
-import { readFile, writeFile } from "fs/promises";
+import { createRequire } from "module";
+import { readFile, writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
+import qrcode from "qrcode";
 import { log } from "./index";
 
+const require = createRequire(import.meta.url);
+const { Client, LocalAuth } = require("whatsapp-web.js");
+
+const AUTH_DIR    = "./whatsapp-auth-wwebjs";
 const CONFIG_FILE = "./whatsapp-config.json";
-const CHROMIUM_PATH = "/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium";
+
+const CHROMIUM_PATH = "/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium-browser";
 
 type WAStatus = "disconnected" | "connecting" | "qr" | "connected";
 
@@ -33,89 +27,83 @@ interface WAState {
   status: WAStatus;
   qrBase64: string | null;
   phoneNumber: string | null;
-  targetChatId: string | null; // e.g. 919996572965@c.us or 120363XXX@g.us
+  channelJid: string | null;
+  targetChatId: string | null;
   error: string | null;
 }
 
 interface WAConfig {
-  targetChatId: string | null;
+  channelJid: string | null;
 }
 
 async function loadConfig(): Promise<WAConfig> {
   try {
     if (existsSync(CONFIG_FILE)) {
       const raw = await readFile(CONFIG_FILE, "utf-8");
-      const parsed = JSON.parse(raw);
-      // Migrate old channelJid field → targetChatId
-      return { targetChatId: parsed.targetChatId ?? parsed.channelJid ?? null };
+      const p   = JSON.parse(raw);
+      return { channelJid: p.channelJid ?? p.targetChatId ?? null };
     }
   } catch {}
-  return { targetChatId: null };
+  return { channelJid: null };
 }
 
-async function saveConfig(config: WAConfig): Promise<void> {
+async function saveConfig(c: WAConfig) {
   try {
-    await writeFile(CONFIG_FILE, JSON.stringify(config, null, 2), "utf-8");
+    await writeFile(CONFIG_FILE, JSON.stringify(c, null, 2), "utf-8");
   } catch (err) {
     log(`[WhatsApp] Failed to save config: ${err}`);
   }
 }
 
-/**
- * Convert a human-entered target (phone number or group ID) into a WhatsApp chat ID.
- * - "919996572965"           → "919996572965@c.us"
- * - "919996572965@c.us"      → unchanged
- * - "120363XXX@g.us"         → unchanged
- * - "+91 99965 72965"        → "919996572965@c.us"
- */
-function normalizeChatId(input: string): string {
+function normalizeNewsletterJid(input: string): string {
   const t = input.trim();
-  if (t.includes("@")) return t; // already has suffix
-  // Strip non-digits (spaces, dashes, plus)
-  const digits = t.replace(/\D/g, "");
-  return `${digits}@c.us`;
+  if (t.endsWith("@newsletter")) return t;
+  const urlMatch = t.match(/whatsapp\.com\/channel\/([A-Za-z0-9_-]+)/i);
+  if (urlMatch) return `${urlMatch[1]}@newsletter`;
+  if (!t.includes("@") && t.length > 8) return `${t}@newsletter`;
+  return t;
 }
 
 class WhatsAppManager {
-  private client: Client | null = null;
+  private client: any = null;
   private state: WAState = {
     status: "disconnected",
     qrBase64: null,
     phoneNumber: null,
+    channelJid: null,
     targetChatId: null,
     error: null,
   };
-  private qrListeners: Array<(qr: string) => void> = [];
-  private statusListeners: Array<(s: WAState) => void> = [];
-  private reconnectTimer: NodeJS.Timeout | null = null;
-  private shouldReconnect = true;
-  private initPromise: Promise<void> | null = null;
+  private qrListeners:    Array<(qr: string) => void>    = [];
+  private statusListeners: Array<(s: WAState) => void>   = [];
+  private shouldReconnect = false;
+  private destroying = false;
 
   constructor() {
     loadConfig().then((cfg) => {
-      if (cfg.targetChatId) {
-        this.state.targetChatId = cfg.targetChatId;
-        log(`[WhatsApp] Loaded saved target: ${cfg.targetChatId}`);
+      if (cfg.channelJid) {
+        this.state.channelJid   = cfg.channelJid;
+        this.state.targetChatId = cfg.channelJid;
+        log(`[WhatsApp] Loaded saved channel JID: ${cfg.channelJid}`);
       }
     });
   }
 
-  getState(): WAState {
-    return { ...this.state };
-  }
+  getState(): WAState { return { ...this.state }; }
 
-  setTargetChatId(input: string) {
-    const chatId = normalizeChatId(input);
-    this.state.targetChatId = chatId;
-    this.emit();
-    saveConfig({ targetChatId: chatId });
-    log(`[WhatsApp] Target chat set to: ${chatId}`);
-  }
-
-  /** Legacy alias used by routes.ts */
   setChannelJid(input: string) {
-    this.setTargetChatId(input);
+    const jid = normalizeNewsletterJid(input);
+    if (!jid.endsWith("@newsletter")) {
+      throw new Error(`Only @newsletter channel JIDs accepted. Got: ${jid}`);
+    }
+    this.state.channelJid   = jid;
+    this.state.targetChatId = jid;
+    this.emit();
+    saveConfig({ channelJid: jid });
+    log(`[WhatsApp] Channel JID set: ${jid}`);
   }
+
+  setTargetChatId(input: string) { this.setChannelJid(input); }
 
   onQR(cb: (qr: string) => void) {
     this.qrListeners.push(cb);
@@ -135,146 +123,172 @@ class WhatsAppManager {
   }
 
   async connect(): Promise<void> {
-    if (this.state.status === "connected" || this.state.status === "connecting") return;
-    if (this.initPromise) return this.initPromise;
-
+    if (this.state.status === "connected" || this.state.status === "connecting" || this.state.status === "qr") {
+      return;
+    }
     this.shouldReconnect = true;
-    this.state.status = "connecting";
-    this.state.error = null;
+    this.destroying      = false;
+    this.state.status    = "connecting";
+    this.state.error     = null;
     this.emit();
 
-    this.initPromise = this._init().finally(() => {
-      this.initPromise = null;
+    // Non-blocking: launch in background
+    this._init().catch((err) => {
+      log(`[WhatsApp] Unhandled init error: ${err}`);
+      this.state.status = "disconnected";
+      this.state.error  = String(err);
+      this.emit();
     });
-    return this.initPromise;
   }
 
   private async _init(): Promise<void> {
     try {
-      log("[WhatsApp] Initialising whatsapp-web.js client…");
-
-      // Destroy any leftover client
+      // Clean up existing client
       if (this.client) {
+        this.destroying = true;
         try { await this.client.destroy(); } catch {}
-        this.client = null;
+        this.client    = null;
+        this.destroying = false;
       }
 
+      if (!existsSync(AUTH_DIR)) await mkdir(AUTH_DIR, { recursive: true });
+
+      log(`[WhatsApp] Starting whatsapp-web.js client with Chromium…`);
+
       this.client = new Client({
-        authStrategy: new LocalAuth({ dataPath: "./whatsapp-auth-wwebjs" }),
+        authStrategy: new LocalAuth({ dataPath: AUTH_DIR }),
         puppeteer: {
           executablePath: CHROMIUM_PATH,
-          headless: true,
           args: [
             "--no-sandbox",
             "--disable-setuid-sandbox",
             "--disable-dev-shm-usage",
             "--disable-accelerated-2d-canvas",
-            "--disable-gpu",
             "--no-first-run",
             "--no-zygote",
             "--single-process",
+            "--disable-gpu",
+            "--disable-software-rasterizer",
             "--disable-extensions",
             "--disable-background-networking",
-            "--disable-default-apps",
-            "--disable-sync",
             "--disable-translate",
-            "--hide-scrollbars",
-            "--metrics-recording-only",
-            "--mute-audio",
-            "--safebrowsing-disable-auto-update",
           ],
+          headless: true,
+          timeout: 120000,
         },
-        // Do not emit events for messages we send ourselves
-        takeoverOnConflict: true,
-        takeoverTimeoutMs: 0,
       });
 
+      // ── QR ──────────────────────────────────────────────────────────────
       this.client.on("qr", async (qr: string) => {
         try {
           const qrBase64 = await qrcode.toDataURL(qr, { width: 280, margin: 2 });
           this.state.qrBase64 = qrBase64;
-          this.state.status = "qr";
+          this.state.status   = "qr";
           this.emit();
           this.qrListeners.forEach(l => l(qrBase64));
-          log("[WhatsApp] QR ready — waiting for scan");
+          log("[WhatsApp] QR ready — scan with the CHANNEL OWNER/ADMIN account");
         } catch (err) {
-          log(`[WhatsApp] QR generation error: ${err}`);
+          log(`[WhatsApp] QR render error: ${err}`);
         }
       });
 
-      this.client.on("ready", () => {
-        const info = this.client?.info;
-        this.state.status = "connected";
+      // ── Ready ────────────────────────────────────────────────────────────
+      this.client.on("ready", async () => {
+        this.state.status   = "connected";
         this.state.qrBase64 = null;
-        this.state.error = null;
-        if (info?.wid?.user) {
-          this.state.phoneNumber = info.wid.user;
-        }
+        this.state.error    = null;
+
+        try {
+          const info = this.client.info;
+          if (info?.wid?.user) {
+            this.state.phoneNumber = info.wid.user;
+          }
+        } catch {}
+
         this.emit();
-        log(`[WhatsApp] ✓ Connected — +${this.state.phoneNumber || "unknown"}`);
+        log(`[WhatsApp] ✓ Connected as +${this.state.phoneNumber || "unknown"}`);
+        if (this.state.channelJid) {
+          log(`[WhatsApp] Ready to post to channel: ${this.state.channelJid}`);
+        } else {
+          log("[WhatsApp] ⚠ No channel JID configured — set it in the WhatsApp tab");
+        }
       });
 
+      // ── Auth success ─────────────────────────────────────────────────────
       this.client.on("authenticated", () => {
         log("[WhatsApp] Authenticated successfully");
       });
 
+      // ── Auth failure ─────────────────────────────────────────────────────
       this.client.on("auth_failure", (msg: string) => {
         log(`[WhatsApp] Auth failure: ${msg}`);
         this.state.status = "disconnected";
-        this.state.error = `Authentication failed: ${msg}`;
-        this.state.qrBase64 = null;
+        this.state.error  = `Auth failed: ${msg}`;
         this.emit();
-        this.clearAuth();
       });
 
-      this.client.on("disconnected", (reason: string) => {
+      // ── Disconnected ─────────────────────────────────────────────────────
+      this.client.on("disconnected", async (reason: string) => {
+        if (this.destroying) return;
         log(`[WhatsApp] Disconnected: ${reason}`);
-        this.state.status = "disconnected";
-        this.state.qrBase64 = null;
+        const savedJid = this.state.channelJid;
+        this.state = {
+          status:      "disconnected",
+          qrBase64:    null,
+          phoneNumber: null,
+          channelJid:  savedJid,
+          targetChatId: savedJid,
+          error:       reason === "LOGOUT" ? "Logged out — scan QR again" : null,
+        };
         this.emit();
 
-        if (this.shouldReconnect) {
+        if (this.shouldReconnect && reason !== "LOGOUT") {
           log("[WhatsApp] Reconnecting in 10s…");
-          this.reconnectTimer = setTimeout(() => this.connect(), 10_000);
+          setTimeout(() => this._init(), 10_000);
         }
       });
 
       await this.client.initialize();
     } catch (err) {
       log(`[WhatsApp] Init error: ${err}`);
-      this.state.status = "disconnected";
-      this.state.error = String(err);
-      this.emit();
-      if (this.shouldReconnect) {
-        this.reconnectTimer = setTimeout(() => this.connect(), 15_000);
+      if (!this.destroying) {
+        this.state.status = "disconnected";
+        this.state.error  = String(err);
+        this.emit();
+        if (this.shouldReconnect) {
+          log("[WhatsApp] Retrying in 15s…");
+          setTimeout(() => this._init(), 15_000);
+        }
       }
     }
   }
 
   async disconnect(): Promise<void> {
     this.shouldReconnect = false;
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
+    this.destroying      = true;
     if (this.client) {
       try { await this.client.destroy(); } catch {}
       this.client = null;
     }
-    await this.clearAuth();
-    const saved = this.state.targetChatId;
-    this.state = { status: "disconnected", qrBase64: null, phoneNumber: null, targetChatId: saved, error: null };
+    this.destroying = false;
+    const savedJid = this.state.channelJid;
+    this.state = {
+      status:      "disconnected",
+      qrBase64:    null,
+      phoneNumber: null,
+      channelJid:  savedJid,
+      targetChatId: savedJid,
+      error:       null,
+    };
     this.emit();
-    log("[WhatsApp] Disconnected and session cleared");
+    log("[WhatsApp] Disconnected");
   }
 
-  private async clearAuth(): Promise<void> {
+  private async _clearAuth() {
     try {
       const { rm } = await import("fs/promises");
-      const { existsSync } = await import("fs");
-      const dir = "./whatsapp-auth-wwebjs";
-      if (existsSync(dir)) {
-        await rm(dir, { recursive: true, force: true });
+      if (existsSync(AUTH_DIR)) {
+        await rm(AUTH_DIR, { recursive: true, force: true });
         log("[WhatsApp] Auth cleared");
       }
     } catch (err) {
@@ -283,74 +297,110 @@ class WhatsAppManager {
   }
 
   /**
-   * Send a text message to the configured target chat/group.
+   * Send a text message to the configured WhatsApp Channel.
+   * The connected account MUST be the channel owner or admin.
    */
   async sendToChannel(text: string): Promise<boolean> {
-    const chatId = this.state.targetChatId;
-    if (!chatId) {
-      log("[WhatsApp] No target chat ID set — cannot send. Set it in the WhatsApp tab.");
+    const jid = this.state.channelJid;
+    if (!jid?.endsWith("@newsletter")) {
+      log("[WhatsApp] ✗ No valid @newsletter channel JID configured");
       return false;
     }
     if (!this.client || this.state.status !== "connected") {
-      log("[WhatsApp] Not connected — cannot send");
+      log(`[WhatsApp] ✗ Not connected (status: ${this.state.status})`);
       return false;
     }
     try {
-      await this.client.sendMessage(chatId, text);
-      log(`[WhatsApp] ✓ Sent text to ${chatId}`);
+      log(`[WhatsApp] Sending to channel ${jid}…`);
+      await this.client.sendMessage(jid, text);
+      log(`[WhatsApp] ✓ Message posted to channel ${jid}`);
       return true;
     } catch (err: any) {
-      log(`[WhatsApp] Send failed to ${chatId}: ${err?.message || err}`);
+      log(`[WhatsApp] ✗ Send failed: ${err?.message || err}`);
       return false;
     }
   }
 
   /**
-   * Send an image with caption. Falls back to text-only if image fails.
+   * Send image + caption to the channel.
+   * Falls back to text-only if image fails.
    */
   async sendImageToChannel(imageUrl: string, caption: string): Promise<boolean> {
-    const chatId = this.state.targetChatId;
-    if (!chatId) {
-      log("[WhatsApp] No target chat ID set — cannot send image");
+    const jid = this.state.channelJid;
+    if (!jid?.endsWith("@newsletter")) {
+      log("[WhatsApp] ✗ No valid @newsletter JID");
       return false;
     }
     if (!this.client || this.state.status !== "connected") {
-      log("[WhatsApp] Not connected — cannot send image");
+      log(`[WhatsApp] ✗ Not connected`);
       return false;
     }
-    if (!imageUrl || !imageUrl.startsWith("http")) {
+    if (!imageUrl?.startsWith("http")) {
       return this.sendToChannel(caption);
     }
     try {
+      const { MessageMedia } = require("whatsapp-web.js");
+      log(`[WhatsApp] Sending image to channel ${jid}…`);
       const media = await MessageMedia.fromUrl(imageUrl, { unsafeMime: true });
-      await this.client.sendMessage(chatId, media, { caption });
-      log(`[WhatsApp] ✓ Sent image+caption to ${chatId}`);
+      await this.client.sendMessage(jid, media, { caption });
+      log(`[WhatsApp] ✓ Image posted to channel ${jid}`);
       return true;
     } catch (err: any) {
-      log(`[WhatsApp] Image send failed (${err?.message || err}), falling back to text`);
+      log(`[WhatsApp] ✗ Image failed (${err?.message || err}) — falling back to text`);
       return this.sendToChannel(caption);
     }
   }
 
-  /** Resolve invite link / phone / group ID → normalized chat ID */
+  /** Resolve an invite link or raw code → newsletter JID */
   async resolveChannelInput(input: string): Promise<{ jid: string; name: string; subscribers: number } | null> {
-    const chatId = normalizeChatId(input.trim());
-    return { jid: chatId, name: chatId.replace("@c.us", "").replace("@g.us", " (group)"), subscribers: 0 };
-  }
+    const t = input.trim();
+    const urlMatch = t.match(/whatsapp\.com\/channel\/([A-Za-z0-9_-]+)/i);
+    const code     = urlMatch ? urlMatch[1] : (!t.includes("@") && !t.includes(".") ? t : null);
 
-  /** No-op for groups (was newsletter-specific in Baileys) */
-  async fetchChannelInfo(_jid: string): Promise<{ name: string; subscribers: number; description: string } | null> {
+    if (code) {
+      // Build JID from code
+      const jid = `${code}@newsletter`;
+      // Try to get channel name via whatsapp-web.js
+      if (this.client && this.state.status === "connected") {
+        try {
+          const channel = await this.client.getChannelByInviteCode(code);
+          if (channel) {
+            return { jid: channel.id._serialized, name: channel.name || jid, subscribers: 0 };
+          }
+        } catch {}
+      }
+      return { jid, name: jid, subscribers: 0 };
+    }
+
+    if (t.endsWith("@newsletter")) {
+      // Try to look up by getting channels list
+      if (this.client && this.state.status === "connected") {
+        try {
+          const channels = await this.client.getChannels();
+          const match    = channels.find((c: any) => c.id._serialized === t);
+          if (match) return { jid: t, name: match.name || t, subscribers: 0 };
+        } catch {}
+      }
+      return { jid: t, name: t, subscribers: 0 };
+    }
+
     return null;
   }
 
-  isConnected(): boolean {
-    return this.state.status === "connected";
+  async fetchChannelInfo(jid: string): Promise<{ name: string; subscribers: number; description: string } | null> {
+    if (!jid.endsWith("@newsletter")) return null;
+    if (!this.client || this.state.status !== "connected") return { name: jid, subscribers: 0, description: "" };
+
+    try {
+      const channels = await this.client.getChannels();
+      const match    = channels.find((c: any) => c.id._serialized === jid);
+      if (match) return { name: match.name || jid, subscribers: 0, description: match.description || "" };
+    } catch {}
+
+    return { name: jid, subscribers: 0, description: "" };
   }
 
-  // Legacy getter so routes.ts still works
-  get channelJidCompat(): string | null {
-    return this.state.targetChatId;
-  }
+  isConnected(): boolean { return this.state.status === "connected"; }
 }
 
 export const waManager = new WhatsAppManager();
