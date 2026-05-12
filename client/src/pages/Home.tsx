@@ -426,42 +426,56 @@ function PinScreen({ onVerified }: { onVerified: () => void }) {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-sm">
-        <Card className="border border-white/10 bg-black/60 backdrop-blur shadow-2xl">
-          <CardContent className="pt-8 pb-8 px-8 space-y-6">
-            <div className="text-center space-y-2">
-              <div className="w-16 h-16 rounded-2xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center mx-auto mb-4">
-                <Bot className="w-8 h-8 text-amber-400" />
+    <div className="min-h-screen flex items-center justify-center bg-background p-4 relative overflow-hidden">
+      {/* Ambient orbs */}
+      <div className="pointer-events-none absolute inset-0">
+        <div className="orb absolute top-[-10%] left-[30%] w-[400px] h-[400px] bg-amber-500/10" />
+        <div className="orb absolute bottom-[-10%] right-[20%] w-[300px] h-[300px] bg-purple-600/10" style={{ animationDelay: '2s' }} />
+      </div>
+
+      <motion.div initial={{ opacity: 0, y: 24, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.5, ease: "easeOut" }} className="w-full max-w-sm relative z-10">
+        {/* Glow ring */}
+        <div className="absolute inset-0 rounded-3xl bg-gradient-to-br from-amber-500/20 via-transparent to-purple-500/10 blur-xl -z-10 scale-110" />
+
+        <div className="glass-card-strong rounded-3xl p-8 space-y-7">
+          <div className="text-center space-y-3">
+            <div className="relative mx-auto w-fit mb-2">
+              <div className="w-18 h-18 w-[72px] h-[72px] rounded-2xl bg-gradient-to-br from-amber-400 to-orange-600 flex items-center justify-center mx-auto shadow-2xl glow-amber">
+                <Bot className="w-9 h-9 text-white" />
               </div>
-              <h1 className="text-2xl font-bold text-white">SaleLooterz AI</h1>
-              <p className="text-sm text-muted-foreground">Enter your admin PIN to access the dashboard</p>
+              <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-emerald-400 border-2 border-background animate-pulse" />
             </div>
-            <form onSubmit={handleVerify} className="space-y-4">
+            <h1 className="text-2xl font-black text-white tracking-tight">SaleLooterz AI</h1>
+            <p className="text-sm text-muted-foreground leading-relaxed">Enter your admin PIN to<br />access the dashboard</p>
+          </div>
+
+          <form onSubmit={handleVerify} className="space-y-4">
+            <div className="relative">
               <Input
                 type="password"
                 inputMode="numeric"
-                placeholder="PIN"
+                placeholder="• • • • • •"
                 value={pin}
                 onChange={e => setPin(e.target.value)}
                 autoFocus
-                className="text-center text-xl tracking-widest bg-white/5 border-white/10 placeholder:tracking-normal"
+                className="text-center text-2xl tracking-[0.5em] h-14 bg-white/5 border-white/10 rounded-2xl placeholder:tracking-normal placeholder:text-base focus:border-amber-500/50 focus:ring-amber-500/20 transition-all"
                 data-testid="input-admin-pin"
               />
-              {error && (
-                <p className="text-xs text-red-400 text-center flex items-center justify-center gap-1">
-                  <XCircle className="w-3.5 h-3.5" />{error}
-                </p>
-              )}
-              <Button type="submit" disabled={!pin || loading} className="w-full bg-amber-500 hover:bg-amber-600 text-black font-bold" data-testid="button-pin-submit">
-                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Unlock Dashboard"}
-              </Button>
-            </form>
-            <p className="text-xs text-muted-foreground text-center">
-              Default PIN is <span className="text-amber-400">2412</span>. You can change it via the <span className="text-amber-400">ADMIN_PIN</span> secret in Replit
-            </p>
-          </CardContent>
-        </Card>
+            </div>
+            {error && (
+              <motion.p initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} className="text-xs text-red-400 text-center flex items-center justify-center gap-1.5 bg-red-500/10 rounded-xl py-2.5 border border-red-500/20">
+                <XCircle className="w-3.5 h-3.5 shrink-0" />{error}
+              </motion.p>
+            )}
+            <Button type="submit" disabled={!pin || loading} className="btn-shine w-full h-13 h-[52px] rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black font-bold text-base shadow-xl shadow-amber-500/30 border-0 glow-amber transition-all" data-testid="button-pin-submit">
+              {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <><Zap className="w-4 h-4 mr-2" />Unlock Dashboard</>}
+            </Button>
+          </form>
+
+          <p className="text-xs text-muted-foreground text-center">
+            Default PIN: <span className="text-amber-400 font-mono font-bold">2412</span> · Change via <span className="text-amber-400 font-mono">ADMIN_PIN</span> secret
+          </p>
+        </div>
       </motion.div>
     </div>
   );
@@ -641,33 +655,36 @@ function HomeDashboard() {
         {/* ── Header ── */}
         <motion.header initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-gradient-to-br from-amber-500 to-orange-600 rounded-2xl shadow-lg flex items-center justify-center">
-              <ShoppingBag className="w-6 h-6 text-white" />
+            <div className="relative">
+              <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-orange-600 rounded-2xl shadow-xl glow-amber flex items-center justify-center">
+                <ShoppingBag className="w-6 h-6 text-white" />
+              </div>
+              {isRunning && <div className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-emerald-400 border-2 border-background animate-pulse" />}
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-white tracking-tight">SaleLooterz AI</h1>
-              <p className="text-xs text-muted-foreground">Admin Automation Engine · Amazon India Affiliate Bot</p>
+              <h1 className="text-xl font-black text-white tracking-tight">SaleLooterz AI</h1>
+              <p className="text-[11px] text-muted-foreground">Admin Automation Engine · Amazon India</p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <Link href="/">
-              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-white border border-white/10 hover:border-white/20 gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+              <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-white border border-white/[0.07] hover:border-white/15 gap-1.5 rounded-xl h-9 px-3 text-xs">
+                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
                 Home
               </Button>
             </Link>
-            <Button onClick={() => setShowAIChat(!showAIChat)} variant="outline" className="border-purple-500/30 text-purple-400 hover:bg-purple-500/10">
-              <Bot className="w-4 h-4 mr-2" />AI
+            <Button onClick={() => setShowAIChat(!showAIChat)} size="sm" className={`rounded-xl h-9 px-3 text-xs font-semibold border transition-all ${showAIChat ? "bg-purple-500/20 border-purple-500/40 text-purple-300" : "bg-purple-500/10 border-purple-500/20 text-purple-400 hover:bg-purple-500/20"}`}>
+              <Bot className="w-3.5 h-3.5 mr-1.5" />AI
             </Button>
-            <div className="flex items-center gap-2">
-              <Badge className={isRunning ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30 px-3 py-1.5" : "bg-red-500/20 text-red-400 border-red-500/30 px-3 py-1.5"}>
-                <span className={`w-2 h-2 rounded-full mr-2 inline-block ${isRunning ? "bg-emerald-500 animate-pulse" : "bg-red-500"}`} />
+            <div className="flex items-center gap-1.5">
+              <div className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-all ${isRunning ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/25" : "bg-red-500/10 text-red-400 border-red-500/20"}`}>
+                <span className={`w-2 h-2 rounded-full ${isRunning ? "bg-emerald-400 animate-pulse" : "bg-red-500"}`} />
                 {isRunning ? "Running" : "Stopped"}
-              </Badge>
-              <Badge className={waStatus === "connected" ? "bg-green-500/20 text-green-400 border-green-500/30 px-3 py-1.5" : "bg-gray-500/20 text-gray-400 border-gray-500/30 px-3 py-1.5"}>
-                <Smartphone className="w-3 h-3 mr-1.5" />
+              </div>
+              <div className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border ${waStatus === "connected" ? "bg-green-500/15 text-green-400 border-green-500/25" : "bg-white/[0.04] text-muted-foreground border-white/[0.07]"}`}>
+                <Smartphone className="w-3 h-3" />
                 {waStatus === "connected" ? "WA ✓" : "WA —"}
-              </Badge>
+              </div>
             </div>
           </div>
         </motion.header>
@@ -675,68 +692,67 @@ function HomeDashboard() {
         {/* ── Stats ── */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
           {[
-            { label: "Today", value: status?.todayCount ?? 0, color: "text-emerald-400", bg: "bg-emerald-500/10", icon: <TrendingUp className="w-4 h-4" /> },
-            { label: "This Hour", value: status?.thisHourCount ?? 0, color: "text-purple-400", bg: "bg-purple-500/10", icon: <Activity className="w-4 h-4" /> },
-            { label: "Telegram", value: status?.telegramSent ?? 0, color: "text-sky-400", bg: "bg-sky-500/10", icon: <Send className="w-4 h-4" /> },
-            { label: "WhatsApp", value: status?.whatsappSent ?? 0, color: "text-green-400", bg: "bg-green-500/10", icon: <MessageCircle className="w-4 h-4" /> },
+            { label: "Today", value: status?.todayCount ?? 0, color: "text-emerald-400 stat-glow-green", border: "border-emerald-500/15 hover:border-emerald-500/30", icon: <TrendingUp className="w-3.5 h-3.5" />, iconBg: "bg-emerald-500/15 text-emerald-400" },
+            { label: "This Hour", value: status?.thisHourCount ?? 0, color: "text-purple-400 stat-glow-purple", border: "border-purple-500/15 hover:border-purple-500/30", icon: <Activity className="w-3.5 h-3.5" />, iconBg: "bg-purple-500/15 text-purple-400" },
+            { label: "Telegram", value: status?.telegramSent ?? 0, color: "text-sky-400 stat-glow-sky", border: "border-sky-500/15 hover:border-sky-500/30", icon: <Send className="w-3.5 h-3.5" />, iconBg: "bg-sky-500/15 text-sky-400" },
+            { label: "WhatsApp", value: status?.whatsappSent ?? 0, color: "text-green-400 stat-glow-green", border: "border-green-500/15 hover:border-green-500/30", icon: <MessageCircle className="w-3.5 h-3.5" />, iconBg: "bg-green-500/15 text-green-400" },
           ].map((s, i) => (
-            <Card key={i} className="bg-white/5 border-white/10">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs text-muted-foreground">{s.label}</p>
-                  <div className={`p-1.5 rounded-lg ${s.bg} ${s.color}`}>{s.icon}</div>
-                </div>
-                <p className={`text-2xl font-bold ${s.color}`}>{s.value.toLocaleString()}</p>
-              </CardContent>
-            </Card>
+            <div key={i} className={`glass-card rounded-2xl p-4 border ${s.border} card-hover transition-all`}>
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">{s.label}</p>
+                <div className={`p-1.5 rounded-lg ${s.iconBg}`}>{s.icon}</div>
+              </div>
+              <p className={`text-3xl font-black ${s.color}`}>{s.value.toLocaleString()}</p>
+            </div>
           ))}
           {/* Memory card */}
-          <Card className="bg-white/5 border-white/10">
-            <CardContent className="p-4">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs text-muted-foreground">Memory</p>
-                <div className="p-1.5 rounded-lg bg-violet-500/10 text-violet-400"><Brain className="w-4 h-4" /></div>
-              </div>
-              <p className="text-2xl font-bold text-violet-400">{(status?.memoryCount ?? 0).toLocaleString()}</p>
-              <p className="text-[10px] text-muted-foreground mt-1">ASINs remembered</p>
-            </CardContent>
-          </Card>
+          <div className="glass-card rounded-2xl p-4 border border-violet-500/15 hover:border-violet-500/30 card-hover transition-all">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wider">Memory</p>
+              <div className="p-1.5 rounded-lg bg-violet-500/15 text-violet-400"><Brain className="w-3.5 h-3.5" /></div>
+            </div>
+            <p className="text-3xl font-black text-violet-400 stat-glow-purple">{(status?.memoryCount ?? 0).toLocaleString()}</p>
+            <p className="text-[10px] text-muted-foreground mt-1">ASINs remembered</p>
+          </div>
         </motion.div>
 
         {/* ── Tabs ── */}
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
           <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
-            <TabsList className="mb-6 bg-white/5 border border-white/10">
-              <TabsTrigger value="control" className="flex items-center gap-2">
-                <Zap className="w-4 h-4" />Control
+            <TabsList className="mb-6 glass-card border-white/[0.07] rounded-2xl p-1 h-auto gap-1">
+              <TabsTrigger value="control" className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold data-[state=active]:bg-white/10 data-[state=active]:text-white data-[state=active]:shadow-none text-muted-foreground transition-all">
+                <Zap className="w-3.5 h-3.5" />Control
               </TabsTrigger>
-              <TabsTrigger value="whatsapp" className="flex items-center gap-2">
-                <Smartphone className="w-4 h-4" />
+              <TabsTrigger value="whatsapp" className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold data-[state=active]:bg-white/10 data-[state=active]:text-white data-[state=active]:shadow-none text-muted-foreground transition-all">
+                <Smartphone className="w-3.5 h-3.5" />
                 WhatsApp
-                {waStatus === "connected" && <span className="w-2 h-2 rounded-full bg-green-400 inline-block" />}
-                {waStatus === "qr" && <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse inline-block" />}
+                {waStatus === "connected" && <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />}
+                {waStatus === "qr" && <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />}
               </TabsTrigger>
-              <TabsTrigger value="settings" className="flex items-center gap-2">
-                <Settings className="w-4 h-4" />Settings
+              <TabsTrigger value="settings" className="flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold data-[state=active]:bg-white/10 data-[state=active]:text-white data-[state=active]:shadow-none text-muted-foreground transition-all">
+                <Settings className="w-3.5 h-3.5" />Settings
               </TabsTrigger>
             </TabsList>
 
             {/* ── Control Tab ── */}
-            <TabsContent value="control" className="space-y-6">
-              <Card className={`border-2 transition-colors ${isRunning ? "border-emerald-500/40 bg-emerald-500/5" : "border-white/10 bg-white/5"}`}>
-                <CardContent className="p-7">
+            <TabsContent value="control" className="space-y-5">
+              <div className={`glass-card rounded-2xl border-2 transition-all ${isRunning ? "border-emerald-500/30 shadow-emerald-500/10 shadow-xl" : "border-white/[0.07]"}`}>
+                <div className="p-6">
                   <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6">
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isRunning ? "bg-emerald-500/20" : "bg-gray-500/20"}`}>
-                          {isRunning ? <Activity className="w-6 h-6 text-emerald-400 animate-pulse" /> : <Square className="w-6 h-6 text-gray-400" />}
+                      <div className="flex items-center gap-4 mb-5">
+                        <div className={`relative w-14 h-14 rounded-2xl flex items-center justify-center transition-all ${isRunning ? "bg-emerald-500/20 glow-green" : "bg-white/5"}`}>
+                          {isRunning
+                            ? <Activity className="w-7 h-7 text-emerald-400 animate-pulse" />
+                            : <Square className="w-7 h-7 text-muted-foreground" />}
+                          {isRunning && <div className="absolute inset-0 rounded-2xl bg-emerald-400/10 animate-ping" />}
                         </div>
                         <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <h2 className="text-xl font-bold text-white">{isRunning ? "Automation Active" : "Automation Stopped"}</h2>
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <h2 className="text-xl font-black text-white">{isRunning ? "Automation Active" : "Automation Stopped"}</h2>
                             {isRunning && (
-                              <span className="text-[10px] font-bold uppercase tracking-widest px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                                Runs 24/7 · Even when closed
+                              <span className="text-[10px] font-bold uppercase tracking-widest px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/25">
+                                24/7 · Even when closed
                               </span>
                             )}
                           </div>
@@ -748,76 +764,71 @@ function HomeDashboard() {
 
                       {isRunning && (
                         <div className="grid grid-cols-3 gap-3">
-                          <div className="p-3 bg-black/30 rounded-xl border border-white/10">
-                            <p className="text-xs text-muted-foreground mb-1">Next batch</p>
-                            <p className="text-lg font-bold text-amber-400 font-mono">{nextRunCountdown}</p>
-                          </div>
-                          <div className="p-3 bg-black/30 rounded-xl border border-white/10">
-                            <p className="text-xs text-muted-foreground mb-1">Last run</p>
-                            <p className="text-sm font-semibold text-white">{formatTime(status?.lastRunAt || null)}</p>
-                          </div>
-                          <div className="p-3 bg-black/30 rounded-xl border border-white/10">
-                            <p className="text-xs text-muted-foreground mb-1">Status</p>
-                            <div className="flex items-center gap-1.5">
-                              {status?.lastBatchSuccess ? <CheckCircle className="w-4 h-4 text-emerald-400" /> : <XCircle className="w-4 h-4 text-red-400" />}
-                              <span className="text-sm font-semibold text-white">{status?.lastBatchSuccess ? "OK" : "Error"}</span>
+                          {[
+                            { label: "Next batch", value: nextRunCountdown, color: "text-amber-400 font-mono text-lg font-black" },
+                            { label: "Last run", value: formatTime(status?.lastRunAt || null), color: "text-white text-sm font-semibold" },
+                            { label: "Status", value: status?.lastBatchSuccess ? "OK" : "Error", color: status?.lastBatchSuccess ? "text-emerald-400 text-sm font-semibold" : "text-red-400 text-sm font-semibold" },
+                          ].map((item, i) => (
+                            <div key={i} className="p-3 bg-black/20 rounded-xl border border-white/[0.06]">
+                              <p className="text-[11px] text-muted-foreground mb-1.5 uppercase tracking-wider">{item.label}</p>
+                              <p className={item.color}>{item.value}</p>
                             </div>
-                          </div>
+                          ))}
                         </div>
                       )}
 
-                      {/* Channel status mini-row */}
-                      <div className="flex items-center gap-3 mt-4">
-                        <div className={`flex items-center gap-2 text-xs px-2.5 py-1 rounded-full border ${waStatus === "connected" ? "bg-green-500/10 border-green-500/20 text-green-400" : "bg-white/5 border-white/10 text-muted-foreground"}`}>
+                      {/* Channel status pills */}
+                      <div className="flex items-center gap-2 mt-4 flex-wrap">
+                        <div className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl border font-medium ${waStatus === "connected" ? "bg-green-500/10 border-green-500/20 text-green-400" : "bg-white/[0.04] border-white/[0.07] text-muted-foreground"}`}>
                           <Smartphone className="w-3 h-3" />
-                          {waStatus === "connected" ? `WhatsApp: ${status?.whatsapp?.phoneNumber ? `+${status.whatsapp.phoneNumber}` : "Connected"}` : "WhatsApp: Not connected"}
+                          {waStatus === "connected" ? `WA: +${status?.whatsapp?.phoneNumber || "Connected"}` : "WhatsApp: Not connected"}
                         </div>
                         {status?.config?.telegramChannelId && (
-                          <div className="flex items-center gap-2 text-xs px-2.5 py-1 rounded-full border bg-sky-500/10 border-sky-500/20 text-sky-400">
-                            <Send className="w-3 h-3" /> Telegram: {status.config.telegramChannelId}
+                          <div className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl border bg-sky-500/10 border-sky-500/20 text-sky-400 font-medium">
+                            <Send className="w-3 h-3" /> TG: {status.config.telegramChannelId}
                           </div>
                         )}
                       </div>
                     </div>
 
-                    <div className="flex flex-col gap-3 min-w-[180px]">
+                    <div className="flex flex-col gap-3 min-w-[200px]">
                       {!isRunning ? (
-                        <Button onClick={handleStart} disabled={isActioning || !affiliateTag.trim()} className="h-14 text-base font-bold bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 text-white shadow-xl shadow-emerald-500/20" data-testid="button-start">
+                        <Button onClick={handleStart} disabled={isActioning || !affiliateTag.trim()} className="btn-shine h-14 text-base font-bold bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black shadow-xl shadow-emerald-500/20 border-0 rounded-2xl glow-green" data-testid="button-start">
                           {isActioning ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Play className="w-5 h-5 mr-2" />}
-                          Start
+                          Start Automation
                         </Button>
                       ) : (
                         <>
-                          <Button onClick={handleRunNow} disabled={isActioning} variant="outline" className="h-11 border-amber-500/30 text-amber-400 hover:bg-amber-500/10" data-testid="button-run-now">
+                          <Button onClick={handleRunNow} disabled={isActioning} className="h-11 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-400 hover:bg-amber-500/20 font-semibold" data-testid="button-run-now">
                             {isActioning ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <RefreshCw className="w-4 h-4 mr-2" />}
                             Run Now
                           </Button>
-                          <Button onClick={handleStop} disabled={isActioning} variant="outline" className="h-11 border-red-500/30 text-red-400 hover:bg-red-500/10" data-testid="button-stop">
+                          <Button onClick={handleStop} disabled={isActioning} className="h-11 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 hover:bg-red-500/20 font-semibold" data-testid="button-stop">
                             {isActioning ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Square className="w-4 h-4 mr-2" />}
                             Stop
                           </Button>
                         </>
                       )}
                       {!affiliateTag.trim() && (
-                        <p className="text-xs text-amber-400 text-center flex items-center gap-1 justify-center"><AlertCircle className="w-3 h-3" /> Set affiliate tag in Settings first</p>
+                        <div className="flex items-center gap-1.5 text-xs text-amber-400 bg-amber-500/10 rounded-xl px-3 py-2 border border-amber-500/20">
+                          <AlertCircle className="w-3.5 h-3.5 shrink-0" /> Set affiliate tag in Settings first
+                        </div>
                       )}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
 
               {/* Schedule info */}
-              <Card className="bg-white/5 border-white/10">
-                <CardContent className="p-4">
-                  <div className="flex flex-wrap gap-3 items-center text-sm">
-                    <span className="font-semibold text-white">Schedule:</span>
-                    {["Every 20 min", "15 products/batch", "45/hour", "~1,080/day", "7 categories rotating"].map((t, i) => (
-                      <span key={i} className="px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-amber-400 text-xs font-medium">{t}</span>
-                    ))}
-                    <span className="text-xs text-muted-foreground ml-auto">🔥 Hot · 📱 Electronics · 📲 Mobiles · 🏠 Home · 👗 Fashion · 💄 Beauty · 💪 Fitness</span>
-                  </div>
-                </CardContent>
-              </Card>
+              <div className="glass-card rounded-2xl border border-white/[0.07] p-4">
+                <div className="flex flex-wrap gap-2 items-center">
+                  <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider mr-1">Schedule</span>
+                  {["Every 20 min", "15 products/batch", "45/hour", "~1,080/day", "7 categories"].map((t, i) => (
+                    <span key={i} className="px-2.5 py-1 rounded-lg bg-amber-500/10 border border-amber-500/15 text-amber-400 text-xs font-semibold">{t}</span>
+                  ))}
+                  <span className="text-xs text-muted-foreground ml-auto hidden sm:block">🔥 Hot · 📱 Electronics · 📲 Mobiles · 🏠 Home · 👗 Fashion · 💄 Beauty · 💪 Fitness</span>
+                </div>
+              </div>
 
               {/* Live Feed */}
               <div>
@@ -841,48 +852,46 @@ function HomeDashboard() {
                   {showFeed && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
                       {!status?.recentAutomations?.length ? (
-                        <Card className="bg-white/5 border-white/10">
-                          <CardContent className="p-10 text-center">
-                            <Activity className="w-10 h-10 text-white/10 mx-auto mb-3" />
-                            <p className="text-muted-foreground">No messages yet — start the automation or run a batch</p>
-                          </CardContent>
-                        </Card>
+                        <div className="glass-card rounded-2xl border border-white/[0.07] p-10 text-center">
+                          <div className="w-14 h-14 rounded-2xl bg-white/[0.04] border border-white/[0.07] flex items-center justify-center mx-auto mb-4">
+                            <Activity className="w-7 h-7 text-white/20" />
+                          </div>
+                          <p className="text-muted-foreground text-sm">No messages yet — start the automation or run a batch</p>
+                        </div>
                       ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           {status.recentAutomations.map((item, i) => (
                             <motion.div key={item.id} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.03 }}>
-                              <Card className="h-full border border-white/10 hover:border-white/20 transition-colors bg-white/5">
-                                <CardContent className="p-5">
-                                  <div className="flex items-start justify-between gap-3 mb-2">
-                                    <h4 className="font-semibold text-white text-sm line-clamp-2 flex-1">{item.productTitle}</h4>
-                                    <div className="flex items-center gap-1 text-amber-400 shrink-0">
-                                      <Star className="w-3 h-3 fill-current" />
-                                      <span className="text-xs">{item.rating}</span>
-                                    </div>
+                              <div className="glass-card h-full rounded-2xl border border-white/[0.07] hover:border-white/15 transition-all card-hover p-5">
+                                <div className="flex items-start justify-between gap-3 mb-2">
+                                  <h4 className="font-semibold text-white text-sm line-clamp-2 flex-1 leading-snug">{item.productTitle}</h4>
+                                  <div className="flex items-center gap-1 text-amber-400 shrink-0 bg-amber-500/10 rounded-lg px-2 py-1">
+                                    <Star className="w-3 h-3 fill-current" />
+                                    <span className="text-xs font-bold">{item.rating}</span>
                                   </div>
-                                  <div className="flex items-center justify-between mb-3">
-                                    <span className="text-xl font-bold text-emerald-400">₹{item.price}</span>
-                                    <span className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(item.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>
-                                  </div>
-                                  <Tabs defaultValue="whatsapp" className="w-full">
-                                    <TabsList className="w-full bg-background/40 h-8">
-                                      <TabsTrigger value="whatsapp" className="flex-1 text-xs gap-1 h-7"><MessageCircle className="w-3 h-3" />WA</TabsTrigger>
-                                      <TabsTrigger value="telegram" className="flex-1 text-xs gap-1 h-7"><Send className="w-3 h-3" />TG</TabsTrigger>
-                                    </TabsList>
-                                    {[{ key: "whatsapp", msg: item.whatsappMessage }, { key: "telegram", msg: item.telegramMessage }].map(({ key, msg }) => (
-                                      <TabsContent key={key} value={key} className="mt-2">
-                                        <div className="relative">
-                                          <pre className="text-xs p-3 bg-black/40 rounded-lg whitespace-pre-wrap max-h-28 overflow-y-auto text-muted-foreground border border-white/5">{msg}</pre>
-                                          <Button onClick={() => copyText(msg, key === "whatsapp" ? "WhatsApp" : "Telegram")} variant="ghost" size="icon" className="absolute top-1 right-1 h-6 w-6 hover:bg-white/10"><Copy className="w-3 h-3" /></Button>
-                                        </div>
-                                      </TabsContent>
-                                    ))}
-                                  </Tabs>
-                                  <a href={`${item.productUrl}?tag=${item.affiliateTag}`} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300">
-                                    <ExternalLink className="w-3 h-3" /> Amazon link
-                                  </a>
-                                </CardContent>
-                              </Card>
+                                </div>
+                                <div className="flex items-center justify-between mb-3">
+                                  <span className="text-xl font-black text-emerald-400 stat-glow-green">₹{item.price}</span>
+                                  <span className="text-xs text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" />{new Date(item.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>
+                                </div>
+                                <Tabs defaultValue="whatsapp" className="w-full">
+                                  <TabsList className="w-full bg-black/20 border border-white/[0.06] h-8 rounded-xl p-0.5 gap-0.5">
+                                    <TabsTrigger value="whatsapp" className="flex-1 text-xs gap-1 h-7 rounded-lg data-[state=active]:bg-white/10 data-[state=active]:text-white data-[state=active]:shadow-none text-muted-foreground"><MessageCircle className="w-3 h-3" />WA</TabsTrigger>
+                                    <TabsTrigger value="telegram" className="flex-1 text-xs gap-1 h-7 rounded-lg data-[state=active]:bg-white/10 data-[state=active]:text-white data-[state=active]:shadow-none text-muted-foreground"><Send className="w-3 h-3" />TG</TabsTrigger>
+                                  </TabsList>
+                                  {[{ key: "whatsapp", msg: item.whatsappMessage }, { key: "telegram", msg: item.telegramMessage }].map(({ key, msg }) => (
+                                    <TabsContent key={key} value={key} className="mt-2">
+                                      <div className="relative">
+                                        <pre className="text-xs p-3 bg-black/30 rounded-xl whitespace-pre-wrap max-h-28 overflow-y-auto text-muted-foreground border border-white/[0.05]">{msg}</pre>
+                                        <Button onClick={() => copyText(msg, key === "whatsapp" ? "WhatsApp" : "Telegram")} variant="ghost" size="icon" className="absolute top-1 right-1 h-6 w-6 hover:bg-white/10 rounded-lg"><Copy className="w-3 h-3" /></Button>
+                                      </div>
+                                    </TabsContent>
+                                  ))}
+                                </Tabs>
+                                <a href={`${item.productUrl}?tag=${item.affiliateTag}`} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center gap-1 text-xs text-purple-400 hover:text-purple-300 transition-colors">
+                                  <ExternalLink className="w-3 h-3" /> Amazon link
+                                </a>
+                              </div>
                             </motion.div>
                           ))}
                         </div>
@@ -895,25 +904,24 @@ function HomeDashboard() {
 
             {/* ── WhatsApp Tab ── */}
             <TabsContent value="whatsapp">
-              <Card className="bg-white/5 border-white/10">
-                <CardContent className="p-7">
-                  <div className="flex items-center gap-2 mb-6">
-                    <Smartphone className="w-6 h-6 text-green-400" />
-                    <div>
-                      <h2 className="text-xl font-bold text-white">WhatsApp Auto-Send</h2>
-                      <p className="text-sm text-muted-foreground">Link your phone once — messages auto-post to your channel</p>
-                    </div>
+              <div className="glass-card rounded-2xl border border-white/[0.07] p-7">
+                <div className="flex items-center gap-3 mb-7">
+                  <div className="w-10 h-10 rounded-xl bg-green-500/15 border border-green-500/20 flex items-center justify-center">
+                    <Smartphone className="w-5 h-5 text-green-400" />
                   </div>
-                  <WhatsAppPanel />
-                </CardContent>
-              </Card>
+                  <div>
+                    <h2 className="text-xl font-black text-white">WhatsApp Auto-Send</h2>
+                    <p className="text-sm text-muted-foreground">Link your phone once — messages auto-post to your channel</p>
+                  </div>
+                </div>
+                <WhatsAppPanel />
+              </div>
             </TabsContent>
 
             {/* ── Settings Tab ── */}
             <TabsContent value="settings">
-              <Card className="bg-white/5 border-white/10">
-                <CardContent className="p-7 space-y-5">
-                  <h2 className="text-xl font-bold text-white flex items-center gap-2"><Settings className="w-5 h-5 text-amber-400" />Automation Settings</h2>
+              <div className="glass-card rounded-2xl border border-white/[0.07] p-7 space-y-5">
+                  <h2 className="text-xl font-black text-white flex items-center gap-2"><Settings className="w-5 h-5 text-amber-400" />Automation Settings</h2>
                   <div className="grid md:grid-cols-2 gap-5">
                     <div>
                       <label className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2"><IndianRupee className="w-4 h-4" />Amazon Affiliate Tag *</label>
@@ -971,18 +979,17 @@ function HomeDashboard() {
                     <label htmlFor="show-tokens">Show sensitive values</label>
                   </div>
                   <div className="flex gap-3 pt-2">
-                    <Button onClick={handleSaveSettings} disabled={!affiliateTag.trim()} className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-semibold">
+                    <Button onClick={handleSaveSettings} disabled={!affiliateTag.trim()} className="btn-shine bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black font-bold rounded-xl border-0 shadow-lg shadow-amber-500/20">
                       <Zap className="w-4 h-4 mr-2" />Save Settings
                     </Button>
                     {!isRunning && (
-                      <Button onClick={handleStart} disabled={isActioning || !affiliateTag.trim()} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                      <Button onClick={handleStart} disabled={isActioning || !affiliateTag.trim()} className="btn-shine bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-bold rounded-xl border-0 shadow-lg shadow-emerald-500/20">
                         {isActioning ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
                         Save & Start
                       </Button>
                     )}
                   </div>
-                </CardContent>
-              </Card>
+              </div>
             </TabsContent>
           </Tabs>
         </motion.div>
@@ -991,32 +998,69 @@ function HomeDashboard() {
       {/* ── AI Chat ── */}
       <AnimatePresence>
         {showAIChat && (
-          <motion.div initial={{ opacity: 0, x: 300 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 300 }} className="fixed bottom-6 right-6 w-[90vw] sm:w-[380px] h-[520px] z-50">
-            <Card className="h-full shadow-2xl flex flex-col border-2 border-purple-500/30 bg-black/90 backdrop-blur">
-              <div className="p-4 border-b border-white/10 flex items-center justify-between bg-purple-500/10">
-                <div className="flex items-center gap-2"><Bot className="w-5 h-5 text-purple-400" /><span className="font-bold text-white">AI Assistant</span></div>
-                <Button variant="ghost" size="icon" onClick={() => setShowAIChat(false)}><span className="text-xl">×</span></Button>
+          <motion.div initial={{ opacity: 0, y: 20, scale: 0.97 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.97 }} transition={{ duration: 0.2 }} className="fixed bottom-6 right-6 w-[90vw] sm:w-[380px] h-[520px] z-50">
+            <div className="h-full glass-card-strong rounded-2xl flex flex-col border border-purple-500/25 shadow-2xl shadow-purple-500/10 overflow-hidden">
+              {/* Header */}
+              <div className="p-4 border-b border-white/[0.07] flex items-center justify-between bg-gradient-to-r from-purple-500/10 to-violet-500/5 shrink-0">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center">
+                    <Bot className="w-4 h-4 text-purple-400" />
+                  </div>
+                  <div>
+                    <span className="font-bold text-white text-sm">AI Assistant</span>
+                    <div className="flex items-center gap-1 mt-0.5">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                      <span className="text-[10px] text-emerald-400">Online</span>
+                    </div>
+                  </div>
+                </div>
+                <Button variant="ghost" size="icon" onClick={() => setShowAIChat(false)} className="h-8 w-8 rounded-xl hover:bg-white/10 text-muted-foreground hover:text-white">
+                  <span className="text-lg leading-none">×</span>
+                </Button>
               </div>
-              <div className="flex-1 p-4 overflow-y-auto space-y-3">
+
+              {/* Messages */}
+              <div className="flex-1 p-4 overflow-y-auto space-y-3 min-h-0">
                 {chatMessages.map((msg, i) => (
                   <div key={i} className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
-                    {msg.role === "assistant" && <div className="w-7 h-7 rounded-full bg-purple-500/20 flex items-center justify-center shrink-0"><Bot className="w-3.5 h-3.5 text-purple-400" /></div>}
-                    <div className={`p-3 rounded-2xl text-sm max-w-[80%] ${msg.role === "user" ? "bg-purple-600/30 border border-purple-500/30 text-white rounded-tr-none" : "bg-white/5 border border-white/10 text-gray-200 rounded-tl-none"}`}>
-                      {msg.content || (chatLoading && i === chatMessages.length - 1 ? <span className="flex gap-1">{[0, 150, 300].map(d => <span key={d} className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: `${d}ms` }} />)}</span> : "")}
+                    {msg.role === "assistant" && (
+                      <div className="w-7 h-7 rounded-xl bg-purple-500/15 border border-purple-500/20 flex items-center justify-center shrink-0 mt-0.5">
+                        <Bot className="w-3.5 h-3.5 text-purple-400" />
+                      </div>
+                    )}
+                    <div className={`px-3 py-2.5 rounded-2xl text-sm max-w-[82%] leading-relaxed ${msg.role === "user" ? "bg-gradient-to-br from-purple-600/40 to-violet-600/30 border border-purple-500/25 text-white rounded-tr-sm" : "bg-white/[0.05] border border-white/[0.08] text-gray-200 rounded-tl-sm"}`}>
+                      {msg.content || (chatLoading && i === chatMessages.length - 1
+                        ? <span className="flex gap-1 items-center py-0.5">{[0, 150, 300].map(d => <span key={d} className="w-1.5 h-1.5 bg-purple-400 rounded-full animate-bounce" style={{ animationDelay: `${d}ms` }} />)}</span>
+                        : "")}
                     </div>
                   </div>
                 ))}
                 <div ref={chatEndRef} />
               </div>
-              <div className="p-3 border-t border-white/10">
-                <div className="relative">
-                  <Input placeholder="Ask about strategy, categories…" className="pr-11 bg-white/5 border-white/10 text-sm" value={chatInput} onChange={e => setChatInput(e.target.value)} onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendChat(); } }} disabled={chatLoading} data-testid="input-chat" />
-                  <Button size="icon" className="absolute right-1 top-1 bottom-1 h-auto w-9 bg-purple-600 hover:bg-purple-700" onClick={handleSendChat} disabled={chatLoading || !chatInput.trim()}>
+
+              {/* Input */}
+              <div className="p-3 border-t border-white/[0.07] shrink-0">
+                <div className="relative flex items-center">
+                  <Input
+                    placeholder="Ask about strategy, categories…"
+                    className="pr-12 bg-white/[0.05] border-white/10 text-sm rounded-xl focus:border-purple-500/40 focus:ring-purple-500/20 h-10"
+                    value={chatInput}
+                    onChange={e => setChatInput(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendChat(); } }}
+                    disabled={chatLoading}
+                    data-testid="input-chat"
+                  />
+                  <Button
+                    size="icon"
+                    className="absolute right-1 h-8 w-8 rounded-lg bg-gradient-to-br from-purple-600 to-violet-600 hover:from-purple-500 hover:to-violet-500 border-0 shadow-lg shadow-purple-500/20"
+                    onClick={handleSendChat}
+                    disabled={chatLoading || !chatInput.trim()}
+                  >
                     {chatLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
                   </Button>
                 </div>
               </div>
-            </Card>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
