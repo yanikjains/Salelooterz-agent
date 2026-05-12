@@ -51,7 +51,8 @@ export async function registerRoutes(
     res.json({
       status: state.status,
       phoneNumber: state.phoneNumber,
-      channelJid: state.channelJid,
+      channelJid: state.targetChatId, // legacy field name for frontend compat
+      targetChatId: state.targetChatId,
       error: state.error,
       hasQR: !!state.qrBase64,
       qrBase64: state.qrBase64,
@@ -61,8 +62,8 @@ export async function registerRoutes(
   // Connect (start QR generation)
   app.post("/api/whatsapp/connect", async (req, res) => {
     try {
-      await waManager.connect();
-      res.json({ success: true, message: "Connecting — check /api/whatsapp/status for QR code" });
+      waManager.connect(); // intentionally not awaited — takes time to show QR
+      res.json({ success: true, message: "Connecting — QR will appear shortly" });
     } catch (err) {
       res.status(500).json({ error: String(err) });
     }
@@ -78,22 +79,21 @@ export async function registerRoutes(
     }
   });
 
-  // Set the channel JID to send to
+  // Set the target phone/group to send to
   app.post("/api/whatsapp/channel", (req, res) => {
     const { jid } = req.body;
     if (!jid || typeof jid !== "string") {
       return res.status(400).json({ error: "jid is required" });
     }
     try {
-      waManager.setChannelJid(jid.trim());
-      res.json({ success: true, channelJid: jid.trim() });
+      waManager.setTargetChatId(jid.trim());
+      res.json({ success: true, targetChatId: jid.trim() });
     } catch (err: any) {
-      res.status(400).json({ success: false, error: err?.message || "Invalid JID" });
+      res.status(400).json({ success: false, error: err?.message || "Invalid input" });
     }
   });
 
-  // Resolve a channel invite link / raw code / JID → JID + channel name
-  // Accepts: https://whatsapp.com/channel/XXX, raw code, or JID@newsletter
+  // Kept for API compatibility — just normalizes input now
   app.post("/api/whatsapp/resolve", async (req, res) => {
     const { input } = req.body;
     if (!input || typeof input !== "string") {
@@ -101,25 +101,21 @@ export async function registerRoutes(
     }
     try {
       const result = await waManager.resolveChannelInput(input.trim());
-      if (!result) {
-        return res.status(400).json({ success: false, error: "Could not resolve — make sure WhatsApp is connected and the link/JID is correct" });
-      }
+      if (!result) return res.status(400).json({ success: false, error: "Could not resolve" });
       res.json({ success: true, ...result });
     } catch (err: any) {
       res.status(500).json({ success: false, error: err?.message || "Resolve failed" });
     }
   });
 
-  // Fetch channel info for an already-configured JID
+  // Channel info — no-op for groups, kept for compat
   app.get("/api/whatsapp/channel-info", async (req, res) => {
     const state = waManager.getState();
-    if (!state.channelJid) return res.json({ success: false, error: "No channel JID configured" });
-    const info = await waManager.fetchChannelInfo(state.channelJid);
-    if (!info) return res.json({ success: false, error: "Not connected or fetch failed" });
-    res.json({ success: true, jid: state.channelJid, ...info });
+    if (!state.targetChatId) return res.json({ success: false, error: "No target configured" });
+    res.json({ success: true, jid: state.targetChatId, name: state.targetChatId, subscribers: 0 });
   });
 
-  // Send a test message to the channel
+  // Send a test message to the configured target
   app.post("/api/whatsapp/test", async (req, res) => {
     const { message } = req.body;
     const text = message || "🔥 *SaleLooterz AI* — Test message! Your WhatsApp auto-sender is working perfectly. 🎉";
@@ -127,7 +123,7 @@ export async function registerRoutes(
     if (ok) {
       res.json({ success: true, message: "Test message sent!" });
     } else {
-      res.status(400).json({ success: false, error: "Failed to send — make sure WhatsApp is connected and channel JID is set" });
+      res.status(400).json({ success: false, error: "Failed to send — make sure WhatsApp is connected and target is set" });
     }
   });
 

@@ -1,37 +1,31 @@
 /**
- * WHATSAPP SEND-ONLY MANAGER
+ * WHATSAPP SEND-ONLY MANAGER — whatsapp-web.js edition
+ *
+ * Uses a real WhatsApp Web browser session (puppeteer + Chromium) which is
+ * far more reliable than the Baileys multi-device protocol for sending messages
+ * to groups and individual chats.
  *
  * WHAT THIS CODE DOES:
- *   ✅ Sends messages to ONE specific channel/group JID you configure
- *   ✅ Maintains the connection (reconnects if dropped)
- *   ✅ Generates QR code for initial login
- *   ✅ Persists the channel JID to disk (survives server restarts)
+ *   ✅ Connects via QR code scan (same as WhatsApp Web)
+ *   ✅ Sends messages to ONE group or phone number you configure
+ *   ✅ Auto-reconnects if the session drops
+ *   ✅ Persists session to disk (survives server restarts)
  *
  * WHAT THIS CODE DELIBERATELY DOES NOT DO:
- *   ❌ No listener for incoming messages
- *   ❌ No reading of any chats, contacts, or call logs
- *   ❌ No syncing of chat history
+ *   ❌ No reading of any chats or messages
+ *   ❌ No contact or call log access
+ *   ❌ No message listeners
  *   ❌ No marking messages as read
- *   ❌ No presence updates
  */
 
-import makeWASocket, {
-  useMultiFileAuthState,
-  DisconnectReason,
-  fetchLatestBaileysVersion,
-  makeCacheableSignalKeyStore,
-  type WASocket,
-  type ConnectionState,
-} from "@whiskeysockets/baileys";
-import { Boom } from "@hapi/boom";
-import { mkdir, readFile, writeFile } from "fs/promises";
-import { existsSync } from "fs";
+import { Client, LocalAuth, MessageMedia } from "whatsapp-web.js";
 import qrcode from "qrcode";
-import pino from "pino";
+import { readFile, writeFile } from "fs/promises";
+import { existsSync } from "fs";
 import { log } from "./index";
 
-const AUTH_DIR = "./whatsapp-auth";
 const CONFIG_FILE = "./whatsapp-config.json";
+const CHROMIUM_PATH = "/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium";
 
 type WAStatus = "disconnected" | "connecting" | "qr" | "connected";
 
@@ -39,25 +33,24 @@ interface WAState {
   status: WAStatus;
   qrBase64: string | null;
   phoneNumber: string | null;
-  channelJid: string | null;
+  targetChatId: string | null; // e.g. 919996572965@c.us or 120363XXX@g.us
   error: string | null;
 }
 
 interface WAConfig {
-  channelJid: string | null;
+  targetChatId: string | null;
 }
-
-// Only show errors from Baileys — suppress debug/info noise but keep real errors visible
-const baileysLogger = pino({ level: "error" });
 
 async function loadConfig(): Promise<WAConfig> {
   try {
     if (existsSync(CONFIG_FILE)) {
       const raw = await readFile(CONFIG_FILE, "utf-8");
-      return JSON.parse(raw) as WAConfig;
+      const parsed = JSON.parse(raw);
+      // Migrate old channelJid field → targetChatId
+      return { targetChatId: parsed.targetChatId ?? parsed.channelJid ?? null };
     }
   } catch {}
-  return { channelJid: null };
+  return { targetChatId: null };
 }
 
 async function saveConfig(config: WAConfig): Promise<void> {
@@ -68,26 +61,41 @@ async function saveConfig(config: WAConfig): Promise<void> {
   }
 }
 
+/**
+ * Convert a human-entered target (phone number or group ID) into a WhatsApp chat ID.
+ * - "919996572965"           → "919996572965@c.us"
+ * - "919996572965@c.us"      → unchanged
+ * - "120363XXX@g.us"         → unchanged
+ * - "+91 99965 72965"        → "919996572965@c.us"
+ */
+function normalizeChatId(input: string): string {
+  const t = input.trim();
+  if (t.includes("@")) return t; // already has suffix
+  // Strip non-digits (spaces, dashes, plus)
+  const digits = t.replace(/\D/g, "");
+  return `${digits}@c.us`;
+}
+
 class WhatsAppManager {
-  private sock: WASocket | null = null;
+  private client: Client | null = null;
   private state: WAState = {
     status: "disconnected",
     qrBase64: null,
     phoneNumber: null,
-    channelJid: null,
+    targetChatId: null,
     error: null,
   };
   private qrListeners: Array<(qr: string) => void> = [];
   private statusListeners: Array<(s: WAState) => void> = [];
   private reconnectTimer: NodeJS.Timeout | null = null;
   private shouldReconnect = true;
+  private initPromise: Promise<void> | null = null;
 
   constructor() {
-    // Load persisted channel JID on startup
     loadConfig().then((cfg) => {
-      if (cfg.channelJid) {
-        this.state.channelJid = cfg.channelJid;
-        log(`[WhatsApp] Loaded saved channel JID: ${cfg.channelJid}`);
+      if (cfg.targetChatId) {
+        this.state.targetChatId = cfg.targetChatId;
+        log(`[WhatsApp] Loaded saved target: ${cfg.targetChatId}`);
       }
     });
   }
@@ -96,39 +104,17 @@ class WhatsAppManager {
     return { ...this.state };
   }
 
-  setChannelJid(jid: string) {
-    const normalized = normalizeJid(jid.trim());
-    // Hard-reject anything that is not a newsletter (channel) JID
-    if (!normalized.endsWith("@newsletter")) {
-      log(`[WhatsApp] REJECTED non-newsletter JID: ${normalized} — only @newsletter channels allowed`);
-      throw new Error("Only WhatsApp Channel JIDs (@newsletter) are allowed. Individual chats and groups are blocked.");
-    }
-    this.state.channelJid = normalized;
+  setTargetChatId(input: string) {
+    const chatId = normalizeChatId(input);
+    this.state.targetChatId = chatId;
     this.emit();
-    // Persist to disk so it survives restarts
-    saveConfig({ channelJid: normalized });
-    log(`[WhatsApp] Channel JID set to: ${normalized}`);
-
-    // Subscribe to newsletter live updates so admin posting is ready immediately
-    if (this.sock && this.state.status === "connected") {
-      this.subscribeToNewsletter(normalized).catch(() => {});
-    }
+    saveConfig({ targetChatId: chatId });
+    log(`[WhatsApp] Target chat set to: ${chatId}`);
   }
 
-  /**
-   * Subscribe to newsletter live updates for the given JID.
-   * This activates the admin posting channel on WhatsApp's servers —
-   * without it, sendMessage to a @newsletter JID silently succeeds
-   * locally but the message never appears in the channel.
-   */
-  private async subscribeToNewsletter(jid: string): Promise<void> {
-    if (!this.sock) return;
-    try {
-      await (this.sock as any).subscribeNewsletterUpdates(jid);
-      log(`[WhatsApp] ✓ Subscribed to newsletter live updates: ${jid}`);
-    } catch (err: any) {
-      log(`[WhatsApp] subscribeNewsletterUpdates failed (non-fatal): ${err?.message || err}`);
-    }
+  /** Legacy alias used by routes.ts */
+  setChannelJid(input: string) {
+    this.setTargetChatId(input);
   }
 
   onQR(cb: (qr: string) => void) {
@@ -139,128 +125,128 @@ class WhatsAppManager {
 
   onStatus(cb: (s: WAState) => void) {
     this.statusListeners.push(cb);
-    cb(this.state);
+    cb({ ...this.state });
     return () => { this.statusListeners = this.statusListeners.filter(l => l !== cb); };
   }
 
   private emit() {
-    this.statusListeners.forEach(l => l({ ...this.state }));
+    const s = { ...this.state };
+    this.statusListeners.forEach(l => l(s));
   }
 
   async connect(): Promise<void> {
     if (this.state.status === "connected" || this.state.status === "connecting") return;
+    if (this.initPromise) return this.initPromise;
 
     this.shouldReconnect = true;
     this.state.status = "connecting";
     this.state.error = null;
     this.emit();
 
+    this.initPromise = this._init().finally(() => {
+      this.initPromise = null;
+    });
+    return this.initPromise;
+  }
+
+  private async _init(): Promise<void> {
     try {
-      if (!existsSync(AUTH_DIR)) {
-        await mkdir(AUTH_DIR, { recursive: true });
+      log("[WhatsApp] Initialising whatsapp-web.js client…");
+
+      // Destroy any leftover client
+      if (this.client) {
+        try { await this.client.destroy(); } catch {}
+        this.client = null;
       }
 
-      const { state, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
-      const { version } = await fetchLatestBaileysVersion();
-
-      log(`[WhatsApp] Connecting (send-only mode) — Baileys v${version.join(".")}`);
-
-      this.sock = makeWASocket({
-        version,
-        auth: {
-          creds: state.creds,
-          keys: makeCacheableSignalKeyStore(state.keys, baileysLogger),
+      this.client = new Client({
+        authStrategy: new LocalAuth({ dataPath: "./whatsapp-auth-wwebjs" }),
+        puppeteer: {
+          executablePath: CHROMIUM_PATH,
+          headless: true,
+          args: [
+            "--no-sandbox",
+            "--disable-setuid-sandbox",
+            "--disable-dev-shm-usage",
+            "--disable-accelerated-2d-canvas",
+            "--disable-gpu",
+            "--no-first-run",
+            "--no-zygote",
+            "--single-process",
+            "--disable-extensions",
+            "--disable-background-networking",
+            "--disable-default-apps",
+            "--disable-sync",
+            "--disable-translate",
+            "--hide-scrollbars",
+            "--metrics-recording-only",
+            "--mute-audio",
+            "--safebrowsing-disable-auto-update",
+          ],
         },
-        logger: baileysLogger,
-        printQRInTerminal: false,
-        browser: ["SaleLooterz Bot", "Chrome", "120.0.0"],
-        connectTimeoutMs: 60000,
-        defaultQueryTimeoutMs: 30000,
-        keepAliveIntervalMs: 25000,
-
-        // ── SEND-ONLY LOCKDOWN ────────────────────────────────────────────────
-        // Never download or process chat history
-        syncFullHistory: false,
-        // Reject every history-sync notification — no messages, no chats downloaded
-        shouldSyncHistoryMessage: () => false,
-        // Don't emit events for our own sent messages
-        emitOwnEvents: false,
-        // Don't show as online when connected
-        markOnlineOnConnect: false,
-        // No link preview uploads
-        generateHighQualityLinkPreview: false,
-        // Refuse to fetch any message content (blocks history re-sync requests)
-        getMessage: async () => undefined,
-        // NOTE: shouldIgnoreJid is intentionally NOT set — setting it to () => true
-        // breaks newsletter message delivery because it drops the server's ACK/response
-        // node for the sent message, causing the channel to never receive it.
+        // Do not emit events for messages we send ourselves
+        takeoverOnConflict: true,
+        takeoverTimeoutMs: 0,
       });
 
-      this.sock.ev.on("creds.update", saveCreds);
-
-      this.sock.ev.on("connection.update", async (update: Partial<ConnectionState>) => {
-        const { connection, lastDisconnect, qr } = update;
-
-        if (qr) {
-          try {
-            const qrBase64 = await qrcode.toDataURL(qr, { width: 280, margin: 2 });
-            this.state.qrBase64 = qrBase64;
-            this.state.status = "qr";
-            this.emit();
-            this.qrListeners.forEach(l => l(qrBase64));
-            log("[WhatsApp] QR ready — waiting for scan");
-          } catch (err) {
-            log(`[WhatsApp] QR error: ${err}`);
-          }
-        }
-
-        if (connection === "open") {
-          this.state.status = "connected";
-          this.state.qrBase64 = null;
-          this.state.error = null;
-          const creds = state.creds as any;
-          if (creds?.me?.id) {
-            this.state.phoneNumber = creds.me.id.split(":")[0].split("@")[0];
-          }
+      this.client.on("qr", async (qr: string) => {
+        try {
+          const qrBase64 = await qrcode.toDataURL(qr, { width: 280, margin: 2 });
+          this.state.qrBase64 = qrBase64;
+          this.state.status = "qr";
           this.emit();
-          log(`[WhatsApp] Connected. Number: +${this.state.phoneNumber || "unknown"}`);
-
-          // Subscribe to newsletter live updates right after connecting so
-          // admin posting works immediately without needing an explicit send first.
-          if (this.state.channelJid) {
-            this.subscribeToNewsletter(this.state.channelJid).catch(() => {});
-          }
-        }
-
-        if (connection === "close") {
-          const reason = (lastDisconnect?.error as Boom)?.output?.statusCode;
-          const loggedOut = reason === DisconnectReason.loggedOut;
-
-          this.state.status = "disconnected";
-          this.state.qrBase64 = null;
-          if (loggedOut) {
-            this.state.error = "Logged out — scan QR again to reconnect";
-            this.shouldReconnect = false;
-            this.clearAuth();
-          }
-          this.emit();
-          log(`[WhatsApp] Disconnected. Reason code: ${reason}`);
-
-          if (this.shouldReconnect && !loggedOut) {
-            const delay = reason === DisconnectReason.restartRequired ? 1000 : 8000;
-            log(`[WhatsApp] Reconnecting in ${delay / 1000}s...`);
-            this.reconnectTimer = setTimeout(() => this.connect(), delay);
-          }
+          this.qrListeners.forEach(l => l(qrBase64));
+          log("[WhatsApp] QR ready — waiting for scan");
+        } catch (err) {
+          log(`[WhatsApp] QR generation error: ${err}`);
         }
       });
 
+      this.client.on("ready", () => {
+        const info = this.client?.info;
+        this.state.status = "connected";
+        this.state.qrBase64 = null;
+        this.state.error = null;
+        if (info?.wid?.user) {
+          this.state.phoneNumber = info.wid.user;
+        }
+        this.emit();
+        log(`[WhatsApp] ✓ Connected — +${this.state.phoneNumber || "unknown"}`);
+      });
+
+      this.client.on("authenticated", () => {
+        log("[WhatsApp] Authenticated successfully");
+      });
+
+      this.client.on("auth_failure", (msg: string) => {
+        log(`[WhatsApp] Auth failure: ${msg}`);
+        this.state.status = "disconnected";
+        this.state.error = `Authentication failed: ${msg}`;
+        this.state.qrBase64 = null;
+        this.emit();
+        this.clearAuth();
+      });
+
+      this.client.on("disconnected", (reason: string) => {
+        log(`[WhatsApp] Disconnected: ${reason}`);
+        this.state.status = "disconnected";
+        this.state.qrBase64 = null;
+        this.emit();
+
+        if (this.shouldReconnect) {
+          log("[WhatsApp] Reconnecting in 10s…");
+          this.reconnectTimer = setTimeout(() => this.connect(), 10_000);
+        }
+      });
+
+      await this.client.initialize();
     } catch (err) {
-      log(`[WhatsApp] Connection error: ${err}`);
+      log(`[WhatsApp] Init error: ${err}`);
       this.state.status = "disconnected";
       this.state.error = String(err);
       this.emit();
       if (this.shouldReconnect) {
-        this.reconnectTimer = setTimeout(() => this.connect(), 10000);
+        this.reconnectTimer = setTimeout(() => this.connect(), 15_000);
       }
     }
   }
@@ -271,14 +257,13 @@ class WhatsAppManager {
       clearTimeout(this.reconnectTimer);
       this.reconnectTimer = null;
     }
-    if (this.sock) {
-      try { await this.sock.logout(); } catch {}
-      this.sock = null;
+    if (this.client) {
+      try { await this.client.destroy(); } catch {}
+      this.client = null;
     }
-    this.clearAuth();
-    // Keep channelJid so user doesn't have to re-enter it
-    const savedJid = this.state.channelJid;
-    this.state = { status: "disconnected", qrBase64: null, phoneNumber: null, channelJid: savedJid, error: null };
+    await this.clearAuth();
+    const saved = this.state.targetChatId;
+    this.state = { status: "disconnected", qrBase64: null, phoneNumber: null, targetChatId: saved, error: null };
     this.emit();
     log("[WhatsApp] Disconnected and session cleared");
   }
@@ -286,8 +271,10 @@ class WhatsAppManager {
   private async clearAuth(): Promise<void> {
     try {
       const { rm } = await import("fs/promises");
-      if (existsSync(AUTH_DIR)) {
-        await rm(AUTH_DIR, { recursive: true, force: true });
+      const { existsSync } = await import("fs");
+      const dir = "./whatsapp-auth-wwebjs";
+      if (existsSync(dir)) {
+        await rm(dir, { recursive: true, force: true });
         log("[WhatsApp] Auth cleared");
       }
     } catch (err) {
@@ -296,161 +283,74 @@ class WhatsAppManager {
   }
 
   /**
-   * THE ONLY WHATSAPP FUNCTION THIS APP CALLS.
-   * Sends a text message to the configured channel JID only.
+   * Send a text message to the configured target chat/group.
    */
   async sendToChannel(text: string): Promise<boolean> {
-    const jid = this.state.channelJid;
-    if (!jid) {
-      log("[WhatsApp] No channel JID set — cannot send. Set it in the WhatsApp tab.");
+    const chatId = this.state.targetChatId;
+    if (!chatId) {
+      log("[WhatsApp] No target chat ID set — cannot send. Set it in the WhatsApp tab.");
       return false;
     }
-    if (!jid.endsWith("@newsletter")) {
-      log(`[WhatsApp] BLOCKED send to non-newsletter JID: ${jid} — only owner channels allowed`);
-      return false;
-    }
-    if (!this.sock || this.state.status !== "connected") {
+    if (!this.client || this.state.status !== "connected") {
       log("[WhatsApp] Not connected — cannot send");
       return false;
     }
     try {
-      // Always subscribe to newsletter live updates before sending.
-      // WhatsApp silently drops admin posts from accounts that haven't
-      // activated live updates for the channel in the current session.
-      await this.subscribeToNewsletter(jid);
-
-      await this.sock.sendMessage(jid, { text });
-      log(`[WhatsApp] ✓ Sent text to channel ${jid}`);
+      await this.client.sendMessage(chatId, text);
+      log(`[WhatsApp] ✓ Sent text to ${chatId}`);
       return true;
     } catch (err: any) {
-      log(`[WhatsApp] Send failed to ${jid}: ${err?.message || err}`);
+      log(`[WhatsApp] Send failed to ${chatId}: ${err?.message || err}`);
       return false;
     }
   }
 
   /**
-   * Send an image with caption to the channel.
-   * Falls back to text-only if image URL is empty or send fails.
+   * Send an image with caption. Falls back to text-only if image fails.
    */
   async sendImageToChannel(imageUrl: string, caption: string): Promise<boolean> {
-    const jid = this.state.channelJid;
-    if (!jid || !jid.endsWith("@newsletter")) {
-      log("[WhatsApp] No valid @newsletter JID set — cannot send image");
+    const chatId = this.state.targetChatId;
+    if (!chatId) {
+      log("[WhatsApp] No target chat ID set — cannot send image");
       return false;
     }
-    if (!this.sock || this.state.status !== "connected") {
+    if (!this.client || this.state.status !== "connected") {
       log("[WhatsApp] Not connected — cannot send image");
       return false;
     }
     if (!imageUrl || !imageUrl.startsWith("http")) {
-      // No image — fall back to text only
       return this.sendToChannel(caption);
     }
     try {
-      await this.subscribeToNewsletter(jid);
-
-      await this.sock.sendMessage(jid, {
-        image: { url: imageUrl },
-        caption,
-      } as any);
-      log(`[WhatsApp] ✓ Sent image+caption to channel ${jid}`);
+      const media = await MessageMedia.fromUrl(imageUrl, { unsafeMime: true });
+      await this.client.sendMessage(chatId, media, { caption });
+      log(`[WhatsApp] ✓ Sent image+caption to ${chatId}`);
       return true;
     } catch (err: any) {
       log(`[WhatsApp] Image send failed (${err?.message || err}), falling back to text`);
-      // Graceful fallback to text-only
       return this.sendToChannel(caption);
     }
   }
 
-  /**
-   * Fetch newsletter metadata for a given JID (channel name, subscriber count).
-   * Returns null if not connected or fetch fails.
-   */
-  async fetchChannelInfo(jid: string): Promise<{ name: string; subscribers: number; description: string } | null> {
-    if (!this.sock || this.state.status !== "connected") return null;
-    const normalized = normalizeJid(jid.trim());
-    if (!normalized.endsWith("@newsletter")) return null;
-    try {
-      const info = await (this.sock as any).newsletterMetadata("jid", normalized);
-      return {
-        name: info?.name || info?.id || normalized,
-        subscribers: info?.subscribers || 0,
-        description: info?.description || "",
-      };
-    } catch (err: any) {
-      log(`[WhatsApp] fetchChannelInfo failed: ${err?.message || err}`);
-      return null;
-    }
+  /** Resolve invite link / phone / group ID → normalized chat ID */
+  async resolveChannelInput(input: string): Promise<{ jid: string; name: string; subscribers: number } | null> {
+    const chatId = normalizeChatId(input.trim());
+    return { jid: chatId, name: chatId.replace("@c.us", "").replace("@g.us", " (group)"), subscribers: 0 };
   }
 
-  /**
-   * Resolve a WhatsApp channel invite link or raw code to a JID + name.
-   * Accepts:
-   *   https://whatsapp.com/channel/0029VbBCq7B3LdQZryJPsY1r
-   *   https://www.whatsapp.com/channel/0029VbBCq7B3LdQZryJPsY1r
-   *   0029VbBCq7B3LdQZryJPsY1r
-   *   0029VbBCq7B3LdQZryJPsY1r@newsletter
-   */
-  async resolveChannelInput(input: string): Promise<{ jid: string; name: string; subscribers: number } | null> {
-    if (!this.sock || this.state.status !== "connected") return null;
-    const trimmed = input.trim();
-
-    // Extract code from invite URL
-    const urlMatch = trimmed.match(/whatsapp\.com\/channel\/([A-Za-z0-9_-]+)/i);
-    const code = urlMatch ? urlMatch[1] : (trimmed.includes("@") ? null : trimmed);
-
-    let jid: string | null = null;
-
-    if (trimmed.endsWith("@newsletter")) {
-      jid = trimmed;
-    } else if (code) {
-      // Try to get JID from invite code via newsletterMetadata
-      try {
-        const info = await (this.sock as any).newsletterMetadata("invite", code);
-        if (info?.id) {
-          jid = info.id.endsWith("@newsletter") ? info.id : `${info.id}@newsletter`;
-          return {
-            jid,
-            name: info?.name || jid,
-            subscribers: info?.subscribers || 0,
-          };
-        }
-      } catch {
-        // If invite resolution fails, construct JID from the code directly
-        jid = `${code}@newsletter`;
-      }
-    }
-
-    if (!jid) return null;
-
-    // Fetch info for the resolved JID
-    const info = await this.fetchChannelInfo(jid);
-    return {
-      jid,
-      name: info?.name || jid,
-      subscribers: info?.subscribers || 0,
-    };
+  /** No-op for groups (was newsletter-specific in Baileys) */
+  async fetchChannelInfo(_jid: string): Promise<{ name: string; subscribers: number; description: string } | null> {
+    return null;
   }
 
   isConnected(): boolean {
     return this.state.status === "connected";
   }
-}
 
-/**
- * Normalize a channel ID entered by the user.
- * ONLY @newsletter (WhatsApp Channels) are accepted.
- * - Already a @newsletter JID → return as-is
- * - Raw alphanumeric ID       → append @newsletter
- * - Anything else (phone, @g.us, @s.whatsapp.net) → kept as-is so the
- *   @newsletter guard in setChannelJid / sendToChannel can reject it.
- */
-function normalizeJid(input: string): string {
-  const trimmed = input.trim();
-  // Already has @ suffix — return unchanged (guard will reject non-newsletter)
-  if (trimmed.includes("@")) return trimmed;
-  // Raw channel ID (alphanumeric, may start with digits) → @newsletter
-  return `${trimmed}@newsletter`;
+  // Legacy getter so routes.ts still works
+  get channelJidCompat(): string | null {
+    return this.state.targetChatId;
+  }
 }
 
 export const waManager = new WhatsAppManager();
