@@ -1,25 +1,31 @@
 /**
- * WHATSAPP CHANNEL MANAGER — whatsapp-web.js v1.34.7
+ * WHATSAPP CHANNEL MANAGER — Baileys RC11
  *
- * Uses the real WhatsApp Web client (Chromium via Puppeteer) so that
- * channel-admin posting works correctly.  Baileys' protocol-level
- * newsletter send is silently dropped by WhatsApp servers; this approach
- * uses window.WWebJS.sendMessage which the WhatsApp Web frontend uses.
+ * Key fix: after connecting, call newsletterMetadata() to establish the
+ * admin session context that WhatsApp requires before accepting channel posts.
+ * Without this warmup, the server silently drops newsletter message stanzas
+ * even though Baileys reports "sent".
  */
 
-import { createRequire } from "module";
-import { readFile, writeFile, mkdir } from "fs/promises";
+import makeWASocket, {
+  useMultiFileAuthState,
+  DisconnectReason,
+  fetchLatestBaileysVersion,
+  makeCacheableSignalKeyStore,
+  type WASocket,
+  type ConnectionState,
+} from "@whiskeysockets/baileys";
+import { Boom } from "@hapi/boom";
+import { mkdir, readFile, writeFile } from "fs/promises";
 import { existsSync } from "fs";
 import qrcode from "qrcode";
+import pino from "pino";
 import { log } from "./index";
 
-const require = createRequire(import.meta.url);
-const { Client, LocalAuth } = require("whatsapp-web.js");
-
-const AUTH_DIR    = "./whatsapp-auth-wwebjs";
+const AUTH_DIR    = "./whatsapp-auth";
 const CONFIG_FILE = "./whatsapp-config.json";
 
-const CHROMIUM_PATH = "/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium-browser";
+const baileysLogger = pino({ level: "warn" });
 
 type WAStatus = "disconnected" | "connecting" | "qr" | "connected";
 
@@ -65,19 +71,20 @@ function normalizeNewsletterJid(input: string): string {
 }
 
 class WhatsAppManager {
-  private client: any = null;
+  private sock: WASocket | null = null;
   private state: WAState = {
-    status: "disconnected",
-    qrBase64: null,
-    phoneNumber: null,
-    channelJid: null,
+    status:       "disconnected",
+    qrBase64:     null,
+    phoneNumber:  null,
+    channelJid:   null,
     targetChatId: null,
-    error: null,
+    error:        null,
   };
-  private qrListeners:    Array<(qr: string) => void>    = [];
-  private statusListeners: Array<(s: WAState) => void>   = [];
-  private shouldReconnect = false;
-  private destroying = false;
+  private qrListeners:     Array<(qr: string) => void>    = [];
+  private statusListeners: Array<(s: WAState) => void>    = [];
+  private reconnectTimer:  NodeJS.Timeout | null          = null;
+  private shouldReconnect  = true;
+  private adminContextReady = false;
 
   constructor() {
     loadConfig().then((cfg) => {
@@ -94,13 +101,18 @@ class WhatsAppManager {
   setChannelJid(input: string) {
     const jid = normalizeNewsletterJid(input);
     if (!jid.endsWith("@newsletter")) {
-      throw new Error(`Only @newsletter channel JIDs accepted. Got: ${jid}`);
+      throw new Error(`Only @newsletter JIDs accepted. Got: ${jid}`);
     }
     this.state.channelJid   = jid;
     this.state.targetChatId = jid;
+    this.adminContextReady  = false;
     this.emit();
     saveConfig({ channelJid: jid });
     log(`[WhatsApp] Channel JID set: ${jid}`);
+    // Re-establish admin context if already connected
+    if (this.state.status === "connected") {
+      this._warmupNewsletter(jid);
+    }
   }
 
   setTargetChatId(input: string) { this.setChannelJid(input); }
@@ -123,165 +135,172 @@ class WhatsAppManager {
   }
 
   async connect(): Promise<void> {
-    if (this.state.status === "connected" || this.state.status === "connecting" || this.state.status === "qr") {
-      return;
-    }
+    if (this.state.status === "connected" || this.state.status === "connecting") return;
     this.shouldReconnect = true;
-    this.destroying      = false;
     this.state.status    = "connecting";
     this.state.error     = null;
     this.emit();
-
-    // Non-blocking: launch in background
     this._init().catch((err) => {
       log(`[WhatsApp] Unhandled init error: ${err}`);
-      this.state.status = "disconnected";
-      this.state.error  = String(err);
-      this.emit();
     });
+  }
+
+  /**
+   * Call newsletterMetadata to establish admin context.
+   * WhatsApp's server uses the `w:mex` IQ exchange to verify the session
+   * has admin rights before processing channel message stanzas.
+   */
+  private async _warmupNewsletter(jid: string): Promise<void> {
+    if (!this.sock || !jid) return;
+    try {
+      log(`[WhatsApp] Warming up newsletter context for ${jid}…`);
+      const raw: any = await (this.sock as any).newsletterMetadata("jid", jid);
+      this.adminContextReady = true;
+
+      // The raw response can vary by Baileys version — extract what we can
+      const thread = raw?.thread_metadata || raw || {};
+      const viewer = raw?.viewer_metadata || {};
+      const name   = thread?.name?.text || raw?.name || jid;
+      const subs   = thread?.subscribers_count ?? raw?.subscribers ?? 0;
+      // Role field: OWNER, ADMIN, SUBSCRIBER, GUEST, etc.
+      const role   = viewer?.role || viewer?.admin_type || raw?.role || "UNKNOWN";
+
+      log(`[WhatsApp] ✓ Channel: "${name}" | Subscribers: ${subs} | Your role: ${role}`);
+
+      if (role !== "OWNER" && role !== "ADMIN") {
+        log(
+          `[WhatsApp] ⚠ WARNING: role is "${role}" — messages will be SILENTLY DROPPED by WhatsApp server.` +
+          ` Make sure you scanned QR with the channel OWNER/ADMIN phone and the JID is correct.`
+        );
+      } else {
+        log(`[WhatsApp] ✓ Admin context confirmed — ready to post to channel "${name}"`);
+      }
+    } catch (err: any) {
+      log(`[WhatsApp] Newsletter warmup warning: ${err?.message || err} (continuing anyway)`);
+      this.adminContextReady = true;
+    }
   }
 
   private async _init(): Promise<void> {
     try {
-      // Clean up existing client
-      if (this.client) {
-        this.destroying = true;
-        try { await this.client.destroy(); } catch {}
-        this.client    = null;
-        this.destroying = false;
-      }
-
       if (!existsSync(AUTH_DIR)) await mkdir(AUTH_DIR, { recursive: true });
 
-      log(`[WhatsApp] Starting whatsapp-web.js client with Chromium…`);
+      const { state: authState, saveCreds } = await useMultiFileAuthState(AUTH_DIR);
+      const { version } = await fetchLatestBaileysVersion();
+      log(`[WhatsApp] Connecting — Baileys ${version.join(".")}`);
 
-      this.client = new Client({
-        authStrategy: new LocalAuth({ dataPath: AUTH_DIR }),
-        puppeteer: {
-          executablePath: CHROMIUM_PATH,
-          args: [
-            "--no-sandbox",
-            "--disable-setuid-sandbox",
-            "--disable-dev-shm-usage",
-            "--disable-accelerated-2d-canvas",
-            "--no-first-run",
-            "--no-zygote",
-            "--single-process",
-            "--disable-gpu",
-            "--disable-software-rasterizer",
-            "--disable-extensions",
-            "--disable-background-networking",
-            "--disable-translate",
-          ],
-          headless: true,
-          timeout: 120000,
+      if (this.sock) {
+        try { this.sock.end(undefined); } catch {}
+        this.sock = null;
+      }
+
+      this.adminContextReady = false;
+
+      this.sock = makeWASocket({
+        version,
+        auth: {
+          creds: authState.creds,
+          keys:  makeCacheableSignalKeyStore(authState.keys, baileysLogger),
         },
+        logger:                  baileysLogger,
+        printQRInTerminal:       false,
+        browser:                 ["WhatsApp", "Chrome", "124.0.0"],
+        connectTimeoutMs:        60_000,
+        defaultQueryTimeoutMs:   30_000,
+        keepAliveIntervalMs:     20_000,
+        syncFullHistory:         false,
+        shouldSyncHistoryMessage: () => false,
+        markOnlineOnConnect:     true,
+        emitOwnEvents:           false,
+        generateHighQualityLinkPreview: false,
+        getMessage:              async () => undefined,
       });
 
-      // ── QR ──────────────────────────────────────────────────────────────
-      this.client.on("qr", async (qr: string) => {
-        try {
-          const qrBase64 = await qrcode.toDataURL(qr, { width: 280, margin: 2 });
-          this.state.qrBase64 = qrBase64;
-          this.state.status   = "qr";
-          this.emit();
-          this.qrListeners.forEach(l => l(qrBase64));
-          log("[WhatsApp] QR ready — scan with the CHANNEL OWNER/ADMIN account");
-        } catch (err) {
-          log(`[WhatsApp] QR render error: ${err}`);
+      this.sock.ev.on("creds.update", saveCreds);
+
+      this.sock.ev.on("connection.update", async (update: Partial<ConnectionState>) => {
+        const { connection, lastDisconnect, qr } = update;
+
+        if (qr) {
+          try {
+            const qrBase64 = await qrcode.toDataURL(qr, { width: 280, margin: 2 });
+            this.state.qrBase64 = qrBase64;
+            this.state.status   = "qr";
+            this.emit();
+            this.qrListeners.forEach(l => l(qrBase64));
+            log("[WhatsApp] QR ready — scan with channel OWNER/ADMIN phone");
+          } catch (err) { log(`[WhatsApp] QR error: ${err}`); }
         }
-      });
 
-      // ── Ready ────────────────────────────────────────────────────────────
-      this.client.on("ready", async () => {
-        this.state.status   = "connected";
-        this.state.qrBase64 = null;
-        this.state.error    = null;
-
-        try {
-          const info = this.client.info;
-          if (info?.wid?.user) {
-            this.state.phoneNumber = info.wid.user;
+        if (connection === "open") {
+          this.state.status   = "connected";
+          this.state.qrBase64 = null;
+          this.state.error    = null;
+          const creds = authState.creds as any;
+          if (creds?.me?.id) {
+            this.state.phoneNumber = creds.me.id.split(":")[0].split("@")[0];
           }
-        } catch {}
+          this.emit();
+          log(`[WhatsApp] ✓ Connected as +${this.state.phoneNumber || "unknown"}`);
 
-        this.emit();
-        log(`[WhatsApp] ✓ Connected as +${this.state.phoneNumber || "unknown"}`);
-        if (this.state.channelJid) {
-          log(`[WhatsApp] Ready to post to channel: ${this.state.channelJid}`);
-        } else {
-          log("[WhatsApp] ⚠ No channel JID configured — set it in the WhatsApp tab");
+          // Warmup newsletter admin context AFTER connection is established
+          if (this.state.channelJid) {
+            await this._warmupNewsletter(this.state.channelJid);
+          } else {
+            log("[WhatsApp] ⚠ No channel JID set — configure it in the WhatsApp tab");
+          }
+        }
+
+        if (connection === "close") {
+          const reason    = (lastDisconnect?.error as Boom)?.output?.statusCode;
+          const loggedOut = reason === DisconnectReason.loggedOut;
+          log(`[WhatsApp] Disconnected. Code: ${reason}${loggedOut ? " (logged out)" : ""}`);
+
+          this.state.status   = "disconnected";
+          this.state.qrBase64 = null;
+          this.adminContextReady = false;
+          if (loggedOut) {
+            this.state.error     = "Logged out — scan QR again";
+            this.shouldReconnect = false;
+            await this._clearAuth();
+          }
+          this.emit();
+
+          if (this.shouldReconnect && !loggedOut) {
+            const delay = reason === DisconnectReason.restartRequired ? 1_500 : 10_000;
+            log(`[WhatsApp] Reconnecting in ${delay / 1000}s…`);
+            this.reconnectTimer = setTimeout(() => this._init(), delay);
+          }
         }
       });
 
-      // ── Auth success ─────────────────────────────────────────────────────
-      this.client.on("authenticated", () => {
-        log("[WhatsApp] Authenticated successfully");
-      });
-
-      // ── Auth failure ─────────────────────────────────────────────────────
-      this.client.on("auth_failure", (msg: string) => {
-        log(`[WhatsApp] Auth failure: ${msg}`);
-        this.state.status = "disconnected";
-        this.state.error  = `Auth failed: ${msg}`;
-        this.emit();
-      });
-
-      // ── Disconnected ─────────────────────────────────────────────────────
-      this.client.on("disconnected", async (reason: string) => {
-        if (this.destroying) return;
-        log(`[WhatsApp] Disconnected: ${reason}`);
-        const savedJid = this.state.channelJid;
-        this.state = {
-          status:      "disconnected",
-          qrBase64:    null,
-          phoneNumber: null,
-          channelJid:  savedJid,
-          targetChatId: savedJid,
-          error:       reason === "LOGOUT" ? "Logged out — scan QR again" : null,
-        };
-        this.emit();
-
-        if (this.shouldReconnect && reason !== "LOGOUT") {
-          log("[WhatsApp] Reconnecting in 10s…");
-          setTimeout(() => this._init(), 10_000);
-        }
-      });
-
-      await this.client.initialize();
     } catch (err) {
-      log(`[WhatsApp] Init error: ${err}`);
-      if (!this.destroying) {
-        this.state.status = "disconnected";
-        this.state.error  = String(err);
-        this.emit();
-        if (this.shouldReconnect) {
-          log("[WhatsApp] Retrying in 15s…");
-          setTimeout(() => this._init(), 15_000);
-        }
+      log(`[WhatsApp] Connection error: ${err}`);
+      this.state.status = "disconnected";
+      this.state.error  = String(err);
+      this.emit();
+      if (this.shouldReconnect) {
+        this.reconnectTimer = setTimeout(() => this._init(), 12_000);
       }
     }
   }
 
   async disconnect(): Promise<void> {
     this.shouldReconnect = false;
-    this.destroying      = true;
-    if (this.client) {
-      try { await this.client.destroy(); } catch {}
-      this.client = null;
+    if (this.reconnectTimer) { clearTimeout(this.reconnectTimer); this.reconnectTimer = null; }
+    if (this.sock) {
+      try { await this.sock.logout(); } catch {}
+      this.sock = null;
     }
-    this.destroying = false;
+    await this._clearAuth();
     const savedJid = this.state.channelJid;
     this.state = {
-      status:      "disconnected",
-      qrBase64:    null,
-      phoneNumber: null,
-      channelJid:  savedJid,
-      targetChatId: savedJid,
-      error:       null,
+      status: "disconnected", qrBase64: null, phoneNumber: null,
+      channelJid: savedJid, targetChatId: savedJid, error: null,
     };
+    this.adminContextReady = false;
     this.emit();
-    log("[WhatsApp] Disconnected");
+    log("[WhatsApp] Disconnected and session cleared");
   }
 
   private async _clearAuth() {
@@ -291,30 +310,37 @@ class WhatsAppManager {
         await rm(AUTH_DIR, { recursive: true, force: true });
         log("[WhatsApp] Auth cleared");
       }
-    } catch (err) {
-      log(`[WhatsApp] Failed to clear auth: ${err}`);
-    }
+    } catch (err) { log(`[WhatsApp] Failed to clear auth: ${err}`); }
   }
 
   /**
    * Send a text message to the configured WhatsApp Channel.
-   * The connected account MUST be the channel owner or admin.
+   * The connected account MUST be channel owner or admin.
    */
   async sendToChannel(text: string): Promise<boolean> {
     const jid = this.state.channelJid;
     if (!jid?.endsWith("@newsletter")) {
-      log("[WhatsApp] ✗ No valid @newsletter channel JID configured");
+      log("[WhatsApp] ✗ No valid @newsletter JID configured");
       return false;
     }
-    if (!this.client || this.state.status !== "connected") {
-      log(`[WhatsApp] ✗ Not connected (status: ${this.state.status})`);
+    if (!this.sock || this.state.status !== "connected") {
+      log(`[WhatsApp] ✗ Not connected (${this.state.status})`);
       return false;
+    }
+    // Ensure warmup before first send
+    if (!this.adminContextReady) {
+      await this._warmupNewsletter(jid);
     }
     try {
-      log(`[WhatsApp] Sending to channel ${jid}…`);
-      await this.client.sendMessage(jid, text);
-      log(`[WhatsApp] ✓ Message posted to channel ${jid}`);
-      return true;
+      log(`[WhatsApp] Sending to ${jid}…`);
+      const result = await this.sock.sendMessage(jid, { text });
+      if (result?.key?.id) {
+        log(`[WhatsApp] ✓ Message sent — id: ${result.key.id}`);
+        return true;
+      } else {
+        log(`[WhatsApp] ⚠ sendMessage returned no key — result: ${JSON.stringify(result)}`);
+        return false;
+      }
     } catch (err: any) {
       log(`[WhatsApp] ✗ Send failed: ${err?.message || err}`);
       return false;
@@ -322,28 +348,18 @@ class WhatsAppManager {
   }
 
   /**
-   * Send image + caption to the channel.
-   * Falls back to text-only if image fails.
+   * Send image + caption. Falls back to text if image fails.
    */
   async sendImageToChannel(imageUrl: string, caption: string): Promise<boolean> {
     const jid = this.state.channelJid;
-    if (!jid?.endsWith("@newsletter")) {
-      log("[WhatsApp] ✗ No valid @newsletter JID");
-      return false;
-    }
-    if (!this.client || this.state.status !== "connected") {
-      log(`[WhatsApp] ✗ Not connected`);
-      return false;
-    }
-    if (!imageUrl?.startsWith("http")) {
-      return this.sendToChannel(caption);
-    }
+    if (!jid?.endsWith("@newsletter")) { log("[WhatsApp] ✗ No valid @newsletter JID"); return false; }
+    if (!this.sock || this.state.status !== "connected") { log("[WhatsApp] ✗ Not connected"); return false; }
+    if (!imageUrl?.startsWith("http")) return this.sendToChannel(caption);
+    if (!this.adminContextReady) await this._warmupNewsletter(jid);
     try {
-      const { MessageMedia } = require("whatsapp-web.js");
-      log(`[WhatsApp] Sending image to channel ${jid}…`);
-      const media = await MessageMedia.fromUrl(imageUrl, { unsafeMime: true });
-      await this.client.sendMessage(jid, media, { caption });
-      log(`[WhatsApp] ✓ Image posted to channel ${jid}`);
+      log(`[WhatsApp] Sending image to ${jid}…`);
+      await this.sock.sendMessage(jid, { image: { url: imageUrl }, caption } as any);
+      log(`[WhatsApp] ✓ Image sent to ${jid}`);
       return true;
     } catch (err: any) {
       log(`[WhatsApp] ✗ Image failed (${err?.message || err}) — falling back to text`);
@@ -351,53 +367,39 @@ class WhatsAppManager {
     }
   }
 
-  /** Resolve an invite link or raw code → newsletter JID */
+  /** Resolve invite link / raw code / JID */
   async resolveChannelInput(input: string): Promise<{ jid: string; name: string; subscribers: number } | null> {
+    if (!this.sock || this.state.status !== "connected") return null;
     const t = input.trim();
     const urlMatch = t.match(/whatsapp\.com\/channel\/([A-Za-z0-9_-]+)/i);
-    const code     = urlMatch ? urlMatch[1] : (!t.includes("@") && !t.includes(".") ? t : null);
+    const code = urlMatch ? urlMatch[1] : (!t.includes("@") ? t : null);
+    let jid: string | null = t.endsWith("@newsletter") ? t : null;
 
-    if (code) {
-      // Build JID from code
-      const jid = `${code}@newsletter`;
-      // Try to get channel name via whatsapp-web.js
-      if (this.client && this.state.status === "connected") {
-        try {
-          const channel = await this.client.getChannelByInviteCode(code);
-          if (channel) {
-            return { jid: channel.id._serialized, name: channel.name || jid, subscribers: 0 };
-          }
-        } catch {}
-      }
+    if (!jid && code) {
+      try {
+        const info = await (this.sock as any).newsletterMetadata("invite", code);
+        if (info?.id) {
+          jid = info.id.endsWith("@newsletter") ? info.id : `${info.id}@newsletter`;
+          return { jid, name: info?.name || jid, subscribers: info?.subscribers || 0 };
+        }
+      } catch { jid = `${code}@newsletter`; }
+    }
+    if (!jid) return null;
+    try {
+      const info = await (this.sock as any).newsletterMetadata("jid", jid);
+      return { jid, name: info?.name || jid, subscribers: info?.subscribers || 0 };
+    } catch {
       return { jid, name: jid, subscribers: 0 };
     }
-
-    if (t.endsWith("@newsletter")) {
-      // Try to look up by getting channels list
-      if (this.client && this.state.status === "connected") {
-        try {
-          const channels = await this.client.getChannels();
-          const match    = channels.find((c: any) => c.id._serialized === t);
-          if (match) return { jid: t, name: match.name || t, subscribers: 0 };
-        } catch {}
-      }
-      return { jid: t, name: t, subscribers: 0 };
-    }
-
-    return null;
   }
 
   async fetchChannelInfo(jid: string): Promise<{ name: string; subscribers: number; description: string } | null> {
+    if (!this.sock || this.state.status !== "connected") return null;
     if (!jid.endsWith("@newsletter")) return null;
-    if (!this.client || this.state.status !== "connected") return { name: jid, subscribers: 0, description: "" };
-
     try {
-      const channels = await this.client.getChannels();
-      const match    = channels.find((c: any) => c.id._serialized === jid);
-      if (match) return { name: match.name || jid, subscribers: 0, description: match.description || "" };
-    } catch {}
-
-    return { name: jid, subscribers: 0, description: "" };
+      const info = await (this.sock as any).newsletterMetadata("jid", jid);
+      return { name: info?.name || jid, subscribers: info?.subscribers || 0, description: info?.description || "" };
+    } catch { return { name: jid, subscribers: 0, description: "" }; }
   }
 
   isConnected(): boolean { return this.state.status === "connected"; }

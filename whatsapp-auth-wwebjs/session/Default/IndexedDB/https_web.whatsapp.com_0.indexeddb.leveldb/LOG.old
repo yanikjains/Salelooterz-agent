@@ -1,0 +1,25 @@
+2026/05/13-13:05:52.822 dde Reusing MANIFEST /home/runner/workspace/whatsapp-auth-wwebjs/session/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/05/13-13:05:52.823 dde Recovering log #314
+2026/05/13-13:05:52.823 dde Reusing old log /home/runner/workspace/whatsapp-auth-wwebjs/session/Default/IndexedDB/https_web.whatsapp.com_0.indexeddb.leveldb/000314.log 
+2026/05/13-13:05:52.823 dde Delete type=2 #313
+2026/05/13-13:05:52.830 de2 Level-0 table #319: started
+2026/05/13-13:05:52.846 de2 Level-0 table #319: 2626 bytes OK
+2026/05/13-13:05:52.854 de2 Delete type=0 #314
+2026/05/13-13:05:52.855 dde Manual compaction at level-0 from '\x00l\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00m\x00\x00\x00' @ 0 : 0; will stop at '\x00l\x00\x00\xc8\x1a\x00u\x00n\x00r\x00e\x00s\x00p\x00o\x00n\x00s\x00i\x00v\x00e\x00n\x00e\x00s\x00s\x00-\x00e\x00v\x00e\x00n\x00t\x00s\x00-\x00v\x002' @ 47234 : 0
+2026/05/13-13:05:52.855 dde Compacting 1@0 + 1@1 files
+2026/05/13-13:05:52.858 dde Generated table #320@0: 1061 keys, 9834 bytes
+2026/05/13-13:05:52.858 dde Compacted 1@0 + 1@1 files => 9834 bytes
+2026/05/13-13:05:52.862 dde compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/05/13-13:05:52.862 dde Delete type=2 #319
+2026/05/13-13:05:52.862 dde Manual compaction at level-0 from '\x00l\x00\x00\xc8\x1a\x00u\x00n\x00r\x00e\x00s\x00p\x00o\x00n\x00s\x00i\x00v\x00e\x00n\x00e\x00s\x00s\x00-\x00e\x00v\x00e\x00n\x00t\x00s\x00-\x00v\x002' @ 47234 : 0 .. '\x00m\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/05/13-13:05:52.863 dde Level-0 table #322: started
+2026/05/13-13:05:52.865 dde Level-0 table #322: 5832 bytes OK
+2026/05/13-13:05:52.879 dde Delete type=2 #316
+2026/05/13-13:05:52.879 dde Delete type=0 #318
+2026/05/13-13:05:52.879 dde Manual compaction at level-0 from '\x00k\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00l\x00\x00\x00' @ 0 : 0; will stop at '\x00n\x00\x00\x05' @ 47250 : 1
+2026/05/13-13:05:52.879 dde Compacting 1@0 + 1@1 files
+2026/05/13-13:05:52.884 dde Generated table #323@0: 1054 keys, 10769 bytes
+2026/05/13-13:05:52.884 dde Compacted 1@0 + 1@1 files => 10769 bytes
+2026/05/13-13:05:52.890 dde compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/05/13-13:05:52.890 dde Delete type=2 #322
+2026/05/13-13:05:52.890 dde Manual compaction at level-0 from '\x00n\x00\x00\x05' @ 47250 : 1 .. '\x00l\x00\x00\x00' @ 0 : 0; will stop at (end)

@@ -108,11 +108,17 @@ export async function registerRoutes(
     }
   });
 
-  // Channel info — no-op for groups, kept for compat
+  // Fetch real channel name + subscriber count from WhatsApp
   app.get("/api/whatsapp/channel-info", async (req, res) => {
     const state = waManager.getState();
-    if (!state.targetChatId) return res.json({ success: false, error: "No target configured" });
-    res.json({ success: true, jid: state.targetChatId, name: state.targetChatId, subscribers: 0 });
+    const jid = state.targetChatId;
+    if (!jid) return res.json({ success: false, error: "No target configured" });
+    const info = await waManager.fetchChannelInfo(jid);
+    if (info) {
+      res.json({ success: true, jid, name: info.name, subscribers: info.subscribers, description: info.description });
+    } else {
+      res.json({ success: true, jid, name: jid, subscribers: 0 });
+    }
   });
 
   // Send a test message to the configured target
