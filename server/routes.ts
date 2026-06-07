@@ -7,13 +7,11 @@ import { appendToSheet } from "./sheets";
 import { z } from "zod";
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { scheduler, ADMIN_USER_ID, type SchedulerConfig } from "./scheduler";
-import { waManager } from "./whatsapp";
 
 const schedulerConfigSchema = z.object({
   affiliateTag: z.string().min(1),
   telegramBotToken: z.string().optional(),
   telegramChannelId: z.string().optional(),
-  whatsappChannelJid: z.string().optional(),
   spreadsheetId: z.string().optional(),
 });
 
@@ -43,126 +41,6 @@ export async function registerRoutes(
     }
   });
 
-  // ── WHATSAPP ROUTES ──────────────────────────────────────────
-
-  // Get WhatsApp connection status + QR
-  app.get("/api/whatsapp/status", (req, res) => {
-    const state = waManager.getState();
-    res.json({
-      status: state.status,
-      phoneNumber: state.phoneNumber,
-      channelJid: state.targetChatId, // legacy field name for frontend compat
-      targetChatId: state.targetChatId,
-      error: state.error,
-      hasQR: !!state.qrBase64,
-      qrBase64: state.qrBase64,
-    });
-  });
-
-  // Connect (start QR generation)
-  app.post("/api/whatsapp/connect", async (req, res) => {
-    try {
-      waManager.connect(); // intentionally not awaited — takes time to show QR
-      res.json({ success: true, message: "Connecting — QR will appear shortly" });
-    } catch (err) {
-      res.status(500).json({ error: String(err) });
-    }
-  });
-
-  // Disconnect and clear session
-  app.post("/api/whatsapp/disconnect", async (req, res) => {
-    try {
-      await waManager.disconnect();
-      res.json({ success: true, message: "Disconnected and session cleared" });
-    } catch (err) {
-      res.status(500).json({ error: String(err) });
-    }
-  });
-
-  // Set the target phone/group to send to
-  app.post("/api/whatsapp/channel", (req, res) => {
-    const { jid } = req.body;
-    if (!jid || typeof jid !== "string") {
-      return res.status(400).json({ error: "jid is required" });
-    }
-    try {
-      waManager.setTargetChatId(jid.trim());
-      res.json({ success: true, targetChatId: jid.trim() });
-    } catch (err: any) {
-      res.status(400).json({ success: false, error: err?.message || "Invalid input" });
-    }
-  });
-
-  // Kept for API compatibility — just normalizes input now
-  app.post("/api/whatsapp/resolve", async (req, res) => {
-    const { input } = req.body;
-    if (!input || typeof input !== "string") {
-      return res.status(400).json({ error: "input is required" });
-    }
-    try {
-      const result = await waManager.resolveChannelInput(input.trim());
-      if (!result) return res.status(400).json({ success: false, error: "Could not resolve" });
-      res.json({ success: true, ...result });
-    } catch (err: any) {
-      res.status(500).json({ success: false, error: err?.message || "Resolve failed" });
-    }
-  });
-
-  // Fetch real channel name + subscriber count from WhatsApp
-  app.get("/api/whatsapp/channel-info", async (req, res) => {
-    const state = waManager.getState();
-    const jid = state.targetChatId;
-    if (!jid) return res.json({ success: false, error: "No target configured" });
-    const info = await waManager.fetchChannelInfo(jid);
-    if (info) {
-      res.json({ success: true, jid, name: info.name, subscribers: info.subscribers, description: info.description });
-    } else {
-      res.json({ success: true, jid, name: jid, subscribers: 0 });
-    }
-  });
-
-  // Send a test message to the configured target
-  app.post("/api/whatsapp/test", async (req, res) => {
-    const { message } = req.body;
-    const text = message || "🔥 *SaleLooterz AI* — Test message! Your WhatsApp auto-sender is working perfectly. 🎉";
-    const ok = await waManager.sendToChannel(text);
-    if (ok) {
-      res.json({ success: true, message: "Test message sent!" });
-    } else {
-      res.status(400).json({ success: false, error: "Failed to send — make sure WhatsApp is connected and target is set" });
-    }
-  });
-
-  // SSE stream for real-time QR/status updates
-  app.get("/api/whatsapp/stream", (req, res) => {
-    res.setHeader("Content-Type", "text/event-stream");
-    res.setHeader("Cache-Control", "no-cache");
-    res.setHeader("Connection", "keep-alive");
-    res.flushHeaders();
-
-    const send = (data: object) => {
-      res.write(`data: ${JSON.stringify(data)}\n\n`);
-    };
-
-    const unsubStatus = waManager.onStatus((state) => {
-      send({ type: "status", ...state, qrBase64: undefined });
-    });
-
-    const unsubQR = waManager.onQR((qrBase64) => {
-      send({ type: "qr", qrBase64 });
-    });
-
-    // Send current state immediately
-    const current = waManager.getState();
-    send({ type: "status", status: current.status, phoneNumber: current.phoneNumber, error: current.error });
-    if (current.qrBase64) send({ type: "qr", qrBase64: current.qrBase64 });
-
-    req.on("close", () => {
-      unsubStatus();
-      unsubQR();
-    });
-  });
-
   // ── TELEGRAM TEST ────────────────────────────────────────────
   app.post("/api/telegram/test", async (req, res) => {
     const { botToken, channelId } = req.body;
@@ -188,17 +66,7 @@ export async function registerRoutes(
     try {
       const status = scheduler.getStatus();
       const recentAutomations = await storage.getAutomations(ADMIN_USER_ID, 20);
-      const waState = waManager.getState();
-      res.json({
-        ...status,
-        recentAutomations,
-        whatsapp: {
-          status: waState.status,
-          phoneNumber: waState.phoneNumber,
-          channelJid: waState.channelJid,
-          error: waState.error,
-        },
-      });
+      res.json({ ...status, recentAutomations });
     } catch (error) {
       res.status(500).json({ error: "Failed to get status" });
     }
@@ -214,7 +82,6 @@ export async function registerRoutes(
         telegramChannelId: config.telegramChannelId || null,
         spreadsheetId: config.spreadsheetId || null,
       });
-      if (config.whatsappChannelJid) waManager.setChannelJid(config.whatsappChannelJid);
       await scheduler.start(config);
       res.json({ success: true, message: "Automation started", status: scheduler.getStatus() });
     } catch (error) {
@@ -235,7 +102,6 @@ export async function registerRoutes(
         telegramChannelId: config.telegramChannelId || null,
         spreadsheetId: config.spreadsheetId || null,
       });
-      if (config.whatsappChannelJid) waManager.setChannelJid(config.whatsappChannelJid);
       scheduler.updateConfig(config);
       res.json({ success: true });
     } catch (error) {
@@ -246,15 +112,12 @@ export async function registerRoutes(
   app.get("/api/admin/config", async (req, res) => {
     try {
       const schedulerStatus = scheduler.getStatus();
-      const waState = waManager.getState();
-      // Prefer the live running config (in-memory); fall back to user record
       const savedConfig = schedulerStatus.config;
       const user = await storage.getUser(ADMIN_USER_ID);
       res.json({
         telegramBotToken: savedConfig?.telegramBotToken || user?.telegramBotToken || "",
         telegramChannelId: savedConfig?.telegramChannelId || user?.telegramChannelId || "",
         spreadsheetId: savedConfig?.spreadsheetId || user?.spreadsheetId || "",
-        whatsappChannelJid: waState.channelJid || savedConfig?.whatsappChannelJid || "",
         affiliateTag: savedConfig?.affiliateTag || "",
       });
     } catch (error) {

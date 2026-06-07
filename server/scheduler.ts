@@ -1,9 +1,8 @@
 import { discoverProducts, discoverHotDeals, categories } from "./productDiscovery";
-import { generateWhatsAppMessageFromDiscovered, generateTelegramMessageFromDiscovered } from "./messageGenerator";
+import { generateTelegramMessageFromDiscovered } from "./messageGenerator";
 import { sendTelegramMessage } from "./telegram";
 import { appendToSheet } from "./sheets";
 import { storage } from "./storage";
-import { waManager } from "./whatsapp";
 import { wasRecentlyPosted, markAsPosted, getTotalMemoryCount } from "./asinMemory";
 import { log } from "./index";
 import { readFile, writeFile } from "fs/promises";
@@ -12,14 +11,13 @@ import { existsSync } from "fs";
 export const ADMIN_USER_ID = "admin-scheduler";
 
 const PRODUCTS_PER_BATCH = 15;
-const BATCH_INTERVAL_MS = 20 * 60 * 1000; // every 20 min
+const BATCH_INTERVAL_MS = 20 * 60 * 1000;
 const SCHEDULER_CONFIG_FILE = "./scheduler-config.json";
 
 export interface SchedulerConfig {
   affiliateTag: string;
   telegramBotToken?: string;
   telegramChannelId?: string;
-  whatsappChannelJid?: string;
   spreadsheetId?: string;
 }
 
@@ -34,7 +32,6 @@ export interface SchedulerStats {
   lastBatchSuccess: boolean;
   totalSent: number;
   telegramSent: number;
-  whatsappSent: number;
   memoryCount: number;
   config: SchedulerConfig | null;
 }
@@ -78,7 +75,6 @@ class Scheduler {
   private categoryIndex = 0;
   private totalSent = 0;
   private telegramSent = 0;
-  private whatsappSent = 0;
   private memoryCount = 0;
   private hourCounts = new Map<string, number>();
   private dayCounts = new Map<string, number>();
@@ -99,10 +95,6 @@ class Scheduler {
     this.totalSent += count;
   }
 
-  /**
-   * Called once on server boot. Loads any saved config from disk and
-   * auto-starts the scheduler so it keeps running without manual clicks.
-   */
   async autoStart(): Promise<void> {
     const saved = await loadSchedulerConfig();
     if (!saved) {
@@ -110,10 +102,6 @@ class Scheduler {
       return;
     }
     log(`[Scheduler] Auto-starting from saved config (tag: ${saved.affiliateTag})`);
-    // Apply saved WhatsApp JID if present (waManager loads its own JID from disk too)
-    if (saved.whatsappChannelJid) {
-      waManager.setChannelJid(saved.whatsappChannelJid);
-    }
     await this.start(saved);
   }
 
@@ -122,7 +110,6 @@ class Scheduler {
     this.config = config;
     this.isRunning = true;
 
-    // Persist config so we can auto-restart after server reboots
     await saveSchedulerConfig(config);
 
     const existing = await storage.getUser(ADMIN_USER_ID);
@@ -144,16 +131,13 @@ class Scheduler {
     if (this.intervalId) { clearInterval(this.intervalId); this.intervalId = null; }
     this.isRunning = false;
     this.nextRunAt = null;
-    // Clear the saved config so it does NOT auto-restart after the next reboot
     clearSchedulerConfig();
     log("[Scheduler] Stopped.");
   }
 
   updateConfig(config: SchedulerConfig) {
     this.config = config;
-    // Update persisted config too
     saveSchedulerConfig(config);
-    if (config.whatsappChannelJid) waManager.setChannelJid(config.whatsappChannelJid);
   }
 
   getStatus(): SchedulerStats {
@@ -168,7 +152,6 @@ class Scheduler {
       lastBatchSuccess: this.lastBatchSuccess,
       totalSent: this.totalSent,
       telegramSent: this.telegramSent,
-      whatsappSent: this.whatsappSent,
       memoryCount: this.memoryCount,
       config: this.config,
     };
@@ -198,7 +181,6 @@ class Scheduler {
         return;
       }
 
-      // Deduplicate: skip any ASIN posted within the last 6 months
       const products = [];
       let skipped = 0;
       for (const p of rawProducts) {
@@ -223,10 +205,9 @@ class Scheduler {
         return;
       }
 
-      let tgSent = 0, waSent = 0;
+      let tgSent = 0;
 
       for (const product of products) {
-        const whatsappMessage = generateWhatsAppMessageFromDiscovered(product, affiliateTag);
         const telegramMessage = generateTelegramMessageFromDiscovered(product, affiliateTag);
 
         // Send to Telegram
@@ -238,18 +219,6 @@ class Scheduler {
           await sleep(2000);
         }
 
-        // Send to WhatsApp (image + caption when product image available)
-        if (waManager.isConnected()) {
-          try {
-            const imageUrl = (product as any).image || "";
-            const ok = imageUrl
-              ? await waManager.sendImageToChannel(imageUrl, whatsappMessage)
-              : await waManager.sendToChannel(whatsappMessage);
-            if (ok) { waSent++; this.whatsappSent++; }
-          } catch (e) { log(`[Scheduler] WhatsApp error: ${e}`); }
-          await sleep(3000);
-        }
-
         // Google Sheets
         if (spreadsheetId) {
           try {
@@ -259,7 +228,7 @@ class Scheduler {
               price: product.price,
               rating: `${product.rating}/5`,
               productUrl: `${product.url}?tag=${affiliateTag}`,
-              whatsappMessage,
+              whatsappMessage: "",
               telegramMessage,
               affiliateTag,
             });
@@ -274,14 +243,13 @@ class Scheduler {
             productTitle: product.title,
             price: product.price,
             rating: `${product.rating}/5`,
-            whatsappMessage,
+            whatsappMessage: "",
             telegramMessage,
             affiliateTag,
             spreadsheetId: spreadsheetId || null,
           });
         } catch {}
 
-        // Record in ASIN memory
         if (product.asin) {
           await markAsPosted(product.asin, product.title);
         }
@@ -293,7 +261,7 @@ class Scheduler {
       this.lastBatchSuccess = true;
       this.lastRunAt = new Date();
       this.nextRunAt = new Date(Date.now() + BATCH_INTERVAL_MS);
-      log(`[Scheduler] Done: ${products.length} sent, ${skipped} skipped | TG: ${tgSent} | WA: ${waSent} | Memory: ${this.memoryCount} ASINs`);
+      log(`[Scheduler] Done: ${products.length} sent | TG: ${tgSent} | Memory: ${this.memoryCount} ASINs`);
     } catch (err) {
       log(`[Scheduler] Batch error: ${err}`);
       this.lastBatchSuccess = false;
