@@ -2,35 +2,26 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Link } from "wouter";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import {
-  Loader2, ShoppingBag, Zap, Send, Bot, TrendingUp,
-  Settings, Play, Square, RefreshCw, Copy, ExternalLink,
-  CheckCircle, XCircle, Clock, Activity, Star,
-  ChevronDown, ChevronUp, IndianRupee, FileSpreadsheet,
-  AlertCircle, Brain,
+  Loader2, Zap, Send, Bot, TrendingUp, Settings, Play, Square,
+  RefreshCw, Copy, ExternalLink, XCircle, Clock, Activity, Star,
+  ChevronDown, ChevronUp, IndianRupee, FileSpreadsheet, AlertCircle, Brain,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import logo from "@assets/Salelooterz_logo_1780831157664.jpg";
 
-// ─── Types ────────────────────────────────────────────────────────────────────
 interface SchedulerStatus {
   isRunning: boolean;
   nextRunAt: string | null;
   lastRunAt: string | null;
+  lastBatchSuccess: boolean;
   todayCount: number;
   thisHourCount: number;
-  lastBatchCount: number;
-  lastBatchSkipped: number;
-  lastBatchSuccess: boolean;
-  totalSent: number;
   telegramSent: number;
   memoryCount: number;
   config: {
     affiliateTag: string;
-    telegramBotToken?: string;
     telegramChannelId?: string;
-    spreadsheetId?: string;
   } | null;
   recentAutomations: Array<{
     id: number;
@@ -44,19 +35,19 @@ interface SchedulerStatus {
   }>;
 }
 
-function formatTime(iso: string | null) {
+function fmt(iso: string | null) {
   if (!iso) return "—";
   return new Date(iso).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
-function timeUntil(iso: string | null) {
+function until(iso: string | null) {
   if (!iso) return "—";
-  const diff = new Date(iso).getTime() - Date.now();
-  if (diff <= 0) return "Now";
-  const m = Math.floor(diff / 60000), s = Math.floor((diff % 60000) / 1000);
+  const d = new Date(iso).getTime() - Date.now();
+  if (d <= 0) return "Now";
+  const m = Math.floor(d / 60000), s = Math.floor((d % 60000) / 1000);
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
-// ─── Admin PIN Screen ─────────────────────────────────────────────────────────
+// ─── PIN Screen ───────────────────────────────────────────────────────────────
 function PinScreen({ onVerified }: { onVerified: () => void }) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -64,58 +55,44 @@ function PinScreen({ onVerified }: { onVerified: () => void }) {
 
   const handleVerify = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
-    setError(null);
+    setLoading(true); setError(null);
     try {
-      const res = await fetch("/api/admin/verify-pin", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ pin }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        sessionStorage.setItem("admin_pin_ok", "1");
-        onVerified();
-      } else {
-        setError("Wrong PIN. Try again.");
-        setPin("");
-      }
-    } catch {
-      setError("Connection error — try again.");
-    } finally {
-      setLoading(false);
-    }
+      const r = await fetch("/api/admin/verify-pin", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin }) });
+      const d = await r.json();
+      if (d.success) { sessionStorage.setItem("admin_pin_ok", "1"); onVerified(); }
+      else { setError("Wrong PIN — try again."); setPin(""); }
+    } catch { setError("Connection error — try again."); }
+    finally { setLoading(false); }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-black p-4">
-      <div className="w-full max-w-sm">
-        <div className="border border-white/10 rounded-xl p-8 space-y-6 bg-white/[0.02]">
-          <div className="text-center space-y-2">
+      {/* Subtle green glow */}
+      <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 50% 40% at 50% 30%, rgba(34,197,94,0.06), transparent)" }} />
+      <div className="w-full max-w-xs relative z-10">
+        <div className="border border-white/[0.08] rounded-2xl p-8 bg-white/[0.02]">
+          <div className="text-center mb-7">
             <img src={logo} alt="SaleLooterz" className="w-14 h-14 rounded-2xl object-cover mx-auto mb-4" />
-            <h1 className="text-xl font-bold text-white">SaleLooterz AI</h1>
-            <p className="text-sm text-white/40">Enter your admin PIN</p>
+            <h1 className="text-lg font-bold text-white">SaleLooterz AI</h1>
+            <p className="text-xs text-white/35 mt-1">Enter your admin PIN to continue</p>
           </div>
-
           <form onSubmit={handleVerify} className="space-y-3">
             <Input
-              type="password"
-              inputMode="numeric"
-              placeholder="• • • • • •"
-              value={pin}
-              onChange={e => setPin(e.target.value)}
-              autoFocus
-              className="text-center text-xl tracking-[0.5em] h-12 bg-white/5 border-white/10 rounded-lg placeholder:tracking-normal placeholder:text-base text-white"
+              type="password" inputMode="numeric" autoFocus
+              placeholder="••••••" value={pin} onChange={e => setPin(e.target.value)}
+              className="text-center text-2xl tracking-[0.6em] h-12 bg-black border-white/10 focus:border-green-500/50 rounded-xl placeholder:tracking-normal placeholder:text-lg text-white"
               data-testid="input-admin-pin"
             />
             {error && (
-              <p className="text-xs text-red-400 text-center flex items-center justify-center gap-1.5">
-                <XCircle className="w-3.5 h-3.5" />{error}
+              <p className="text-[11px] text-red-400 flex items-center justify-center gap-1.5">
+                <XCircle className="w-3 h-3" />{error}
               </p>
             )}
-            <Button type="submit" disabled={!pin || loading} className="w-full h-11 rounded-lg bg-white text-black hover:bg-white/90 font-semibold border-0" data-testid="button-pin-submit">
+            <button type="submit" disabled={!pin || loading}
+              className="w-full h-11 rounded-xl btn-primary font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              data-testid="button-pin-submit">
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Unlock Dashboard"}
-            </Button>
+            </button>
           </form>
         </div>
       </div>
@@ -123,307 +100,289 @@ function PinScreen({ onVerified }: { onVerified: () => void }) {
   );
 }
 
-// ─── Main Dashboard ────────────────────────────────────────────────────────────
-function HomeDashboard() {
+// ─── Dashboard ────────────────────────────────────────────────────────────────
+function Dashboard() {
   const [status, setStatus] = useState<SchedulerStatus | null>(null);
-  const [isActioning, setIsActioning] = useState(false);
-  const [activeTab, setActiveTab] = useState<"control" | "settings">("control");
-  const [nextRunCountdown, setNextRunCountdown] = useState("—");
+  const [acting, setActing] = useState(false);
+  const [tab, setTab] = useState<"control" | "settings">("control");
+  const [countdown, setCountdown] = useState("—");
 
   const [affiliateTag, setAffiliateTag] = useState(localStorage.getItem("sl_tag") || "");
-  const [telegramBotToken, setTelegramBotToken] = useState("");
-  const [telegramChannelId, setTelegramChannelId] = useState("");
-  const [spreadsheetId, setSpreadsheetId] = useState("");
+  const [botToken, setBotToken] = useState("");
+  const [channelId, setChannelId] = useState("");
+  const [sheetId, setSheetId] = useState("");
   const [showTokens, setShowTokens] = useState(false);
-  const [testingTelegram, setTestingTelegram] = useState(false);
+  const [testingTg, setTestingTg] = useState(false);
 
-  const [showAIChat, setShowAIChat] = useState(false);
-  const [chatMessages, setChatMessages] = useState([
-    { role: "assistant", content: "Hi! I'm your automation assistant. Ask me about categories, message strategy, or maximizing affiliate revenue." }
-  ]);
+  const [showChat, setShowChat] = useState(false);
+  const [chatMsgs, setChatMsgs] = useState([{ role: "assistant", content: "Hi! Ask me about categories, copy strategy, or maximising affiliate revenue." }]);
   const [chatInput, setChatInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
-  const [conversationId, setConversationId] = useState<number | null>(null);
-  const chatEndRef = useRef<HTMLDivElement>(null);
-  const [showFeed, setShowFeed] = useState(true);
+  const [convId, setConvId] = useState<number | null>(null);
+  const chatEnd = useRef<HTMLDivElement>(null);
+  const [feedOpen, setFeedOpen] = useState(true);
 
   const fetchStatus = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/status");
-      if (res.ok) {
-        const data = await res.json();
-        setStatus(data);
-        if (data.config?.affiliateTag) {
-          setAffiliateTag(data.config.affiliateTag);
-          localStorage.setItem("sl_tag", data.config.affiliateTag);
-        }
-      }
+      const r = await fetch("/api/admin/status");
+      if (!r.ok) return;
+      const d = await r.json();
+      setStatus(d);
+      if (d.config?.affiliateTag) { setAffiliateTag(d.config.affiliateTag); localStorage.setItem("sl_tag", d.config.affiliateTag); }
     } catch {}
   }, []);
 
   const loadConfig = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/config");
-      if (res.ok) {
-        const data = await res.json();
-        setTelegramBotToken(data.telegramBotToken || "");
-        setTelegramChannelId(data.telegramChannelId || "");
-        setSpreadsheetId(data.spreadsheetId || "");
-        if (data.affiliateTag) {
-          setAffiliateTag(data.affiliateTag);
-          localStorage.setItem("sl_tag", data.affiliateTag);
-        }
-      }
+      const r = await fetch("/api/admin/config");
+      if (!r.ok) return;
+      const d = await r.json();
+      setBotToken(d.telegramBotToken || "");
+      setChannelId(d.telegramChannelId || "");
+      setSheetId(d.spreadsheetId || "");
+      if (d.affiliateTag) { setAffiliateTag(d.affiliateTag); localStorage.setItem("sl_tag", d.affiliateTag); }
     } catch {}
   }, []);
 
   useEffect(() => { fetchStatus(); loadConfig(); }, []);
   useEffect(() => { const t = setInterval(fetchStatus, 5000); return () => clearInterval(t); }, [fetchStatus]);
-  useEffect(() => { const t = setInterval(() => setNextRunCountdown(timeUntil(status?.nextRunAt || null)), 1000); return () => clearInterval(t); }, [status?.nextRunAt]);
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatMessages]);
+  useEffect(() => { const t = setInterval(() => setCountdown(until(status?.nextRunAt ?? null)), 1000); return () => clearInterval(t); }, [status?.nextRunAt]);
+  useEffect(() => { chatEnd.current?.scrollIntoView({ behavior: "smooth" }); }, [chatMsgs]);
+
+  const startPayload = () => ({
+    affiliateTag: affiliateTag.trim(),
+    telegramBotToken: botToken.trim() || undefined,
+    telegramChannelId: channelId.trim() || undefined,
+    spreadsheetId: sheetId.trim() || undefined,
+  });
 
   const handleStart = async () => {
     if (!affiliateTag.trim()) { toast({ title: "Affiliate Tag Required", variant: "destructive" }); return; }
-    setIsActioning(true);
+    setActing(true);
     try {
-      const res = await fetch("/api/admin/start", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          affiliateTag: affiliateTag.trim(),
-          telegramBotToken: telegramBotToken.trim() || undefined,
-          telegramChannelId: telegramChannelId.trim() || undefined,
-          spreadsheetId: spreadsheetId.trim() || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        toast({ title: "Automation Started" });
-        localStorage.setItem("sl_tag", affiliateTag.trim());
-        await fetchStatus();
-        setActiveTab("control");
-      } else throw new Error(data.error);
-    } catch (err) {
-      toast({ title: "Failed to start", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
-    } finally { setIsActioning(false); }
+      const r = await fetch("/api/admin/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(startPayload()) });
+      const d = await r.json();
+      if (d.success) { toast({ title: "Automation Started" }); localStorage.setItem("sl_tag", affiliateTag.trim()); await fetchStatus(); setTab("control"); }
+      else throw new Error(d.error);
+    } catch (e) { toast({ title: "Failed to start", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" }); }
+    finally { setActing(false); }
   };
 
   const handleStop = async () => {
-    setIsActioning(true);
+    setActing(true);
     try { await fetch("/api/admin/stop", { method: "POST" }); toast({ title: "Automation Stopped" }); await fetchStatus(); }
-    finally { setIsActioning(false); }
+    finally { setActing(false); }
   };
 
   const handleRunNow = async () => {
-    setIsActioning(true);
+    setActing(true);
     try {
-      const res = await fetch("/api/admin/run-now", { method: "POST" });
-      const data = await res.json();
-      if (data.success) { toast({ title: "Batch Triggered" }); setTimeout(fetchStatus, 5000); }
-      else throw new Error(data.error);
-    } catch (err) {
-      toast({ title: "Failed", description: err instanceof Error ? err.message : "Unknown error", variant: "destructive" });
-    } finally { setIsActioning(false); }
+      const r = await fetch("/api/admin/run-now", { method: "POST" });
+      const d = await r.json();
+      if (d.success) { toast({ title: "Batch Triggered" }); setTimeout(fetchStatus, 5000); }
+      else throw new Error(d.error);
+    } catch (e) { toast({ title: "Failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" }); }
+    finally { setActing(false); }
   };
 
-  const handleSaveSettings = async () => {
+  const handleSave = async () => {
     if (!affiliateTag.trim()) { toast({ title: "Affiliate Tag Required", variant: "destructive" }); return; }
     try {
-      const res = await fetch("/api/admin/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          affiliateTag: affiliateTag.trim(),
-          telegramBotToken: telegramBotToken.trim() || undefined,
-          telegramChannelId: telegramChannelId.trim() || undefined,
-          spreadsheetId: spreadsheetId.trim() || undefined,
-        }),
-      });
-      if (res.ok) { toast({ title: "Settings saved" }); localStorage.setItem("sl_tag", affiliateTag.trim()); }
+      const r = await fetch("/api/admin/config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(startPayload()) });
+      if (r.ok) { toast({ title: "Settings saved" }); localStorage.setItem("sl_tag", affiliateTag.trim()); }
     } catch { toast({ title: "Failed to save", variant: "destructive" }); }
   };
 
-  const handleTestTelegram = async () => {
-    if (!telegramBotToken.trim() || !telegramChannelId.trim()) {
-      toast({ title: "Fill in both Bot Token and Channel ID first", variant: "destructive" });
-      return;
-    }
-    setTestingTelegram(true);
+  const handleTestTg = async () => {
+    if (!botToken.trim() || !channelId.trim()) { toast({ title: "Fill in Bot Token and Channel ID first", variant: "destructive" }); return; }
+    setTestingTg(true);
     try {
-      const res = await fetch("/api/telegram/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ botToken: telegramBotToken.trim(), channelId: telegramChannelId.trim() }),
-      });
-      const data = await res.json();
-      if (data.success) toast({ title: "Telegram connected — test message sent" });
-      else toast({ title: "Failed", description: data.error, variant: "destructive" });
+      const r = await fetch("/api/telegram/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ botToken: botToken.trim(), channelId: channelId.trim() }) });
+      const d = await r.json();
+      if (d.success) toast({ title: "✅ Telegram connected — test message sent" });
+      else toast({ title: "Failed", description: d.error, variant: "destructive" });
     } catch { toast({ title: "Network error", variant: "destructive" }); }
-    finally { setTestingTelegram(false); }
+    finally { setTestingTg(false); }
   };
 
-  const handleSendChat = async () => {
-    const message = chatInput.trim();
-    if (!message || chatLoading) return;
+  const handleChat = async () => {
+    const msg = chatInput.trim();
+    if (!msg || chatLoading) return;
     setChatInput("");
-    setChatMessages(prev => [...prev, { role: "user", content: message }]);
+    setChatMsgs(p => [...p, { role: "user", content: msg }]);
     setChatLoading(true);
     try {
-      let convId = conversationId;
-      if (!convId) {
-        const res = await fetch("/api/conversations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: "Admin Chat" }) });
-        const conv = await res.json();
-        convId = conv.id;
-        setConversationId(convId);
+      let id = convId;
+      if (!id) {
+        const r = await fetch("/api/conversations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: "Admin Chat" }) });
+        id = (await r.json()).id;
+        setConvId(id);
       }
-      setChatMessages(prev => [...prev, { role: "assistant", content: "" }]);
-      const res = await fetch(`/api/conversations/${convId}/messages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: message }) });
-      if (!res.ok || !res.body) throw new Error();
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let txt = "";
+      setChatMsgs(p => [...p, { role: "assistant", content: "" }]);
+      const r = await fetch(`/api/conversations/${id}/messages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: msg }) });
+      if (!r.ok || !r.body) throw new Error();
+      const reader = r.body.getReader(); const dec = new TextDecoder(); let txt = "";
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        for (const line of decoder.decode(value).split("\n").filter(l => l.startsWith("data: "))) {
-          try { const d = JSON.parse(line.slice(6)); if (d.content) { txt += d.content; setChatMessages(prev => { const u = [...prev]; u[u.length - 1] = { role: "assistant", content: txt }; return u; }); } } catch {}
+        for (const line of dec.decode(value).split("\n").filter(l => l.startsWith("data: "))) {
+          try { const d = JSON.parse(line.slice(6)); if (d.content) { txt += d.content; setChatMsgs(p => { const u = [...p]; u[u.length - 1] = { role: "assistant", content: txt }; return u; }); } } catch {}
         }
       }
-    } catch {
-      setChatMessages(prev => { const u = [...prev]; u[u.length - 1] = { role: "assistant", content: "Sorry, couldn't respond." }; return u; });
-    } finally { setChatLoading(false); }
+    } catch { setChatMsgs(p => { const u = [...p]; u[u.length - 1] = { role: "assistant", content: "Sorry, couldn't respond." }; return u; }); }
+    finally { setChatLoading(false); }
   };
 
-  const copyText = (text: string) => { navigator.clipboard.writeText(text); toast({ title: "Copied" }); };
-  const isRunning = status?.isRunning ?? false;
+  const copy = (t: string) => { navigator.clipboard.writeText(t); toast({ title: "Copied" }); };
+  const running = status?.isRunning ?? false;
+
+  // ── Stat cards data ──────────────────────────────────────────────────────
+  const stats = [
+    { label: "Today", value: status?.todayCount ?? 0, icon: <TrendingUp className="w-3.5 h-3.5" /> },
+    { label: "This Hour", value: status?.thisHourCount ?? 0, icon: <Activity className="w-3.5 h-3.5" /> },
+    { label: "Telegram", value: status?.telegramSent ?? 0, icon: <Send className="w-3.5 h-3.5" /> },
+    { label: "ASIN Memory", value: status?.memoryCount ?? 0, icon: <Brain className="w-3.5 h-3.5" /> },
+  ];
 
   return (
-    <div className="min-h-screen w-full bg-black text-white">
-      <div className="max-w-4xl mx-auto px-4 py-6">
-
-        {/* Header */}
-        <header className="flex items-center justify-between mb-8">
+    <div className="min-h-screen bg-black text-white">
+      {/* ── Top nav ─────────────────────────────────────────────────────────── */}
+      <div className="glass-nav sticky top-0 z-40">
+        <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
-            <img src={logo} alt="SaleLooterz" className="w-8 h-8 rounded-lg object-cover" />
+            <img src={logo} alt="SaleLooterz" className="w-8 h-8 rounded-xl object-cover" />
             <div>
-              <h1 className="text-base font-bold text-white">SaleLooterz AI</h1>
-              <p className="text-[11px] text-white/30">Admin · Amazon India</p>
+              <p className="text-[13px] font-bold leading-none">SaleLooterz AI</p>
+              <p className="text-[10px] text-white/30 mt-0.5">Admin Dashboard</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Link href="/">
-              <Button variant="ghost" size="sm" className="text-white/40 hover:text-white rounded-lg h-8 px-3 text-xs">Home</Button>
+              <button className="text-white/30 hover:text-white text-xs px-3 h-7 rounded-lg transition-colors">← Home</button>
             </Link>
-            <Button onClick={() => setShowAIChat(!showAIChat)} size="sm" className={`rounded-lg h-8 px-3 text-xs border ${showAIChat ? "bg-white/10 border-white/20 text-white" : "bg-transparent border-white/10 text-white/50 hover:text-white"}`}>
-              <Bot className="w-3 h-3 mr-1.5" />AI
-            </Button>
-            <div className={`text-xs px-2.5 py-1 rounded-md border ${isRunning ? "border-white/20 text-white/70" : "border-white/10 text-white/30"}`}>
-              <span className={`inline-block w-1.5 h-1.5 rounded-full mr-1.5 ${isRunning ? "bg-white animate-pulse" : "bg-white/20"}`} />
-              {isRunning ? "Running" : "Stopped"}
+            <button
+              onClick={() => setShowChat(!showChat)}
+              className={`flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs border transition-colors ${showChat ? "bg-green-500/10 border-green-500/30 text-green-400" : "border-white/10 text-white/40 hover:text-white"}`}>
+              <Bot className="w-3 h-3" />AI
+            </button>
+            <div className={`flex items-center gap-1.5 text-[11px] px-2.5 h-7 rounded-lg border ${running ? "border-green-500/25 bg-green-500/8 text-green-400" : "border-white/8 text-white/25"}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${running ? "bg-green-400 animate-pulse" : "bg-white/20"}`} />
+              {running ? "Running" : "Stopped"}
             </div>
           </div>
-        </header>
+        </div>
+      </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-4 gap-2 mb-6">
-          {[
-            { label: "Today", value: status?.todayCount ?? 0, icon: <TrendingUp className="w-3 h-3" /> },
-            { label: "This Hour", value: status?.thisHourCount ?? 0, icon: <Activity className="w-3 h-3" /> },
-            { label: "Telegram", value: status?.telegramSent ?? 0, icon: <Send className="w-3 h-3" /> },
-            { label: "Memory", value: status?.memoryCount ?? 0, icon: <Brain className="w-3 h-3" /> },
-          ].map((s, i) => (
-            <div key={i} className="border border-white/10 rounded-lg p-3 bg-white/[0.02]">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-[10px] text-white/30 uppercase tracking-wider">{s.label}</p>
-                <span className="text-white/20">{s.icon}</span>
+      <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
+
+        {/* ── Stat cards ────────────────────────────────────────────────────── */}
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+          {stats.map((s, i) => (
+            <div key={i} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-white/25">{s.label}</p>
+                <span className={s.value > 0 ? "text-green-500/50" : "text-white/15"}>{s.icon}</span>
               </div>
-              <p className="text-2xl font-bold text-white">{s.value.toLocaleString()}</p>
+              <p className={`text-[1.75rem] font-black leading-none number-highlight ${s.value > 0 ? "text-white" : "text-white/30"}`}>
+                {s.value.toLocaleString()}
+              </p>
             </div>
           ))}
         </div>
 
-        {/* Tab buttons */}
-        <div className="flex gap-1 mb-5 border border-white/10 rounded-lg p-0.5 w-fit">
-          {(["control", "settings"] as const).map(tab => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`flex items-center gap-1.5 rounded-md px-4 py-2 text-xs font-medium transition-colors ${activeTab === tab ? "bg-white text-black" : "text-white/40 hover:text-white"}`}
-            >
-              {tab === "control" ? <><Zap className="w-3 h-3" />Control</> : <><Settings className="w-3 h-3" />Settings</>}
+        {/* ── Tabs ──────────────────────────────────────────────────────────── */}
+        <div className="flex gap-0.5 p-0.5 bg-white/[0.03] border border-white/[0.07] rounded-xl w-fit">
+          {(["control", "settings"] as const).map(t => (
+            <button key={t} onClick={() => setTab(t)}
+              className={`flex items-center gap-1.5 px-5 py-2 rounded-[10px] text-xs font-semibold transition-all ${tab === t ? "bg-white text-black shadow" : "text-white/35 hover:text-white"}`}>
+              {t === "control" ? <><Zap className="w-3 h-3" />Control</> : <><Settings className="w-3 h-3" />Settings</>}
             </button>
           ))}
         </div>
 
-        {/* Control Tab */}
-        {activeTab === "control" && (
-          <div className="space-y-4">
-            {/* Main control card */}
-            <div className="border border-white/10 rounded-lg p-5 bg-white/[0.02]">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        {/* ── Control Tab ───────────────────────────────────────────────────── */}
+        {tab === "control" && (
+          <div className="space-y-3">
+
+            {/* Status card */}
+            <div className={`rounded-xl border p-5 transition-colors ${running ? "border-green-500/20 bg-green-500/[0.04]" : "border-white/[0.07] bg-white/[0.02]"}`}>
+              <div className="flex flex-col sm:flex-row gap-5">
+                {/* Left: status info */}
                 <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-3">
-                    <div className={`w-2.5 h-2.5 rounded-full ${isRunning ? "bg-white animate-pulse" : "bg-white/20"}`} />
-                    <h2 className="font-semibold text-white">{isRunning ? "Automation Active" : "Automation Stopped"}</h2>
+                  <div className="flex items-center gap-2.5 mb-2">
+                    <div className={`w-2 h-2 rounded-full ${running ? "bg-green-400 animate-pulse shadow-[0_0_6px_rgba(74,222,128,0.6)]" : "bg-white/20"}`} />
+                    <h2 className={`font-bold text-sm ${running ? "text-green-300" : "text-white/60"}`}>
+                      {running ? "Automation Active" : "Automation Stopped"}
+                    </h2>
                   </div>
-                  <p className="text-xs text-white/40 mb-4">
-                    {isRunning ? "15 products / 20 min · 45/hour · ~1,080/day" : "Configure settings then start"}
-                  </p>
 
-                  {isRunning && (
-                    <div className="grid grid-cols-3 gap-2 mb-3">
-                      {[
-                        { label: "Next batch", value: nextRunCountdown },
-                        { label: "Last run", value: formatTime(status?.lastRunAt || null) },
-                        { label: "Status", value: status?.lastBatchSuccess ? "OK" : "Error" },
-                      ].map((item, i) => (
-                        <div key={i} className="border border-white/[0.06] rounded-md p-2.5">
-                          <p className="text-[10px] text-white/30 mb-1">{item.label}</p>
-                          <p className={`text-xs font-mono font-semibold ${item.label === "Status" && !status?.lastBatchSuccess ? "text-red-400" : "text-white"}`}>{item.value}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {status?.config?.telegramChannelId && (
-                    <p className="text-[11px] text-white/30">
-                      <Send className="w-3 h-3 inline mr-1" />TG: {status.config.telegramChannelId}
+                  {running ? (
+                    <>
+                      <p className="text-[11px] text-white/30 mb-4">15 products · every 20 min · 45/hour · ~1,080/day</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          { label: "Next batch", value: countdown },
+                          { label: "Last run", value: fmt(status?.lastRunAt ?? null) },
+                          { label: "Status", value: status?.lastBatchSuccess ? "✓ OK" : "✗ Error", err: !status?.lastBatchSuccess },
+                        ].map((item, i) => (
+                          <div key={i} className="rounded-lg border border-white/[0.06] bg-black/30 p-2.5">
+                            <p className="text-[10px] text-white/25 mb-1">{item.label}</p>
+                            <p className={`text-xs font-mono font-bold ${item.err ? "text-red-400" : "text-white"}`}>{item.value}</p>
+                          </div>
+                        ))}
+                      </div>
+                      {status?.config?.telegramChannelId && (
+                        <p className="mt-3 text-[11px] text-green-500/50 flex items-center gap-1">
+                          <Send className="w-2.5 h-2.5" />posting to {status.config.telegramChannelId}
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-xs text-white/30">
+                      {affiliateTag.trim() ? "Ready to start — click Start below." : "Set your affiliate tag in Settings, then start."}
                     </p>
                   )}
                 </div>
 
-                <div className="flex flex-col gap-2 min-w-[160px]">
-                  {!isRunning ? (
-                    <Button onClick={handleStart} disabled={isActioning || !affiliateTag.trim()} className="h-10 bg-white text-black hover:bg-white/90 font-semibold border-0 rounded-lg text-sm" data-testid="button-start">
-                      {isActioning ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Play className="w-4 h-4 mr-2" />}
+                {/* Right: action buttons */}
+                <div className="flex sm:flex-col gap-2 sm:min-w-[140px] sm:justify-center">
+                  {!running ? (
+                    <button onClick={handleStart} disabled={acting || !affiliateTag.trim()}
+                      className="btn-primary rounded-xl h-10 px-6 text-sm font-bold flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-green-900/30"
+                      data-testid="button-start">
+                      {acting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
                       Start
-                    </Button>
+                    </button>
                   ) : (
                     <>
-                      <Button onClick={handleRunNow} disabled={isActioning} className="h-9 bg-transparent border border-white/20 text-white hover:bg-white/5 rounded-lg text-sm font-medium" data-testid="button-run-now">
-                        {isActioning ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />}
+                      <button onClick={handleRunNow} disabled={acting}
+                        className="btn-ghost rounded-xl h-9 px-4 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-40"
+                        data-testid="button-run-now">
+                        {acting ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
                         Run Now
-                      </Button>
-                      <Button onClick={handleStop} disabled={isActioning} className="h-9 bg-transparent border border-white/10 text-white/50 hover:text-white hover:border-white/20 rounded-lg text-sm font-medium" data-testid="button-stop">
-                        {isActioning ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Square className="w-3.5 h-3.5 mr-1.5" />}
+                      </button>
+                      <button onClick={handleStop} disabled={acting}
+                        className="h-9 px-4 rounded-xl border border-white/[0.07] text-white/30 hover:text-white/60 hover:border-white/15 text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-40"
+                        data-testid="button-stop">
+                        {acting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Square className="w-3 h-3" />}
                         Stop
-                      </Button>
+                      </button>
                     </>
                   )}
                   {!affiliateTag.trim() && (
-                    <p className="text-[11px] text-white/40 flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3" /> Set tag in Settings
+                    <p className="text-[10px] text-white/25 flex items-center gap-1 mt-0.5">
+                      <AlertCircle className="w-2.5 h-2.5" />Set tag in Settings
                     </p>
                   )}
                 </div>
               </div>
             </div>
 
-            {/* Schedule info */}
-            <div className="border border-white/[0.06] rounded-lg p-3 flex flex-wrap gap-2 items-center">
-              <span className="text-[10px] text-white/20 uppercase tracking-wider">Schedule</span>
-              {["Every 20 min", "15 products/batch", "45/hour", "~1,080/day"].map((t, i) => (
-                <span key={i} className="text-[11px] px-2 py-0.5 rounded border border-white/10 text-white/40">{t}</span>
+            {/* Schedule chips */}
+            <div className="flex flex-wrap items-center gap-2 px-1">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-white/15">Schedule</span>
+              {["Every 20 min", "15 products / batch", "45 / hour", "~1,080 / day"].map((t, i) => (
+                <span key={i} className="text-[11px] px-2.5 py-1 rounded-lg border border-white/[0.07] text-white/30">{t}</span>
               ))}
             </div>
 
@@ -431,174 +390,199 @@ function HomeDashboard() {
             <div>
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <h2 className="text-sm font-semibold text-white">Live Feed</h2>
-                  {status?.recentAutomations?.length ? (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded border border-white/10 text-white/30">{status.recentAutomations.length}</span>
-                  ) : null}
+                  <h2 className="text-sm font-bold text-white">Live Feed</h2>
+                  {!!status?.recentAutomations?.length && (
+                    <span className="text-[10px] px-2 py-0.5 rounded-full border border-white/[0.08] text-white/25">{status.recentAutomations.length}</span>
+                  )}
                 </div>
                 <div className="flex items-center gap-1">
-                  <Button onClick={fetchStatus} variant="ghost" size="icon" className="text-white/30 hover:text-white h-7 w-7"><RefreshCw className="w-3 h-3" /></Button>
-                  <Button onClick={() => setShowFeed(!showFeed)} variant="ghost" size="icon" className="text-white/30 hover:text-white h-7 w-7">
-                    {showFeed ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-                  </Button>
+                  <button onClick={fetchStatus} className="w-7 h-7 flex items-center justify-center rounded-lg text-white/25 hover:text-white hover:bg-white/5 transition-colors">
+                    <RefreshCw className="w-3 h-3" />
+                  </button>
+                  <button onClick={() => setFeedOpen(!feedOpen)} className="w-7 h-7 flex items-center justify-center rounded-lg text-white/25 hover:text-white hover:bg-white/5 transition-colors">
+                    {feedOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                  </button>
                 </div>
               </div>
 
-              {showFeed && (
-                <>
-                  {!status?.recentAutomations?.length ? (
-                    <div className="border border-white/[0.06] rounded-lg p-8 text-center">
-                      <Activity className="w-6 h-6 text-white/10 mx-auto mb-2" />
-                      <p className="text-xs text-white/30">No messages yet — start the automation or run a batch</p>
-                    </div>
-                  ) : (
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {status.recentAutomations.map((item) => (
-                        <div key={item.id} className="border border-white/[0.06] rounded-lg p-4 hover:border-white/15 transition-colors">
-                          <div className="flex items-start justify-between gap-2 mb-1.5">
-                            <h4 className="font-medium text-white text-xs line-clamp-2 flex-1 leading-snug">{item.productTitle}</h4>
-                            <div className="flex items-center gap-0.5 text-white/40 shrink-0">
-                              <Star className="w-2.5 h-2.5" />
-                              <span className="text-[10px]">{item.rating}</span>
-                            </div>
+              {feedOpen && (
+                !status?.recentAutomations?.length ? (
+                  <div className="border border-white/[0.05] rounded-xl p-10 text-center">
+                    <Activity className="w-5 h-5 text-white/10 mx-auto mb-2.5" />
+                    <p className="text-xs text-white/25">No messages yet — start the bot or click Run Now</p>
+                  </div>
+                ) : (
+                  <div className="grid md:grid-cols-2 gap-2.5">
+                    {status.recentAutomations.map(item => (
+                      <div key={item.id} className="border border-white/[0.06] rounded-xl p-4 hover:border-white/12 transition-colors group">
+                        <div className="flex items-start justify-between gap-2 mb-2">
+                          <h4 className="text-xs font-semibold text-white line-clamp-2 flex-1 leading-snug">{item.productTitle}</h4>
+                          <div className="flex items-center gap-0.5 text-white/30 shrink-0">
+                            <Star className="w-2.5 h-2.5 fill-white/20" />
+                            <span className="text-[10px]">{item.rating}</span>
                           </div>
-                          <div className="flex items-center justify-between mb-3">
-                            <span className="text-sm font-bold text-white">₹{item.price}</span>
-                            <span className="text-[10px] text-white/30 flex items-center gap-1"><Clock className="w-2.5 h-2.5" />{new Date(item.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</span>
-                          </div>
-                          <div className="relative">
-                            <pre className="text-[11px] p-2.5 bg-white/[0.03] rounded-md whitespace-pre-wrap max-h-24 overflow-y-auto text-white/40 border border-white/[0.05] font-mono">{item.telegramMessage}</pre>
-                            <Button onClick={() => copyText(item.telegramMessage)} variant="ghost" size="icon" className="absolute top-1 right-1 h-5 w-5 hover:bg-white/10 rounded text-white/30 hover:text-white"><Copy className="w-2.5 h-2.5" /></Button>
-                          </div>
-                          <a href={`${item.productUrl}?tag=${item.affiliateTag}`} target="_blank" rel="noopener noreferrer" className="mt-2 flex items-center gap-1 text-[11px] text-white/30 hover:text-white/60 transition-colors">
-                            <ExternalLink className="w-2.5 h-2.5" /> Amazon link
-                          </a>
                         </div>
-                      ))}
-                    </div>
-                  )}
-                </>
+                        <div className="flex items-center justify-between mb-3">
+                          <span className="text-base font-black text-white">₹{item.price}</span>
+                          <span className="text-[10px] text-white/25 flex items-center gap-1">
+                            <Clock className="w-2.5 h-2.5" />
+                            {new Date(item.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        </div>
+                        <div className="relative mb-2">
+                          <pre className="text-[11px] p-2.5 bg-white/[0.025] border border-white/[0.05] rounded-lg whitespace-pre-wrap max-h-20 overflow-y-auto text-white/35 font-mono leading-relaxed">{item.telegramMessage}</pre>
+                          <button onClick={() => copy(item.telegramMessage)} className="absolute top-1.5 right-1.5 w-5 h-5 flex items-center justify-center rounded bg-white/5 hover:bg-white/10 text-white/25 hover:text-white transition-colors opacity-0 group-hover:opacity-100">
+                            <Copy className="w-2.5 h-2.5" />
+                          </button>
+                        </div>
+                        <a href={`${item.productUrl}?tag=${item.affiliateTag}`} target="_blank" rel="noopener noreferrer"
+                          className="flex items-center gap-1 text-[11px] text-white/25 hover:text-green-400/60 transition-colors">
+                          <ExternalLink className="w-2.5 h-2.5" />View on Amazon
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                )
               )}
             </div>
           </div>
         )}
 
-        {/* Settings Tab */}
-        {activeTab === "settings" && (
-          <div className="border border-white/10 rounded-lg p-5 space-y-5 bg-white/[0.02]">
-            <h2 className="font-semibold text-white flex items-center gap-2 text-sm"><Settings className="w-4 h-4 text-white/40" />Settings</h2>
+        {/* ── Settings Tab ──────────────────────────────────────────────────── */}
+        {tab === "settings" && (
+          <div className="border border-white/[0.07] rounded-xl p-5 bg-white/[0.02] space-y-5">
+            <div>
+              <h2 className="text-sm font-bold text-white mb-0.5">Configuration</h2>
+              <p className="text-xs text-white/30">These settings are saved on the server and persist across restarts.</p>
+            </div>
 
             <div className="grid md:grid-cols-2 gap-4">
               <div>
-                <label className="text-xs text-white/40 mb-1.5 flex items-center gap-1.5"><IndianRupee className="w-3 h-3" />Amazon Affiliate Tag *</label>
-                <Input value={affiliateTag} onChange={e => setAffiliateTag(e.target.value)} placeholder="yourtag-21" className="bg-white/5 border-white/10 text-white rounded-lg h-9 text-sm" data-testid="input-affiliate-tag" />
+                <label className="text-[11px] font-semibold text-white/35 mb-1.5 flex items-center gap-1.5 uppercase tracking-wider">
+                  <IndianRupee className="w-2.5 h-2.5" />Affiliate Tag *
+                </label>
+                <Input value={affiliateTag} onChange={e => setAffiliateTag(e.target.value)} placeholder="yourtag-21"
+                  className="bg-white/[0.03] border-white/[0.08] focus:border-green-500/40 text-white rounded-lg h-9 text-sm"
+                  data-testid="input-affiliate-tag" />
               </div>
               <div>
-                <label className="text-xs text-white/40 mb-1.5 flex items-center gap-1.5"><FileSpreadsheet className="w-3 h-3" />Google Sheet ID</label>
-                <Input value={spreadsheetId} onChange={e => setSpreadsheetId(e.target.value)} placeholder="Sheet ID from URL" className="bg-white/5 border-white/10 text-white rounded-lg h-9 text-sm" data-testid="input-sheet-id" />
+                <label className="text-[11px] font-semibold text-white/35 mb-1.5 flex items-center gap-1.5 uppercase tracking-wider">
+                  <FileSpreadsheet className="w-2.5 h-2.5" />Google Sheet ID
+                </label>
+                <Input value={sheetId} onChange={e => setSheetId(e.target.value)} placeholder="ID from Sheet URL"
+                  className="bg-white/[0.03] border-white/[0.08] focus:border-green-500/40 text-white rounded-lg h-9 text-sm"
+                  data-testid="input-sheet-id" />
               </div>
               <div>
-                <label className="text-xs text-white/40 mb-1.5 flex items-center gap-1.5"><Send className="w-3 h-3" />Telegram Bot Token</label>
-                <Input value={telegramBotToken} onChange={e => setTelegramBotToken(e.target.value)} placeholder="1234567890:AAF..." type={showTokens ? "text" : "password"} className="bg-white/5 border-white/10 text-white rounded-lg h-9 text-sm" data-testid="input-telegram-token" />
+                <label className="text-[11px] font-semibold text-white/35 mb-1.5 flex items-center gap-1.5 uppercase tracking-wider">
+                  <Send className="w-2.5 h-2.5" />Bot Token
+                </label>
+                <Input value={botToken} onChange={e => setBotToken(e.target.value)} placeholder="1234567890:AAF..."
+                  type={showTokens ? "text" : "password"}
+                  className="bg-white/[0.03] border-white/[0.08] focus:border-green-500/40 text-white rounded-lg h-9 text-sm"
+                  data-testid="input-telegram-token" />
               </div>
               <div>
-                <label className="text-xs text-white/40 mb-1.5 flex items-center gap-1.5"><Send className="w-3 h-3" />Telegram Channel ID</label>
-                <Input value={telegramChannelId} onChange={e => setTelegramChannelId(e.target.value)} placeholder="@yourchannel or -100..." className="bg-white/5 border-white/10 text-white rounded-lg h-9 text-sm" data-testid="input-telegram-channel" />
+                <label className="text-[11px] font-semibold text-white/35 mb-1.5 flex items-center gap-1.5 uppercase tracking-wider">
+                  <Send className="w-2.5 h-2.5" />Channel ID
+                </label>
+                <Input value={channelId} onChange={e => setChannelId(e.target.value)} placeholder="@yourchannel or -100..."
+                  className="bg-white/[0.03] border-white/[0.08] focus:border-green-500/40 text-white rounded-lg h-9 text-sm"
+                  data-testid="input-telegram-channel" />
               </div>
             </div>
 
             {/* Telegram setup guide */}
-            <div className="border border-white/[0.06] rounded-lg overflow-hidden">
-              <div className="px-4 py-3 border-b border-white/[0.06] flex items-center gap-2">
-                <Send className="w-3.5 h-3.5 text-white/30" />
-                <p className="text-xs font-medium text-white/50">How to connect Telegram</p>
+            <div className="rounded-xl border border-white/[0.06] overflow-hidden">
+              <div className="px-4 py-2.5 border-b border-white/[0.05] flex items-center gap-2">
+                <Send className="w-3 h-3 text-green-500/40" />
+                <p className="text-[11px] font-semibold text-white/40">How to connect Telegram</p>
               </div>
-              <div className="px-4 py-3">
-                <ol className="space-y-2">
-                  {[
-                    <>Search <code className="text-white/60 bg-white/5 px-1 rounded">@BotFather</code> on Telegram → send <code className="text-white/60 bg-white/5 px-1 rounded">/newbot</code></>,
-                    <>Give it a name and username ending in <code className="text-white/60 bg-white/5 px-1 rounded">_bot</code></>,
-                    <>Copy the Bot Token and paste it above</>,
-                    <>Add the bot as Admin of your channel with Post Messages permission</>,
-                    <>Use <code className="text-white/60 bg-white/5 px-1 rounded">@yourchannelname</code> as the Channel ID</>,
-                    <>Click Test Telegram — if ✅ you're done!</>,
-                  ].map((step, i) => (
-                    <li key={i} className="flex items-start gap-2.5 text-[11px] text-white/30">
-                      <span className="shrink-0 w-4 h-4 rounded-full border border-white/10 text-[10px] flex items-center justify-center mt-0.5">{i + 1}</span>
-                      <span className="leading-relaxed">{step}</span>
-                    </li>
-                  ))}
-                </ol>
+              <ol className="px-4 py-3 space-y-2">
+                {[
+                  <>Search <code className="text-green-400/70 bg-green-500/10 px-1 rounded text-[10px]">@BotFather</code> → send <code className="text-green-400/70 bg-green-500/10 px-1 rounded text-[10px]">/newbot</code></>,
+                  <>Name it and get your Bot Token</>,
+                  <>Add the bot as Admin of your channel (Post Messages permission)</>,
+                  <>Use <code className="text-green-400/70 bg-green-500/10 px-1 rounded text-[10px]">@channelname</code> as Channel ID</>,
+                  <>Click Test Telegram below — if ✅ you're all set!</>,
+                ].map((step, i) => (
+                  <li key={i} className="flex items-start gap-2.5 text-[11px] text-white/25">
+                    <span className="shrink-0 w-4 h-4 rounded-full border border-white/[0.08] text-[10px] flex items-center justify-center mt-0.5 font-bold">{i + 1}</span>
+                    <span className="leading-relaxed">{step}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-3">
+              {(botToken || channelId) && (
+                <button onClick={handleTestTg} disabled={testingTg}
+                  className="btn-ghost rounded-lg h-9 px-4 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-40"
+                  data-testid="button-test-telegram">
+                  {testingTg ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                  Test Telegram
+                </button>
+              )}
+              <div className="flex items-center gap-2 text-xs text-white/25">
+                <input type="checkbox" id="show-tokens" checked={showTokens} onChange={e => setShowTokens(e.target.checked)} className="accent-green-500 w-3 h-3" />
+                <label htmlFor="show-tokens">Show values</label>
               </div>
             </div>
 
-            {(telegramBotToken || telegramChannelId) && (
-              <Button onClick={handleTestTelegram} disabled={testingTelegram} className="bg-transparent border border-white/15 text-white/60 hover:text-white hover:border-white/30 rounded-lg h-9 text-xs" data-testid="button-test-telegram">
-                {testingTelegram ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Send className="w-3.5 h-3.5 mr-1.5" />}
-                Test Telegram
-              </Button>
-            )}
-
-            <div className="flex items-center gap-2 text-xs text-white/30">
-              <input type="checkbox" id="show-tokens" checked={showTokens} onChange={e => setShowTokens(e.target.checked)} className="accent-white" />
-              <label htmlFor="show-tokens">Show sensitive values</label>
-            </div>
-
-            <div className="flex gap-2 pt-1">
-              <Button onClick={handleSaveSettings} disabled={!affiliateTag.trim()} className="bg-white text-black hover:bg-white/90 font-semibold rounded-lg border-0 h-9 text-xs px-4">
+            <div className="flex gap-2 pt-1 border-t border-white/[0.05]">
+              <button onClick={handleSave} disabled={!affiliateTag.trim()}
+                className="btn-primary rounded-lg h-9 px-5 text-xs font-bold flex items-center gap-2 disabled:opacity-40">
                 Save Settings
-              </Button>
-              {!isRunning && (
-                <Button onClick={handleStart} disabled={isActioning || !affiliateTag.trim()} className="bg-transparent border border-white/15 text-white/60 hover:text-white hover:border-white/30 rounded-lg h-9 text-xs px-4">
-                  {isActioning ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Play className="w-3.5 h-3.5 mr-1.5" />}
+              </button>
+              {!running && (
+                <button onClick={handleStart} disabled={acting || !affiliateTag.trim()}
+                  className="btn-ghost rounded-lg h-9 px-5 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-40">
+                  {acting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
                   Save & Start
-                </Button>
+                </button>
               )}
             </div>
           </div>
         )}
       </div>
 
-      {/* AI Chat */}
-      {showAIChat && (
-        <div className="fixed bottom-5 right-5 w-[90vw] sm:w-[360px] h-[480px] z-50 border border-white/15 rounded-xl bg-black flex flex-col overflow-hidden shadow-2xl">
-          <div className="p-3.5 border-b border-white/10 flex items-center justify-between shrink-0">
+      {/* ── AI Chat ───────────────────────────────────────────────────────────── */}
+      {showChat && (
+        <div className="fixed bottom-4 right-4 w-[90vw] sm:w-[340px] h-[460px] z-50 border border-white/10 rounded-2xl bg-black flex flex-col overflow-hidden shadow-2xl">
+          <div className="px-4 py-3 border-b border-white/[0.07] flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-white rounded-md flex items-center justify-center">
-                <Bot className="w-3.5 h-3.5 text-black" />
+              <div className="w-6 h-6 rounded-lg bg-green-500/15 border border-green-500/25 flex items-center justify-center">
+                <Bot className="w-3.5 h-3.5 text-green-400" />
               </div>
-              <span className="text-sm font-medium text-white">AI Assistant</span>
+              <span className="text-xs font-semibold text-white">AI Assistant</span>
             </div>
-            <button onClick={() => setShowAIChat(false)} className="text-white/30 hover:text-white text-lg leading-none">×</button>
+            <button onClick={() => setShowChat(false)} className="text-white/25 hover:text-white text-base leading-none w-6 h-6 flex items-center justify-center rounded hover:bg-white/5">×</button>
           </div>
 
           <div className="flex-1 p-3.5 overflow-y-auto space-y-3 min-h-0">
-            {chatMessages.map((msg, i) => (
-              <div key={i} className={`flex gap-2 ${msg.role === "user" ? "flex-row-reverse" : ""}`}>
-                <div className={`px-3 py-2 rounded-lg text-xs max-w-[85%] leading-relaxed ${msg.role === "user" ? "bg-white text-black" : "bg-white/[0.06] border border-white/[0.08] text-white/70"}`}>
-                  {msg.content || (chatLoading && i === chatMessages.length - 1
-                    ? <span className="flex gap-1 items-center">{[0, 150, 300].map(d => <span key={d} className="w-1 h-1 bg-white/40 rounded-full animate-bounce" style={{ animationDelay: `${d}ms` }} />)}</span>
+            {chatMsgs.map((msg, i) => (
+              <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div className={`px-3 py-2 rounded-xl text-xs max-w-[85%] leading-relaxed ${msg.role === "user" ? "bg-white text-black font-medium" : "bg-white/[0.05] border border-white/[0.07] text-white/60"}`}>
+                  {msg.content || (chatLoading && i === chatMsgs.length - 1
+                    ? <span className="flex gap-1">{[0, 120, 240].map(d => <span key={d} className="w-1 h-1 bg-green-400/50 rounded-full animate-bounce" style={{ animationDelay: `${d}ms` }} />)}</span>
                     : "")}
                 </div>
               </div>
             ))}
-            <div ref={chatEndRef} />
+            <div ref={chatEnd} />
           </div>
 
-          <div className="p-3 border-t border-white/10 shrink-0">
-            <div className="flex items-center gap-2">
-              <Input
-                placeholder="Ask about strategy, categories…"
-                className="bg-white/5 border-white/10 text-white text-xs rounded-lg h-9 focus:border-white/25"
-                value={chatInput}
-                onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleSendChat(); } }}
+          <div className="p-3 border-t border-white/[0.07] shrink-0">
+            <div className="flex gap-2">
+              <Input placeholder="Ask about strategy…" value={chatInput} onChange={e => setChatInput(e.target.value)}
+                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleChat(); } }}
                 disabled={chatLoading}
-                data-testid="input-chat"
-              />
-              <Button size="icon" className="h-9 w-9 rounded-lg bg-white text-black hover:bg-white/90 border-0 shrink-0" onClick={handleSendChat} disabled={chatLoading || !chatInput.trim()}>
+                className="bg-white/[0.04] border-white/[0.08] focus:border-green-500/40 text-white text-xs rounded-xl h-9"
+                data-testid="input-chat" />
+              <button onClick={handleChat} disabled={chatLoading || !chatInput.trim()}
+                className="btn-primary w-9 h-9 rounded-xl flex items-center justify-center shrink-0 disabled:opacity-40">
                 {chatLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-              </Button>
+              </button>
             </div>
           </div>
         </div>
@@ -608,7 +592,7 @@ function HomeDashboard() {
 }
 
 export default function Home() {
-  const [pinVerified, setPinVerified] = useState<boolean>(() => sessionStorage.getItem("admin_pin_ok") === "1");
-  if (!pinVerified) return <PinScreen onVerified={() => setPinVerified(true)} />;
-  return <HomeDashboard />;
+  const [ok, setOk] = useState(() => sessionStorage.getItem("admin_pin_ok") === "1");
+  if (!ok) return <PinScreen onVerified={() => setOk(true)} />;
+  return <Dashboard />;
 }
