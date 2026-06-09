@@ -272,11 +272,17 @@ export default function Landing() {
       </section>
 
       {/* ─── Footer ─────────────────────────────────────────────── */}
-      <footer className="border-t border-white/[0.05] px-5 py-6">
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+      <footer className="border-t border-white/[0.05] px-5 py-7">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
             <img src={logo} alt="SaleLooterz" className="w-7 h-7 rounded-lg object-cover" />
             <span className="text-sm font-semibold text-white/60">SaleLooterz AI</span>
+          </div>
+          <div className="flex items-center gap-5 text-xs text-white/20">
+            <Link href="/features" className="hover:text-white/50 transition-colors">Features</Link>
+            <Link href="/support" className="hover:text-white/50 transition-colors">Support</Link>
+            <Link href="/privacy" className="hover:text-white/50 transition-colors">Privacy</Link>
+            <Link href="/terms" className="hover:text-white/50 transition-colors">Terms</Link>
           </div>
           <p className="text-xs text-white/20">
             Built by{" "}

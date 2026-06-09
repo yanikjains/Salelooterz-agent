@@ -11,6 +11,7 @@ import {
   AlertCircle, Brain,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import logo from "@assets/Salelooterz_logo_1780831157664.jpg";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 interface SchedulerStatus {
@@ -91,9 +92,7 @@ function PinScreen({ onVerified }: { onVerified: () => void }) {
       <div className="w-full max-w-sm">
         <div className="border border-white/10 rounded-xl p-8 space-y-6 bg-white/[0.02]">
           <div className="text-center space-y-2">
-            <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center mx-auto mb-4">
-              <Bot className="w-6 h-6 text-black" />
-            </div>
+            <img src={logo} alt="SaleLooterz" className="w-14 h-14 rounded-2xl object-cover mx-auto mb-4" />
             <h1 className="text-xl font-bold text-white">SaleLooterz AI</h1>
             <p className="text-sm text-white/40">Enter your admin PIN</p>
           </div>
@@ -305,9 +304,7 @@ function HomeDashboard() {
         {/* Header */}
         <header className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
-              <ShoppingBag className="w-4 h-4 text-black" />
-            </div>
+            <img src={logo} alt="SaleLooterz" className="w-8 h-8 rounded-lg object-cover" />
             <div>
               <h1 className="text-base font-bold text-white">SaleLooterz AI</h1>
               <p className="text-[11px] text-white/30">Admin · Amazon India</p>

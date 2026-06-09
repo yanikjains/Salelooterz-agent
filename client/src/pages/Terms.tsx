@@ -1,58 +1,77 @@
-import { motion } from "framer-motion";
 import { Link } from "wouter";
-import { ShoppingBag, ArrowLeft, FileText } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowLeft, FileText } from "lucide-react";
+import logo from "@assets/Salelooterz_logo_1780831157664.jpg";
+
+const sections = [
+  {
+    title: "1. Acceptance of Terms",
+    body: "By accessing or using SaleLooterz, you agree to be bound by these Terms of Service. If you do not agree with any part of these terms, do not use the service.",
+  },
+  {
+    title: "2. Permitted Use",
+    body: "SaleLooterz is intended for use by Amazon India affiliate marketers to automate product discovery and message distribution. You must hold a valid Amazon Associates account.",
+  },
+  {
+    title: "3. Prohibited Activities",
+    body: "You may not use SaleLooterz for any illegal purpose or to violate Amazon's Affiliate Program Operating Agreement. Scraping must operate within the rate limits enforced by our scheduler.",
+  },
+  {
+    title: "4. Disclaimer",
+    body: "SaleLooterz is provided 'as is' without warranty of any kind. Affiliate earnings depend on your audience and content quality — we make no income guarantees.",
+  },
+  {
+    title: "5. Contact",
+    body: "Questions about these terms? Reach us at salelooterz@gmail.com.",
+  },
+];
 
 export default function Terms() {
   return (
-    <div className="min-h-screen w-full bg-[#030303] flex flex-col items-center selection:bg-purple-500/30 selection:text-purple-200">
-      <div className="fixed inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(120,50,255,0.08)_0%,transparent_50%)] pointer-events-none" />
-      
-      <header className="w-full max-w-7xl px-6 py-8 flex justify-between items-center relative z-10">
-        <Link href="/">
-          <div className="flex items-center gap-2 cursor-pointer">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
-              <ShoppingBag className="w-6 h-6 text-white" />
+    <div className="min-h-screen bg-black text-white overflow-x-hidden">
+      {/* Nav */}
+      <nav className="fixed top-0 left-0 right-0 z-50 glass-nav">
+        <div className="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between">
+          <Link href="/">
+            <div className="flex items-center gap-2.5 cursor-pointer">
+              <img src={logo} alt="SaleLooterz" className="w-9 h-9 rounded-xl object-cover" />
+              <span className="text-[15px] font-bold tracking-tight">SaleLooterz</span>
             </div>
-            <span className="text-xl font-bold text-white tracking-tight">Affiliate Bot</span>
-          </div>
-        </Link>
-        <Link href="/">
-          <Button variant="ghost" className="text-gray-400 hover:text-white flex items-center gap-2">
-            <ArrowLeft className="w-4 h-4" />
-            Back to Home
-          </Button>
-        </Link>
-      </header>
+          </Link>
+          <Link href="/">
+            <button className="btn-ghost rounded-lg px-4 h-9 text-sm inline-flex items-center gap-2">
+              <ArrowLeft className="w-3.5 h-3.5" /> Back
+            </button>
+          </Link>
+        </div>
+      </nav>
 
-      <main className="container max-w-4xl px-6 pt-12 pb-32 relative z-10 text-gray-400 leading-relaxed">
-        <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="mb-12">
-          <FileText className="w-16 h-16 text-indigo-500 mb-6" />
-          <h1 className="text-5xl font-bold text-white tracking-tight mb-4">Terms of Service</h1>
-          <p className="text-lg">Effective Date: January 01, 2026</p>
-        </motion.div>
+      <main className="max-w-2xl mx-auto px-5 pt-32 pb-24">
+        <div className="mb-10">
+          <div className="w-10 h-10 rounded-lg border border-white/[0.07] bg-white/[0.03] flex items-center justify-center mb-5 text-green-400">
+            <FileText className="w-5 h-5" />
+          </div>
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-green-500/70 mb-2">Legal</p>
+          <h1 className="text-4xl font-black tracking-tight mb-2">Terms of Service</h1>
+          <p className="text-xs text-white/25">Effective Date: January 01, 2026</p>
+        </div>
 
-        <section className="space-y-8">
-          <div>
-            <h2 className="text-2xl font-bold text-white mb-4">1. Acceptance of Terms</h2>
-            <p>By using SmartBot, you agree to be bound by these Terms of Service. If you do not agree, please do not use our services.</p>
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-white mb-4">2. Usage Limits</h2>
-            <p>Users are provided with a 3-day free trial. Lifetime access requires a one-time payment. Scraping limits are set at 50 products per day for all standard paid accounts.</p>
-          </div>
-          <div>
-            <h2 className="text-2xl font-bold text-white mb-4">3. Prohibited Activities</h2>
-            <p>You may not use SmartBot for any illegal purposes or to violate Amazon's Operating Agreement. Automated scraping must comply with the rate limits enforced by our system.</p>
-          </div>
-        </section>
+        <div className="space-y-8">
+          {sections.map((s, i) => (
+            <div key={i} className={i < sections.length - 1 ? "pb-8 border-b border-white/[0.05]" : ""}>
+              <h2 className="text-sm font-bold text-white mb-2.5">{s.title}</h2>
+              <p className="text-sm text-white/35 leading-relaxed">{s.body}</p>
+            </div>
+          ))}
+        </div>
       </main>
 
-      <footer className="w-full max-w-7xl px-6 py-12 border-t border-white/5 relative z-10 flex flex-col items-center gap-6 text-sm text-gray-500 mx-auto">
-        <div className="flex flex-col md:flex-row items-center justify-center gap-4 text-center w-full">
-          <span>© 2026 Affiliate Bot India</span>
-          <div className="hidden md:block w-1 h-1 rounded-full bg-gray-800" />
-          <span>Fair usage and transparent policies.</span>
+      <footer className="border-t border-white/[0.05] px-5 py-6">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <img src={logo} alt="SaleLooterz" className="w-7 h-7 rounded-lg object-cover" />
+            <span className="text-sm font-semibold text-white/60">SaleLooterz AI</span>
+          </div>
+          <p className="text-xs text-white/20">Fair usage and transparent policies.</p>
         </div>
       </footer>
     </div>

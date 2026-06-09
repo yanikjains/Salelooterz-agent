@@ -1,151 +1,155 @@
-import { motion } from "framer-motion";
 import { Link } from "wouter";
-import { 
-  ShoppingBag, Zap, MessageCircle, Send, FileSpreadsheet, 
-  Sparkles, ShieldCheck, Target, BarChart3, Globe, 
-  ArrowRight, CheckCircle2 
+import {
+  ShoppingBag, Zap, MessageCircle, Send, FileSpreadsheet,
+  ShieldCheck, Target, BarChart3, Bot, Clock, ArrowRight, CheckCircle2
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import logo from "@assets/Salelooterz_logo_1780831157664.jpg";
 
 const features = [
   {
     title: "Real-time Scraping",
-    description: "Instant data extraction from Amazon India with 99.9% success rate.",
-    icon: Zap,
-    color: "text-amber-400",
-    bg: "bg-amber-400/10"
+    desc: "Instant data extraction from Amazon India — prices, ratings, discounts, and ASINs every batch.",
+    icon: <Zap className="w-5 h-5" />,
   },
   {
     title: "Viral Message Generation",
-    description: "AI-powered Hindi-English hybrid messages optimized for high conversion.",
-    icon: MessageCircle,
-    color: "text-emerald-400",
-    bg: "bg-emerald-400/10"
+    desc: "AI-crafted Hindi-English hybrid marketing copy optimised for high click-through rates.",
+    icon: <MessageCircle className="w-5 h-5" />,
   },
   {
-    title: "One-Click Multi-Posting",
-    description: "Send all scraped products to WhatsApp & Telegram simultaneously.",
-    icon: Send,
-    color: "text-blue-400",
-    bg: "bg-blue-400/10"
+    title: "Telegram Auto-Post",
+    desc: "Sends affiliate messages to your channel via bot token automatically — no manual effort.",
+    icon: <Send className="w-5 h-5" />,
   },
   {
     title: "Google Sheets Sync",
-    description: "Automatically log all campaigns and product details for tracking.",
-    icon: FileSpreadsheet,
-    color: "text-green-400",
-    bg: "bg-green-400/10"
+    desc: "Every product automatically logged with message, price, rating, and affiliate link.",
+    icon: <FileSpreadsheet className="w-5 h-5" />,
   },
   {
     title: "Smart Targeting",
-    description: "Category-based discovery focusing on high-demand Indian products.",
-    icon: Target,
-    color: "text-purple-400",
-    bg: "bg-purple-400/10"
+    desc: "Category-based discovery across 7 verticals — electronics, fashion, beauty, fitness and more.",
+    icon: <Target className="w-5 h-5" />,
+  },
+  {
+    title: "AI Chat Assistant",
+    desc: "Built-in AI to help you pick categories, refine copy strategy, and maximise affiliate revenue.",
+    icon: <Bot className="w-5 h-5" />,
+  },
+  {
+    title: "24 / 7 Uptime",
+    desc: "The scheduler keeps running in the cloud — 15 products every 20 minutes, around the clock.",
+    icon: <Clock className="w-5 h-5" />,
+  },
+  {
+    title: "Admin Analytics",
+    desc: "Live stats dashboard — today's count, hourly rate, Telegram sent, and ASIN memory.",
+    icon: <BarChart3 className="w-5 h-5" />,
   },
   {
     title: "Owner Exemption",
-    description: "Special access for administrators with unlimited usage capabilities.",
-    icon: ShieldCheck,
-    color: "text-red-400",
-    bg: "bg-red-400/10"
-  }
+    desc: "Unlimited access for designated admin accounts — no daily caps, no payment needed.",
+    icon: <ShieldCheck className="w-5 h-5" />,
+  },
 ];
+
+function PageNav() {
+  return (
+    <nav className="fixed top-0 left-0 right-0 z-50 glass-nav">
+      <div className="max-w-6xl mx-auto px-5 h-16 flex items-center justify-between">
+        <Link href="/">
+          <div className="flex items-center gap-2.5 cursor-pointer">
+            <img src={logo} alt="SaleLooterz" className="w-9 h-9 rounded-xl object-cover" />
+            <span className="text-[15px] font-bold tracking-tight">SaleLooterz</span>
+          </div>
+        </Link>
+        <Link href="/dashboard">
+          <button className="btn-primary rounded-lg px-5 h-9 text-sm flex items-center gap-2">
+            Open Dashboard <ArrowRight className="w-3.5 h-3.5" />
+          </button>
+        </Link>
+      </div>
+    </nav>
+  );
+}
+
+function PageFooter() {
+  return (
+    <footer className="border-t border-white/[0.05] px-5 py-6">
+      <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <img src={logo} alt="SaleLooterz" className="w-7 h-7 rounded-lg object-cover" />
+          <span className="text-sm font-semibold text-white/60">SaleLooterz AI</span>
+        </div>
+        <div className="flex items-center gap-5 text-xs text-white/20">
+          <Link href="/privacy" className="hover:text-white/50 transition-colors">Privacy</Link>
+          <Link href="/terms" className="hover:text-white/50 transition-colors">Terms</Link>
+          <Link href="/support" className="hover:text-white/50 transition-colors">Support</Link>
+        </div>
+        <p className="text-xs text-white/20">
+          Built by <a href="mailto:salelooterz@gmail.com" className="text-white/40 hover:text-white transition-colors">Yanik Jain</a>
+        </p>
+      </div>
+    </footer>
+  );
+}
+
+export { PageNav, PageFooter };
 
 export default function Features() {
   return (
-    <div className="min-h-screen w-full bg-[#030303] flex flex-col items-center selection:bg-purple-500/30 selection:text-purple-200">
-      <div className="fixed inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(120,50,255,0.08)_0%,transparent_50%)] pointer-events-none" />
-      
-      <header className="w-full max-w-7xl px-6 py-8 flex justify-between items-center relative z-10">
-        <Link href="/">
-          <div className="flex items-center gap-2 cursor-pointer">
-            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-purple-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-purple-500/20">
-              <ShoppingBag className="w-6 h-6 text-white" />
-            </div>
-            <span className="text-xl font-bold text-white tracking-tight">Affiliate Bot</span>
-          </div>
-        </Link>
-        <Link href="/login">
-          <Button variant="outline" className="rounded-full px-6 bg-white/5 border-white/10 text-white hover:bg-white/10 h-10">
-            Get Started
-          </Button>
-        </Link>
-      </header>
+    <div className="min-h-screen bg-black text-white overflow-x-hidden">
+      <PageNav />
 
-      <main className="container max-w-6xl px-6 pt-12 pb-32 relative z-10">
-        <div className="text-center mb-20">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-purple-500/10 border border-purple-500/20 text-purple-400 text-sm font-medium mb-8"
-          >
-            <Sparkles className="w-4 h-4" />
-            <span>Advanced Capabilities</span>
-          </motion.div>
-          
-          <motion.h1 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="text-5xl md:text-7xl font-bold text-white tracking-tight leading-[1.1] mb-8"
-          >
-            Everything you need to <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-indigo-400">Scale your Affiliate Business</span>
-          </motion.h1>
+      <main className="max-w-5xl mx-auto px-5 pt-32 pb-24">
+        {/* Header */}
+        <div className="mb-14">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-green-500/70 mb-3">All Features</p>
+          <h1 className="text-4xl sm:text-5xl font-black tracking-tight mb-4">
+            The complete affiliate<br />
+            <span className="text-white/25">automation stack.</span>
+          </h1>
+          <p className="text-sm text-white/35 max-w-lg leading-relaxed">
+            Everything you need to run a hands-free Amazon India affiliate channel —
+            from scraping to posting to analytics.
+          </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {features.map((feature, index) => (
-            <motion.div
-              key={feature.title}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 + index * 0.05 }}
-              className="p-8 rounded-3xl border border-white/10 bg-white/5 backdrop-blur-sm hover:border-purple-500/30 transition-colors group"
-            >
-              <div className={`w-12 h-12 rounded-2xl ${feature.bg} flex items-center justify-center mb-6 group-hover:scale-110 transition-transform`}>
-                <feature.icon className={`w-6 h-6 ${feature.color}`} />
+        {/* Feature Grid */}
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-16">
+          {features.map((f, i) => (
+            <div key={i} className="card-border rounded-xl p-5 bg-white/[0.015] group">
+              <div className="w-9 h-9 rounded-lg border border-white/[0.07] bg-white/[0.03] flex items-center justify-center mb-4 text-white/30 group-hover:text-green-400 group-hover:border-green-500/20 transition-colors">
+                {f.icon}
               </div>
-              <h3 className="text-xl font-bold text-white mb-3">{feature.title}</h3>
-              <p className="text-gray-400 leading-relaxed mb-6">{feature.description}</p>
-              <div className="flex items-center gap-2 text-purple-400 text-sm font-medium">
-                <CheckCircle2 className="w-4 h-4" />
-                <span>Ready to use</span>
+              <h3 className="font-semibold text-white text-sm mb-1.5">{f.title}</h3>
+              <p className="text-xs text-white/35 leading-relaxed mb-4">{f.desc}</p>
+              <div className="flex items-center gap-1.5 text-[11px] text-green-500/60">
+                <CheckCircle2 className="w-3 h-3" /> Built in
               </div>
-            </motion.div>
+            </div>
           ))}
         </div>
 
-        <motion.div
-          initial={{ opacity: 0, scale: 0.95 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.5 }}
-          className="mt-32 p-12 rounded-[2rem] bg-gradient-to-br from-purple-600 to-indigo-700 text-center relative overflow-hidden"
-        >
-          <div className="absolute top-0 right-0 -mr-20 -mt-20 w-64 h-64 bg-white/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute bottom-0 left-0 -ml-20 -mb-20 w-64 h-64 bg-black/20 rounded-full blur-3xl pointer-events-none" />
-          
-          <h2 className="text-3xl md:text-5xl font-bold text-white mb-6 relative z-10">Start Earning Today</h2>
-          <p className="text-purple-100 text-lg mb-10 max-w-xl mx-auto relative z-10">
-            Join thousands of smart affiliate marketers automating their workflow in India.
+        {/* CTA */}
+        <div className="relative border border-white/[0.06] rounded-2xl p-10 text-center overflow-hidden">
+          <div className="absolute inset-0 rounded-2xl pointer-events-none" style={{ background: 'radial-gradient(ellipse 70% 60% at 50% 50%, rgba(34,197,94,0.05), transparent)' }} />
+          <p className="text-xs font-bold uppercase tracking-widest text-green-500/60 mb-3 relative z-10">Get Started Today</p>
+          <h2 className="text-2xl sm:text-4xl font-black tracking-tight mb-4 relative z-10">
+            Your bot is waiting.
+          </h2>
+          <p className="text-sm text-white/30 max-w-sm mx-auto mb-7 relative z-10">
+            Set your affiliate tag, connect Telegram, and SaleLooterz handles the rest.
           </p>
-          <Link href="/signup">
-            <Button size="lg" className="rounded-full px-12 bg-white text-purple-700 hover:bg-purple-50 font-bold h-14 relative z-10">
-              Create Free Account
-              <ArrowRight className="ml-2 w-5 h-5" />
-            </Button>
+          <Link href="/dashboard">
+            <button className="btn-primary rounded-xl px-8 h-11 text-sm font-bold inline-flex items-center gap-2 relative z-10 shadow-lg shadow-green-900/30">
+              <Zap className="w-4 h-4" /> Open Dashboard
+            </button>
           </Link>
-        </motion.div>
+        </div>
       </main>
 
-      <footer className="w-full max-w-7xl px-6 py-12 border-t border-white/5 relative z-10 flex flex-col items-center gap-6 text-sm text-gray-500 mx-auto">
-        <div className="flex flex-col md:flex-row items-center justify-center gap-4 text-center w-full">
-          <span>© 2026 Affiliate Bot India</span>
-          <div className="hidden md:block w-1 h-1 rounded-full bg-gray-800" />
-          <span>Automating the Future of Affiliate Marketing</span>
-        </div>
-      </footer>
+      <PageFooter />
     </div>
   );
 }
