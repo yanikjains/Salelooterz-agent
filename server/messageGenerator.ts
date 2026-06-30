@@ -83,6 +83,15 @@ ${closing}
   return message;
 }
 
+function getDealTime(): string {
+  return new Date().toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'Asia/Kolkata',
+  });
+}
+
 export function generateTelegramMessage(product: ProductData | DiscoveredProduct, affiliateTag: string): string {
   const hook = getRandomElement(viralHooksHindi);
   const closing = getRandomElement(closingLinesHindi);
@@ -126,7 +135,9 @@ ${product.features.slice(0, 4).map(f => `🔹 ${f.substring(0, 70)}${f.length > 
 
 ${closing}
 
-#Amazon #India #Deals #Shopping #OnlineShopping`;
+#Amazon #India #Deals #Shopping #OnlineShopping
+
+Deal time ${getDealTime()} 🤘`;
 
   return message;
 }
