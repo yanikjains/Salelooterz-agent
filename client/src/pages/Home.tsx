@@ -1,11 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Link } from "wouter";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import {
-  Loader2, Zap, Send, Bot, TrendingUp, Settings, Play, Square,
-  RefreshCw, Copy, ExternalLink, XCircle, Clock, Activity, Star,
-  ChevronDown, ChevronUp, IndianRupee, FileSpreadsheet, AlertCircle, Brain,
+  Loader2, Zap, Send, TrendingUp, Settings, Play, Square,
+  RefreshCw, Copy, ExternalLink, XCircle, Clock, Activity,
+  Star, ChevronDown, ChevronUp, IndianRupee, FileSpreadsheet,
+  AlertCircle, Brain,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import logo from "@assets/Salelooterz_logo_1780831157664.jpg";
@@ -19,10 +18,7 @@ interface SchedulerStatus {
   thisHourCount: number;
   telegramSent: number;
   memoryCount: number;
-  config: {
-    affiliateTag: string;
-    telegramChannelId?: string;
-  } | null;
+  config: { affiliateTag: string; telegramChannelId?: string } | null;
   recentAutomations: Array<{
     id: number;
     productTitle: string;
@@ -47,41 +43,43 @@ function until(iso: string | null) {
   return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }
 
-// ─── PIN Screen ───────────────────────────────────────────────────────────────
+// ── PIN Screen ────────────────────────────────────────────────────────────────
 function PinScreen({ onVerified }: { onVerified: () => void }) {
   const [pin, setPin] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const handleVerify = async (e: React.FormEvent) => {
+  const verify = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true); setError(null);
     try {
-      const r = await fetch("/api/admin/verify-pin", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ pin }) });
+      const r = await fetch("/api/admin/verify-pin", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pin }),
+      });
       const d = await r.json();
-      if (d.success) { sessionStorage.setItem("admin_pin_ok", "1"); onVerified(); }
+      if (d.success) onVerified();
       else { setError("Wrong PIN — try again."); setPin(""); }
-    } catch { setError("Connection error — try again."); }
+    } catch { setError("Connection error."); }
     finally { setLoading(false); }
   };
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-black p-4">
-      {/* Subtle green glow */}
-      <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 50% 40% at 50% 30%, rgba(34,197,94,0.06), transparent)" }} />
+      <div className="absolute inset-0 pointer-events-none" style={{ background: "radial-gradient(ellipse 50% 40% at 50% 30%, rgba(34,197,94,0.07), transparent)" }} />
       <div className="w-full max-w-xs relative z-10">
         <div className="border border-white/[0.08] rounded-2xl p-8 bg-white/[0.02]">
           <div className="text-center mb-7">
             <img src={logo} alt="SaleLooterz" className="w-14 h-14 rounded-2xl object-cover mx-auto mb-4" />
             <h1 className="text-lg font-bold text-white">SaleLooterz AI</h1>
-            <p className="text-xs text-white/35 mt-1">Enter your admin PIN to continue</p>
+            <p className="text-xs text-white/35 mt-1">Enter your admin PIN</p>
           </div>
-          <form onSubmit={handleVerify} className="space-y-3">
+          <form onSubmit={verify} className="space-y-3">
             <Input
               type="password" inputMode="numeric" autoFocus
               placeholder="••••••" value={pin} onChange={e => setPin(e.target.value)}
               className="text-center text-2xl tracking-[0.6em] h-12 bg-black border-white/10 focus:border-green-500/50 rounded-xl placeholder:tracking-normal placeholder:text-lg text-white"
-              data-testid="input-admin-pin"
             />
             {error && (
               <p className="text-[11px] text-red-400 flex items-center justify-center gap-1.5">
@@ -89,8 +87,7 @@ function PinScreen({ onVerified }: { onVerified: () => void }) {
               </p>
             )}
             <button type="submit" disabled={!pin || loading}
-              className="w-full h-11 rounded-xl btn-primary font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              data-testid="button-pin-submit">
+              className="w-full h-11 rounded-xl btn-primary font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Unlock Dashboard"}
             </button>
           </form>
@@ -100,7 +97,7 @@ function PinScreen({ onVerified }: { onVerified: () => void }) {
   );
 }
 
-// ─── Dashboard ────────────────────────────────────────────────────────────────
+// ── Dashboard ─────────────────────────────────────────────────────────────────
 function Dashboard() {
   const [status, setStatus] = useState<SchedulerStatus | null>(null);
   const [acting, setActing] = useState(false);
@@ -113,13 +110,6 @@ function Dashboard() {
   const [sheetId, setSheetId] = useState("");
   const [showTokens, setShowTokens] = useState(false);
   const [testingTg, setTestingTg] = useState(false);
-
-  const [showChat, setShowChat] = useState(false);
-  const [chatMsgs, setChatMsgs] = useState([{ role: "assistant", content: "Hi! Ask me about categories, copy strategy, or maximising affiliate revenue." }]);
-  const [chatInput, setChatInput] = useState("");
-  const [chatLoading, setChatLoading] = useState(false);
-  const [convId, setConvId] = useState<number | null>(null);
-  const chatEnd = useRef<HTMLDivElement>(null);
   const [feedOpen, setFeedOpen] = useState(true);
 
   const fetchStatus = useCallback(async () => {
@@ -147,9 +137,8 @@ function Dashboard() {
   useEffect(() => { fetchStatus(); loadConfig(); }, []);
   useEffect(() => { const t = setInterval(fetchStatus, 5000); return () => clearInterval(t); }, [fetchStatus]);
   useEffect(() => { const t = setInterval(() => setCountdown(until(status?.nextRunAt ?? null)), 1000); return () => clearInterval(t); }, [status?.nextRunAt]);
-  useEffect(() => { chatEnd.current?.scrollIntoView({ behavior: "smooth" }); }, [chatMsgs]);
 
-  const startPayload = () => ({
+  const payload = () => ({
     affiliateTag: affiliateTag.trim(),
     telegramBotToken: botToken.trim() || undefined,
     telegramChannelId: channelId.trim() || undefined,
@@ -160,17 +149,17 @@ function Dashboard() {
     if (!affiliateTag.trim()) { toast({ title: "Affiliate Tag Required", variant: "destructive" }); return; }
     setActing(true);
     try {
-      const r = await fetch("/api/admin/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(startPayload()) });
+      const r = await fetch("/api/admin/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload()) });
       const d = await r.json();
       if (d.success) { toast({ title: "Automation Started" }); localStorage.setItem("sl_tag", affiliateTag.trim()); await fetchStatus(); setTab("control"); }
       else throw new Error(d.error);
-    } catch (e) { toast({ title: "Failed to start", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" }); }
+    } catch (e) { toast({ title: "Failed to start", description: e instanceof Error ? e.message : "Error", variant: "destructive" }); }
     finally { setActing(false); }
   };
 
   const handleStop = async () => {
     setActing(true);
-    try { await fetch("/api/admin/stop", { method: "POST" }); toast({ title: "Automation Stopped" }); await fetchStatus(); }
+    try { await fetch("/api/admin/stop", { method: "POST" }); toast({ title: "Stopped" }); await fetchStatus(); }
     finally { setActing(false); }
   };
 
@@ -181,72 +170,36 @@ function Dashboard() {
       const d = await r.json();
       if (d.success) { toast({ title: "Batch Triggered" }); setTimeout(fetchStatus, 5000); }
       else throw new Error(d.error);
-    } catch (e) { toast({ title: "Failed", description: e instanceof Error ? e.message : "Unknown error", variant: "destructive" }); }
+    } catch (e) { toast({ title: "Failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" }); }
     finally { setActing(false); }
   };
 
   const handleSave = async () => {
     if (!affiliateTag.trim()) { toast({ title: "Affiliate Tag Required", variant: "destructive" }); return; }
     try {
-      const r = await fetch("/api/admin/config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(startPayload()) });
+      const r = await fetch("/api/admin/config", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload()) });
       if (r.ok) { toast({ title: "Settings saved" }); localStorage.setItem("sl_tag", affiliateTag.trim()); }
     } catch { toast({ title: "Failed to save", variant: "destructive" }); }
   };
 
   const handleTestTg = async () => {
-    if (!botToken.trim() || !channelId.trim()) { toast({ title: "Fill in Bot Token and Channel ID first", variant: "destructive" }); return; }
+    if (!botToken.trim() || !channelId.trim()) { toast({ title: "Fill Bot Token and Channel ID first", variant: "destructive" }); return; }
     setTestingTg(true);
     try {
       const r = await fetch("/api/telegram/test", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ botToken: botToken.trim(), channelId: channelId.trim() }) });
       const d = await r.json();
-      if (d.success) toast({ title: "✅ Telegram connected — test message sent" });
+      if (d.success) toast({ title: "✅ Telegram connected" });
       else toast({ title: "Failed", description: d.error, variant: "destructive" });
     } catch { toast({ title: "Network error", variant: "destructive" }); }
     finally { setTestingTg(false); }
   };
 
-  const handleChat = async () => {
-    const msg = chatInput.trim();
-    if (!msg || chatLoading) return;
-    setChatInput("");
-    setChatMsgs(p => [...p, { role: "user", content: msg }]);
-    setChatLoading(true);
-    try {
-      let id = convId;
-      if (!id) {
-        const r = await fetch("/api/conversations", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: "Admin Chat" }) });
-        id = (await r.json()).id;
-        setConvId(id);
-      }
-      setChatMsgs(p => [...p, { role: "assistant", content: "" }]);
-      const r = await fetch(`/api/conversations/${id}/messages`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content: msg }) });
-      if (!r.ok || !r.body) throw new Error();
-      const reader = r.body.getReader(); const dec = new TextDecoder(); let txt = "";
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        for (const line of dec.decode(value).split("\n").filter(l => l.startsWith("data: "))) {
-          try { const d = JSON.parse(line.slice(6)); if (d.content) { txt += d.content; setChatMsgs(p => { const u = [...p]; u[u.length - 1] = { role: "assistant", content: txt }; return u; }); } } catch {}
-        }
-      }
-    } catch { setChatMsgs(p => { const u = [...p]; u[u.length - 1] = { role: "assistant", content: "Sorry, couldn't respond." }; return u; }); }
-    finally { setChatLoading(false); }
-  };
-
   const copy = (t: string) => { navigator.clipboard.writeText(t); toast({ title: "Copied" }); };
   const running = status?.isRunning ?? false;
 
-  // ── Stat cards data ──────────────────────────────────────────────────────
-  const stats = [
-    { label: "Today", value: status?.todayCount ?? 0, icon: <TrendingUp className="w-3.5 h-3.5" /> },
-    { label: "This Hour", value: status?.thisHourCount ?? 0, icon: <Activity className="w-3.5 h-3.5" /> },
-    { label: "Telegram", value: status?.telegramSent ?? 0, icon: <Send className="w-3.5 h-3.5" /> },
-    { label: "ASIN Memory", value: status?.memoryCount ?? 0, icon: <Brain className="w-3.5 h-3.5" /> },
-  ];
-
   return (
     <div className="min-h-screen bg-black text-white">
-      {/* ── Top nav ─────────────────────────────────────────────────────────── */}
+      {/* Nav */}
       <div className="glass-nav sticky top-0 z-40">
         <div className="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -256,28 +209,23 @@ function Dashboard() {
               <p className="text-[10px] text-white/30 mt-0.5">Admin Dashboard</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Link href="/">
-              <button className="text-white/30 hover:text-white text-xs px-3 h-7 rounded-lg transition-colors">← Home</button>
-            </Link>
-            <button
-              onClick={() => setShowChat(!showChat)}
-              className={`flex items-center gap-1.5 h-7 px-3 rounded-lg text-xs border transition-colors ${showChat ? "bg-green-500/10 border-green-500/30 text-green-400" : "border-white/10 text-white/40 hover:text-white"}`}>
-              <Bot className="w-3 h-3" />AI
-            </button>
-            <div className={`flex items-center gap-1.5 text-[11px] px-2.5 h-7 rounded-lg border ${running ? "border-green-500/25 bg-green-500/8 text-green-400" : "border-white/8 text-white/25"}`}>
-              <span className={`w-1.5 h-1.5 rounded-full ${running ? "bg-green-400 animate-pulse" : "bg-white/20"}`} />
-              {running ? "Running" : "Stopped"}
-            </div>
+          <div className={`flex items-center gap-1.5 text-[11px] px-2.5 h-7 rounded-lg border ${running ? "border-green-500/25 bg-green-500/8 text-green-400" : "border-white/8 text-white/25"}`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${running ? "bg-green-400 animate-pulse" : "bg-white/20"}`} />
+            {running ? "Running" : "Stopped"}
           </div>
         </div>
       </div>
 
       <div className="max-w-4xl mx-auto px-4 py-6 space-y-5">
 
-        {/* ── Stat cards ────────────────────────────────────────────────────── */}
+        {/* Stat cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-          {stats.map((s, i) => (
+          {[
+            { label: "Today", value: status?.todayCount ?? 0, icon: <TrendingUp className="w-3.5 h-3.5" /> },
+            { label: "This Hour", value: status?.thisHourCount ?? 0, icon: <Activity className="w-3.5 h-3.5" /> },
+            { label: "Telegram", value: status?.telegramSent ?? 0, icon: <Send className="w-3.5 h-3.5" /> },
+            { label: "ASIN Memory", value: status?.memoryCount ?? 0, icon: <Brain className="w-3.5 h-3.5" /> },
+          ].map((s, i) => (
             <div key={i} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
               <div className="flex items-center justify-between mb-3">
                 <p className="text-[10px] font-semibold uppercase tracking-widest text-white/25">{s.label}</p>
@@ -290,7 +238,7 @@ function Dashboard() {
           ))}
         </div>
 
-        {/* ── Tabs ──────────────────────────────────────────────────────────── */}
+        {/* Tabs */}
         <div className="flex gap-0.5 p-0.5 bg-white/[0.03] border border-white/[0.07] rounded-xl w-fit">
           {(["control", "settings"] as const).map(t => (
             <button key={t} onClick={() => setTab(t)}
@@ -300,14 +248,11 @@ function Dashboard() {
           ))}
         </div>
 
-        {/* ── Control Tab ───────────────────────────────────────────────────── */}
+        {/* Control Tab */}
         {tab === "control" && (
           <div className="space-y-3">
-
-            {/* Status card */}
-            <div className={`rounded-xl border p-5 transition-colors ${running ? "border-green-500/20 bg-green-500/[0.04]" : "border-white/[0.07] bg-white/[0.02]"}`}>
+            <div className={`rounded-xl border p-5 ${running ? "border-green-500/20 bg-green-500/[0.04]" : "border-white/[0.07] bg-white/[0.02]"}`}>
               <div className="flex flex-col sm:flex-row gap-5">
-                {/* Left: status info */}
                 <div className="flex-1">
                   <div className="flex items-center gap-2.5 mb-2">
                     <div className={`w-2 h-2 rounded-full ${running ? "bg-green-400 animate-pulse shadow-[0_0_6px_rgba(74,222,128,0.6)]" : "bg-white/20"}`} />
@@ -315,7 +260,6 @@ function Dashboard() {
                       {running ? "Automation Active" : "Automation Stopped"}
                     </h2>
                   </div>
-
                   {running ? (
                     <>
                       <p className="text-[11px] text-white/30 mb-4">15 products · every 20 min · 45/hour · ~1,080/day</p>
@@ -339,38 +283,30 @@ function Dashboard() {
                     </>
                   ) : (
                     <p className="text-xs text-white/30">
-                      {affiliateTag.trim() ? "Ready to start — click Start below." : "Set your affiliate tag in Settings, then start."}
+                      {affiliateTag.trim() ? "Ready — click Start." : "Set your affiliate tag in Settings first."}
                     </p>
                   )}
                 </div>
-
-                {/* Right: action buttons */}
                 <div className="flex sm:flex-col gap-2 sm:min-w-[140px] sm:justify-center">
                   {!running ? (
                     <button onClick={handleStart} disabled={acting || !affiliateTag.trim()}
-                      className="btn-primary rounded-xl h-10 px-6 text-sm font-bold flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-green-900/30"
-                      data-testid="button-start">
-                      {acting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-                      Start
+                      className="btn-primary rounded-xl h-10 px-6 text-sm font-bold flex items-center gap-2 disabled:opacity-40 shadow-lg shadow-green-900/30">
+                      {acting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}Start
                     </button>
                   ) : (
                     <>
                       <button onClick={handleRunNow} disabled={acting}
-                        className="btn-ghost rounded-xl h-9 px-4 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-40"
-                        data-testid="button-run-now">
-                        {acting ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                        Run Now
+                        className="btn-ghost rounded-xl h-9 px-4 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-40">
+                        {acting ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}Run Now
                       </button>
                       <button onClick={handleStop} disabled={acting}
-                        className="h-9 px-4 rounded-xl border border-white/[0.07] text-white/30 hover:text-white/60 hover:border-white/15 text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-40"
-                        data-testid="button-stop">
-                        {acting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Square className="w-3 h-3" />}
-                        Stop
+                        className="h-9 px-4 rounded-xl border border-white/[0.07] text-white/30 hover:text-white/60 text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-40">
+                        {acting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Square className="w-3 h-3" />}Stop
                       </button>
                     </>
                   )}
                   {!affiliateTag.trim() && (
-                    <p className="text-[10px] text-white/25 flex items-center gap-1 mt-0.5">
+                    <p className="text-[10px] text-white/25 flex items-center gap-1">
                       <AlertCircle className="w-2.5 h-2.5" />Set tag in Settings
                     </p>
                   )}
@@ -448,12 +384,12 @@ function Dashboard() {
           </div>
         )}
 
-        {/* ── Settings Tab ──────────────────────────────────────────────────── */}
+        {/* Settings Tab */}
         {tab === "settings" && (
           <div className="border border-white/[0.07] rounded-xl p-5 bg-white/[0.02] space-y-5">
             <div>
               <h2 className="text-sm font-bold text-white mb-0.5">Configuration</h2>
-              <p className="text-xs text-white/30">These settings are saved on the server and persist across restarts.</p>
+              <p className="text-xs text-white/30">Saved on the server — persists across restarts.</p>
             </div>
 
             <div className="grid md:grid-cols-2 gap-4">
@@ -462,16 +398,14 @@ function Dashboard() {
                   <IndianRupee className="w-2.5 h-2.5" />Affiliate Tag *
                 </label>
                 <Input value={affiliateTag} onChange={e => setAffiliateTag(e.target.value)} placeholder="yourtag-21"
-                  className="bg-white/[0.03] border-white/[0.08] focus:border-green-500/40 text-white rounded-lg h-9 text-sm"
-                  data-testid="input-affiliate-tag" />
+                  className="bg-white/[0.03] border-white/[0.08] focus:border-green-500/40 text-white rounded-lg h-9 text-sm" />
               </div>
               <div>
                 <label className="text-[11px] font-semibold text-white/35 mb-1.5 flex items-center gap-1.5 uppercase tracking-wider">
                   <FileSpreadsheet className="w-2.5 h-2.5" />Google Sheet ID
                 </label>
                 <Input value={sheetId} onChange={e => setSheetId(e.target.value)} placeholder="ID from Sheet URL"
-                  className="bg-white/[0.03] border-white/[0.08] focus:border-green-500/40 text-white rounded-lg h-9 text-sm"
-                  data-testid="input-sheet-id" />
+                  className="bg-white/[0.03] border-white/[0.08] focus:border-green-500/40 text-white rounded-lg h-9 text-sm" />
               </div>
               <div>
                 <label className="text-[11px] font-semibold text-white/35 mb-1.5 flex items-center gap-1.5 uppercase tracking-wider">
@@ -479,20 +413,18 @@ function Dashboard() {
                 </label>
                 <Input value={botToken} onChange={e => setBotToken(e.target.value)} placeholder="1234567890:AAF..."
                   type={showTokens ? "text" : "password"}
-                  className="bg-white/[0.03] border-white/[0.08] focus:border-green-500/40 text-white rounded-lg h-9 text-sm"
-                  data-testid="input-telegram-token" />
+                  className="bg-white/[0.03] border-white/[0.08] focus:border-green-500/40 text-white rounded-lg h-9 text-sm" />
               </div>
               <div>
                 <label className="text-[11px] font-semibold text-white/35 mb-1.5 flex items-center gap-1.5 uppercase tracking-wider">
                   <Send className="w-2.5 h-2.5" />Channel ID
                 </label>
                 <Input value={channelId} onChange={e => setChannelId(e.target.value)} placeholder="@yourchannel or -100..."
-                  className="bg-white/[0.03] border-white/[0.08] focus:border-green-500/40 text-white rounded-lg h-9 text-sm"
-                  data-testid="input-telegram-channel" />
+                  className="bg-white/[0.03] border-white/[0.08] focus:border-green-500/40 text-white rounded-lg h-9 text-sm" />
               </div>
             </div>
 
-            {/* Telegram setup guide */}
+            {/* Telegram guide */}
             <div className="rounded-xl border border-white/[0.06] overflow-hidden">
               <div className="px-4 py-2.5 border-b border-white/[0.05] flex items-center gap-2">
                 <Send className="w-3 h-3 text-green-500/40" />
@@ -501,10 +433,10 @@ function Dashboard() {
               <ol className="px-4 py-3 space-y-2">
                 {[
                   <>Search <code className="text-green-400/70 bg-green-500/10 px-1 rounded text-[10px]">@BotFather</code> → send <code className="text-green-400/70 bg-green-500/10 px-1 rounded text-[10px]">/newbot</code></>,
-                  <>Name it and get your Bot Token</>,
-                  <>Add the bot as Admin of your channel (Post Messages permission)</>,
+                  <>Name it and copy the Bot Token</>,
+                  <>Add bot as Admin of your channel (Post Messages permission)</>,
                   <>Use <code className="text-green-400/70 bg-green-500/10 px-1 rounded text-[10px]">@channelname</code> as Channel ID</>,
-                  <>Click Test Telegram below — if ✅ you're all set!</>,
+                  <>Save settings and click Test Telegram — if ✅ you're done!</>,
                 ].map((step, i) => (
                   <li key={i} className="flex items-start gap-2.5 text-[11px] text-white/25">
                     <span className="shrink-0 w-4 h-4 rounded-full border border-white/[0.08] text-[10px] flex items-center justify-center mt-0.5 font-bold">{i + 1}</span>
@@ -517,8 +449,7 @@ function Dashboard() {
             <div className="flex flex-wrap items-center gap-3">
               {(botToken || channelId) && (
                 <button onClick={handleTestTg} disabled={testingTg}
-                  className="btn-ghost rounded-lg h-9 px-4 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-40"
-                  data-testid="button-test-telegram">
+                  className="btn-ghost rounded-lg h-9 px-4 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-40">
                   {testingTg ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
                   Test Telegram
                 </button>
@@ -537,62 +468,20 @@ function Dashboard() {
               {!running && (
                 <button onClick={handleStart} disabled={acting || !affiliateTag.trim()}
                   className="btn-ghost rounded-lg h-9 px-5 text-xs font-semibold flex items-center gap-1.5 disabled:opacity-40">
-                  {acting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-                  Save & Start
+                  {acting ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}Save & Start
                 </button>
               )}
             </div>
           </div>
         )}
       </div>
-
-      {/* ── AI Chat ───────────────────────────────────────────────────────────── */}
-      {showChat && (
-        <div className="fixed bottom-4 right-4 w-[90vw] sm:w-[340px] h-[460px] z-50 border border-white/10 rounded-2xl bg-black flex flex-col overflow-hidden shadow-2xl">
-          <div className="px-4 py-3 border-b border-white/[0.07] flex items-center justify-between shrink-0">
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 rounded-lg bg-green-500/15 border border-green-500/25 flex items-center justify-center">
-                <Bot className="w-3.5 h-3.5 text-green-400" />
-              </div>
-              <span className="text-xs font-semibold text-white">AI Assistant</span>
-            </div>
-            <button onClick={() => setShowChat(false)} className="text-white/25 hover:text-white text-base leading-none w-6 h-6 flex items-center justify-center rounded hover:bg-white/5">×</button>
-          </div>
-
-          <div className="flex-1 p-3.5 overflow-y-auto space-y-3 min-h-0">
-            {chatMsgs.map((msg, i) => (
-              <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`px-3 py-2 rounded-xl text-xs max-w-[85%] leading-relaxed ${msg.role === "user" ? "bg-white text-black font-medium" : "bg-white/[0.05] border border-white/[0.07] text-white/60"}`}>
-                  {msg.content || (chatLoading && i === chatMsgs.length - 1
-                    ? <span className="flex gap-1">{[0, 120, 240].map(d => <span key={d} className="w-1 h-1 bg-green-400/50 rounded-full animate-bounce" style={{ animationDelay: `${d}ms` }} />)}</span>
-                    : "")}
-                </div>
-              </div>
-            ))}
-            <div ref={chatEnd} />
-          </div>
-
-          <div className="p-3 border-t border-white/[0.07] shrink-0">
-            <div className="flex gap-2">
-              <Input placeholder="Ask about strategy…" value={chatInput} onChange={e => setChatInput(e.target.value)}
-                onKeyDown={e => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); handleChat(); } }}
-                disabled={chatLoading}
-                className="bg-white/[0.04] border-white/[0.08] focus:border-green-500/40 text-white text-xs rounded-xl h-9"
-                data-testid="input-chat" />
-              <button onClick={handleChat} disabled={chatLoading || !chatInput.trim()}
-                className="btn-primary w-9 h-9 rounded-xl flex items-center justify-center shrink-0 disabled:opacity-40">
-                {chatLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
 
+// ── Root: always show PIN, never persist across reloads ───────────────────────
 export default function Home() {
-  const [ok, setOk] = useState(() => sessionStorage.getItem("admin_pin_ok") === "1");
-  if (!ok) return <PinScreen onVerified={() => setOk(true)} />;
+  const [unlocked, setUnlocked] = useState(false);
+  if (!unlocked) return <PinScreen onVerified={() => setUnlocked(true)} />;
   return <Dashboard />;
 }
