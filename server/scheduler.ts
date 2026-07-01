@@ -1,5 +1,5 @@
 import { discoverProducts, discoverHotDeals, categories } from "./productDiscovery";
-import { generateTelegramMessageFromDiscovered } from "./messageGenerator";
+import { generateTelegramMessageFromDiscovered, generateWhatsAppMessageFromDiscovered } from "./messageGenerator";
 import { sendTelegramMessage } from "./telegram";
 import { appendToSheet } from "./sheets";
 import { storage } from "./storage";
@@ -209,6 +209,7 @@ class Scheduler {
 
       for (const product of products) {
         const telegramMessage = generateTelegramMessageFromDiscovered(product, affiliateTag);
+        const whatsappMessage = generateWhatsAppMessageFromDiscovered(product, affiliateTag);
 
         // Send to Telegram
         if (telegramBotToken && telegramChannelId) {
@@ -228,7 +229,7 @@ class Scheduler {
               price: product.price,
               rating: `${product.rating}/5`,
               productUrl: `${product.url}?tag=${affiliateTag}`,
-              whatsappMessage: "",
+              whatsappMessage,
               telegramMessage,
               affiliateTag,
             });
@@ -243,7 +244,7 @@ class Scheduler {
             productTitle: product.title,
             price: product.price,
             rating: `${product.rating}/5`,
-            whatsappMessage: "",
+            whatsappMessage,
             telegramMessage,
             affiliateTag,
             spreadsheetId: spreadsheetId || null,

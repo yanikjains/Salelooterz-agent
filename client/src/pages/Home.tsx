@@ -4,7 +4,7 @@ import {
   Loader2, Zap, Send, TrendingUp, Settings, Play, Square,
   RefreshCw, Copy, ExternalLink, XCircle, Clock, Activity,
   Star, ChevronDown, ChevronUp, IndianRupee, FileSpreadsheet,
-  AlertCircle, Brain,
+  AlertCircle, Brain, MessageCircle, Check,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import logo from "@assets/Salelooterz_logo_1780831157664.jpg";
@@ -25,6 +25,7 @@ interface SchedulerStatus {
     price: string;
     rating: string;
     telegramMessage: string;
+    whatsappMessage: string;
     affiliateTag: string;
     productUrl: string;
     createdAt: string;
@@ -101,7 +102,8 @@ function PinScreen({ onVerified }: { onVerified: () => void }) {
 function Dashboard() {
   const [status, setStatus] = useState<SchedulerStatus | null>(null);
   const [acting, setActing] = useState(false);
-  const [tab, setTab] = useState<"control" | "settings">("control");
+  const [tab, setTab] = useState<"control" | "whatsapp" | "settings">("control");
+  const [copiedId, setCopiedId] = useState<number | null>(null);
   const [countdown, setCountdown] = useState("—");
 
   const [affiliateTag, setAffiliateTag] = useState(localStorage.getItem("sl_tag") || "");
@@ -195,6 +197,12 @@ function Dashboard() {
   };
 
   const copy = (t: string) => { navigator.clipboard.writeText(t); toast({ title: "Copied" }); };
+  const copyWA = (t: string, id: number) => {
+    navigator.clipboard.writeText(t);
+    setCopiedId(id);
+    toast({ title: "Copied — paste it into WhatsApp!" });
+    setTimeout(() => setCopiedId(prev => prev === id ? null : prev), 2000);
+  };
   const running = status?.isRunning ?? false;
 
   return (
@@ -240,12 +248,23 @@ function Dashboard() {
 
         {/* Tabs */}
         <div className="flex gap-0.5 p-0.5 bg-white/[0.03] border border-white/[0.07] rounded-xl w-fit">
-          {(["control", "settings"] as const).map(t => (
-            <button key={t} onClick={() => setTab(t)}
-              className={`flex items-center gap-1.5 px-5 py-2 rounded-[10px] text-xs font-semibold transition-all ${tab === t ? "bg-white text-black shadow" : "text-white/35 hover:text-white"}`}>
-              {t === "control" ? <><Zap className="w-3 h-3" />Control</> : <><Settings className="w-3 h-3" />Settings</>}
-            </button>
-          ))}
+          <button onClick={() => setTab("control")}
+            className={`flex items-center gap-1.5 px-5 py-2 rounded-[10px] text-xs font-semibold transition-all ${tab === "control" ? "bg-white text-black shadow" : "text-white/35 hover:text-white"}`}>
+            <Zap className="w-3 h-3" />Control
+          </button>
+          <button onClick={() => setTab("whatsapp")}
+            className={`flex items-center gap-1.5 px-5 py-2 rounded-[10px] text-xs font-semibold transition-all ${tab === "whatsapp" ? "bg-white text-black shadow" : "text-white/35 hover:text-white"}`}>
+            <MessageCircle className="w-3 h-3" />WhatsApp
+            {!!status?.recentAutomations?.filter(a => a.whatsappMessage).length && (
+              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${tab === "whatsapp" ? "bg-black/15 text-black/60" : "bg-green-500/15 text-green-400"}`}>
+                {status.recentAutomations.filter(a => a.whatsappMessage).length}
+              </span>
+            )}
+          </button>
+          <button onClick={() => setTab("settings")}
+            className={`flex items-center gap-1.5 px-5 py-2 rounded-[10px] text-xs font-semibold transition-all ${tab === "settings" ? "bg-white text-black shadow" : "text-white/35 hover:text-white"}`}>
+            <Settings className="w-3 h-3" />Settings
+          </button>
         </div>
 
         {/* Control Tab */}
@@ -381,6 +400,71 @@ function Dashboard() {
                 )
               )}
             </div>
+          </div>
+        )}
+
+        {/* WhatsApp Queue Tab */}
+        {tab === "whatsapp" && (
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-bold text-white">WhatsApp Queue</h2>
+                <p className="text-[11px] text-white/30 mt-0.5">Copy messages here and paste into WhatsApp manually</p>
+              </div>
+              <button onClick={fetchStatus} className="w-7 h-7 flex items-center justify-center rounded-lg text-white/25 hover:text-white hover:bg-white/5 transition-colors">
+                <RefreshCw className="w-3 h-3" />
+              </button>
+            </div>
+
+            {!status?.recentAutomations?.filter(a => a.whatsappMessage).length ? (
+              <div className="border border-white/[0.05] rounded-xl p-12 text-center">
+                <MessageCircle className="w-6 h-6 text-white/10 mx-auto mb-3" />
+                <p className="text-xs text-white/25">No WhatsApp messages yet</p>
+                <p className="text-[11px] text-white/15 mt-1">Start the bot to generate messages</p>
+              </div>
+            ) : (
+              <div className="space-y-2.5">
+                {status!.recentAutomations.filter(a => a.whatsappMessage).map(item => (
+                  <div key={item.id} className="border border-white/[0.07] rounded-xl p-4 hover:border-white/12 transition-colors">
+                    {/* Product info header */}
+                    <div className="flex items-start justify-between gap-3 mb-3">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-xs font-semibold text-white line-clamp-1 leading-snug">{item.productTitle}</h4>
+                        <div className="flex items-center gap-3 mt-1">
+                          <span className="text-sm font-black text-green-400">₹{item.price}</span>
+                          <span className="text-[10px] text-white/25 flex items-center gap-1">
+                            <Star className="w-2.5 h-2.5 fill-white/20" />{item.rating}
+                          </span>
+                          <span className="text-[10px] text-white/20 flex items-center gap-1">
+                            <Clock className="w-2.5 h-2.5" />
+                            {new Date(item.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                          </span>
+                        </div>
+                      </div>
+                      <a href={`${item.productUrl}?tag=${item.affiliateTag}`} target="_blank" rel="noopener noreferrer"
+                        className="shrink-0 flex items-center gap-1 text-[10px] text-white/20 hover:text-green-400/60 transition-colors">
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+
+                    {/* Message box */}
+                    <div className="relative">
+                      <pre className="text-[11px] p-3 bg-white/[0.025] border border-white/[0.05] rounded-lg whitespace-pre-wrap text-white/50 font-mono leading-relaxed max-h-36 overflow-y-auto pr-8">{item.whatsappMessage}</pre>
+                      <button
+                        onClick={() => copyWA(item.whatsappMessage, item.id)}
+                        className={`absolute top-2 right-2 flex items-center gap-1 px-2 h-6 rounded-md text-[10px] font-semibold transition-all ${
+                          copiedId === item.id
+                            ? "bg-green-500/20 text-green-400 border border-green-500/30"
+                            : "bg-white/5 hover:bg-white/10 text-white/35 hover:text-white border border-white/[0.07]"
+                        }`}
+                      >
+                        {copiedId === item.id ? <><Check className="w-2.5 h-2.5" />Copied!</> : <><Copy className="w-2.5 h-2.5" />Copy</>}
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
