@@ -2,7 +2,7 @@ import type { Express } from "express";
 import { type Server } from "http";
 import { storage } from "./storage";
 import { discoverProducts, discoverFromAllCategories, discoverHotDeals, categories, categorySearchTerms } from "./productDiscovery";
-import { wasRecentlyPosted, wasTitlePosted, markAsPosted, markTitleAsPosted } from "./asinMemory";
+import { wasRecentlyPosted, wasTitlePosted, markAsPosted, markTitleAsPosted, getMemoryStats, parseDiscountPct } from "./asinMemory";
 import { generateWhatsAppMessageFromDiscovered, generateTelegramMessageFromDiscovered, generatePersonalizedWhatsAppMessage } from "./messageGenerator";
 import { appendToSheet } from "./sheets";
 import { z } from "zod";
@@ -209,6 +209,16 @@ export async function registerRoutes(
     }
   });
 
+  // ── MEMORY STATS ─────────────────────────────────────────────────────────────
+  app.get("/api/admin/memory-stats", async (_req, res) => {
+    try {
+      const stats = await getMemoryStats();
+      res.json({ success: true, ...stats });
+    } catch (err) {
+      res.status(500).json({ success: false, error: String(err) });
+    }
+  });
+
   // ── WHATSAPP DAILY BATCH ─────────────────────────────────────────────────────
   // Picks 4 products from each category (28 total), deduplicates, stores WA messages only
   app.post("/api/admin/whatsapp-batch", async (_req, res) => {
@@ -251,8 +261,9 @@ export async function registerRoutes(
               spreadsheetId: spreadsheetId || null,
             });
 
-            if (product.asin) await markAsPosted(product.asin, product.title);
-            else await markTitleAsPosted(product.title);
+            const pInfo = { title: product.title, price: product.price, originalPrice: (product as any).originalPrice || "", discount: (product as any).discount || "", rating: product.rating, category: cat, url: product.url };
+            if (product.asin) await markAsPosted(product.asin, pInfo);
+            else await markTitleAsPosted(pInfo);
 
             generated.push({ productTitle: product.title, category: cat });
             if (generated.length >= 30) break;

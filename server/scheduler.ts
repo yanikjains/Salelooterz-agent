@@ -259,10 +259,19 @@ class Scheduler {
           });
         } catch {}
 
+        const productInfo = {
+          title: product.title,
+          price: product.price,
+          originalPrice: (product as any).originalPrice || "",
+          discount: (product as any).discount || "",
+          rating: product.rating,
+          category: product.category,
+          url: product.url,
+        };
         if (product.asin) {
-          await markAsPosted(product.asin, product.title);
+          await markAsPosted(product.asin, productInfo);
         } else {
-          await markTitleAsPosted(product.title);
+          await markTitleAsPosted(productInfo);
         }
       }
 
