@@ -32,6 +32,36 @@ function formatIndianPrice(price: string): string {
   return price.includes('₹') ? price : `₹${price}`;
 }
 
+const categoryLabels: Record<string, string> = {
+  electronics: "📱 Electronics Pick of the Day",
+  mobile:      "📲 Mobile Deal of the Day",
+  home:        "🏠 Home Essentials Deal",
+  fashion:     "👗 Fashion Deal of the Day",
+  beauty:      "💄 Beauty & Skincare Pick",
+  fitness:     "💪 Fitness Deal of the Day",
+  kitchen:     "🍳 Kitchen Deal of the Day",
+  deals:       "🔥 Hot Deal of the Day",
+};
+
+const personalClosings = [
+  "⚡ Sirf limited stock — jaldi lelo!",
+  "⏰ Ye deal zyada time nahi chalegi!",
+  "🏃‍♂️ Bahut log dekh rahe hain isko!",
+  "💨 Superfast delivery bhi milegi!",
+  "🎯 Personally recommend kar raha hoon!",
+  "🔥 Maine khud check kiya — genuine deal hai!",
+  "⭐ Top rated — apne ghar le aao aaj!",
+];
+
+function getTodayDate(): string {
+  return new Date().toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Asia/Kolkata',
+  });
+}
+
 export function generateWhatsAppMessage(product: ProductData | DiscoveredProduct, affiliateTag: string): string {
   const hook = getRandomElement(viralHooksHindi);
   const closing = getRandomElement(closingLinesHindi);
@@ -76,11 +106,45 @@ ${product.features.slice(0, 3).map(f => `• ${f.substring(0, 60)}${f.length > 6
   message += `🛒 *BUY NOW:*
 ${affiliateUrl}
 
-${closing}
-
-#AmazonIndia #Deals #Shopping #Loot`;
+${closing}`;
 
   return message;
+}
+
+export function generatePersonalizedWhatsAppMessage(
+  product: ProductData | DiscoveredProduct,
+  affiliateTag: string,
+  category?: string
+): string {
+  const closing = getRandomElement(personalClosings);
+  const affiliateUrl = `${product.url}${product.url.includes('?') ? '&' : '?'}tag=${affiliateTag}`;
+  const cat = category || ('category' in product ? (product as DiscoveredProduct).category : '');
+  const categoryLabel = categoryLabels[cat] || "🛍️ Deal of the Day";
+  const today = getTodayDate();
+  const title = product.title.length > 85 ? product.title.substring(0, 85) + '...' : product.title;
+
+  let msg = `🗓️ *${today}*\n${categoryLabel}\n\n`;
+  msg += `*${title}*\n\n`;
+  msg += `💸 *${formatIndianPrice(product.price)}*`;
+  if (product.discount) msg += `  _(${product.discount})_`;
+  msg += `\n`;
+
+  if (product.rating > 0) {
+    msg += `⭐ ${product.rating}/5`;
+    if (product.reviews > 0) msg += ` · ${product.reviews.toLocaleString('en-IN')} reviews`;
+    msg += `\n`;
+  }
+
+  if (product.features && product.features.length > 0) {
+    msg += `\n✨ *Why it's worth it:*\n`;
+    msg += product.features.slice(0, 3)
+      .map(f => `• ${f.substring(0, 65)}${f.length > 65 ? '…' : ''}`)
+      .join('\n');
+    msg += `\n`;
+  }
+
+  msg += `\n🛒 *Order karo:*\n${affiliateUrl}\n\n${closing}`;
+  return msg;
 }
 
 function getDealTime(): string {

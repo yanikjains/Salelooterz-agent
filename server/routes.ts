@@ -1,8 +1,9 @@
 import type { Express } from "express";
 import { type Server } from "http";
 import { storage } from "./storage";
-import { discoverProducts, discoverFromAllCategories, discoverHotDeals, categories } from "./productDiscovery";
-import { generateWhatsAppMessageFromDiscovered, generateTelegramMessageFromDiscovered } from "./messageGenerator";
+import { discoverProducts, discoverFromAllCategories, discoverHotDeals, categories, categorySearchTerms } from "./productDiscovery";
+import { wasRecentlyPosted, wasTitlePosted, markAsPosted, markTitleAsPosted } from "./asinMemory";
+import { generateWhatsAppMessageFromDiscovered, generateTelegramMessageFromDiscovered, generatePersonalizedWhatsAppMessage } from "./messageGenerator";
 import { appendToSheet } from "./sheets";
 import { z } from "zod";
 import { registerChatRoutes } from "./replit_integrations/chat";
@@ -205,6 +206,67 @@ export async function registerRoutes(
       res.json({ success: true, count: results.length, results });
     } catch (error) {
       res.status(400).json({ success: false, error: error instanceof Error ? error.message : "Unknown error" });
+    }
+  });
+
+  // ── WHATSAPP DAILY BATCH ─────────────────────────────────────────────────────
+  // Picks 4 products from each category (28 total), deduplicates, stores WA messages only
+  app.post("/api/admin/whatsapp-batch", async (_req, res) => {
+    try {
+      const config = scheduler.getStatus().config;
+      if (!config?.affiliateTag) {
+        return res.status(400).json({ success: false, error: "Set your affiliate tag in Settings first" });
+      }
+      const { affiliateTag } = config;
+      const user = await storage.getUser(ADMIN_USER_ID);
+      const spreadsheetId = user?.spreadsheetId || null;
+
+      const allCategoryIds = Object.keys(categorySearchTerms);
+      const PER_CATEGORY = 4;
+      const generated: { productTitle: string; category: string }[] = [];
+
+      for (const cat of allCategoryIds) {
+        try {
+          const raw = await discoverProducts(cat, PER_CATEGORY + 3);
+          for (const product of raw) {
+            if (generated.length >= 30) break;
+            // Dedup
+            if (product.asin) {
+              if (await wasRecentlyPosted(product.asin)) continue;
+            } else {
+              if (await wasTitlePosted(product.title)) continue;
+            }
+
+            const whatsappMessage = generatePersonalizedWhatsAppMessage(product, affiliateTag, cat);
+
+            await storage.createAutomation({
+              userId: ADMIN_USER_ID,
+              productUrl: product.url,
+              productTitle: product.title,
+              price: product.price,
+              rating: `${product.rating}/5`,
+              whatsappMessage,
+              telegramMessage: "",
+              affiliateTag,
+              spreadsheetId: spreadsheetId || null,
+            });
+
+            if (product.asin) await markAsPosted(product.asin, product.title);
+            else await markTitleAsPosted(product.title);
+
+            generated.push({ productTitle: product.title, category: cat });
+            if (generated.length >= 30) break;
+          }
+          await new Promise(r => setTimeout(r, 1200));
+        } catch {
+          continue;
+        }
+        if (generated.length >= 30) break;
+      }
+
+      res.json({ success: true, count: generated.length, categories: [...new Set(generated.map(g => g.category))] });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err instanceof Error ? err.message : "Unknown error" });
     }
   });
 

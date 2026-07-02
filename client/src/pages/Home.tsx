@@ -104,6 +104,7 @@ function Dashboard() {
   const [acting, setActing] = useState(false);
   const [tab, setTab] = useState<"control" | "whatsapp" | "settings">("control");
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [generatingBatch, setGeneratingBatch] = useState(false);
   const [countdown, setCountdown] = useState("—");
 
   const [affiliateTag, setAffiliateTag] = useState(localStorage.getItem("sl_tag") || "");
@@ -202,6 +203,24 @@ function Dashboard() {
     setCopiedId(id);
     toast({ title: "Copied — paste it into WhatsApp!" });
     setTimeout(() => setCopiedId(prev => prev === id ? null : prev), 2000);
+  };
+
+  const handleGenerateBatch = async () => {
+    setGeneratingBatch(true);
+    try {
+      const r = await fetch("/api/admin/whatsapp-batch", { method: "POST" });
+      const d = await r.json();
+      if (d.success) {
+        toast({ title: `✅ ${d.count} messages generated`, description: `Categories: ${d.categories?.join(", ") || "all"}` });
+        await fetchStatus();
+      } else {
+        toast({ title: "Failed", description: d.error, variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Network error", variant: "destructive" });
+    } finally {
+      setGeneratingBatch(false);
+    }
   };
   const running = status?.isRunning ?? false;
 
@@ -406,13 +425,32 @@ function Dashboard() {
         {/* WhatsApp Queue Tab */}
         {tab === "whatsapp" && (
           <div className="space-y-3">
-            <div className="flex items-center justify-between">
+            {/* Header row */}
+            <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-sm font-bold text-white">WhatsApp Queue</h2>
-                <p className="text-[11px] text-white/30 mt-0.5">Copy messages here and paste into WhatsApp manually</p>
+                <p className="text-[11px] text-white/30 mt-0.5">
+                  {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" })}
+                  {" · "}Copy messages and paste into WhatsApp manually
+                </p>
               </div>
-              <button onClick={fetchStatus} className="w-7 h-7 flex items-center justify-center rounded-lg text-white/25 hover:text-white hover:bg-white/5 transition-colors">
+              <button onClick={fetchStatus} className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-white/25 hover:text-white hover:bg-white/5 transition-colors">
                 <RefreshCw className="w-3 h-3" />
+              </button>
+            </div>
+
+            {/* Generate batch button */}
+            <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
+              <div className="flex-1">
+                <p className="text-xs font-semibold text-white">Generate Today's Batch</p>
+                <p className="text-[11px] text-white/30 mt-0.5">Scrapes ~4 best products from all 7 categories (25–30 messages total) with personalized messages &amp; today's date</p>
+              </div>
+              <button
+                onClick={handleGenerateBatch}
+                disabled={generatingBatch}
+                className="shrink-0 btn-primary rounded-lg h-9 px-5 text-xs font-bold flex items-center gap-2 disabled:opacity-50 shadow-lg shadow-green-900/30"
+              >
+                {generatingBatch ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Scraping all categories…</> : <><MessageCircle className="w-3.5 h-3.5" />Generate Batch</>}
               </button>
             </div>
 
@@ -420,7 +458,7 @@ function Dashboard() {
               <div className="border border-white/[0.05] rounded-xl p-12 text-center">
                 <MessageCircle className="w-6 h-6 text-white/10 mx-auto mb-3" />
                 <p className="text-xs text-white/25">No WhatsApp messages yet</p>
-                <p className="text-[11px] text-white/15 mt-1">Start the bot to generate messages</p>
+                <p className="text-[11px] text-white/15 mt-1">Click "Generate Batch" above to create today's 25–30 messages</p>
               </div>
             ) : (
               <div className="space-y-2.5">
