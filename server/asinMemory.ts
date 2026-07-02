@@ -1,34 +1,38 @@
 /**
- * ASIN Memory — persistent deduplication layer (file-based)
+ * ASIN + Title Memory — permanent deduplication layer (file-based)
  *
- * Stores every Amazon ASIN ever posted in a local JSON file.
- * A product is blocked for 6 months (180 days) after last posting.
- * After 6 months it's allowed again with fresh scraped info.
- *
- * Persists across server restarts. File: ./asin-memory.json
+ * Once a product is posted (by ASIN or by title), it is NEVER posted again.
+ * Both stores persist across server restarts via local JSON files.
  */
 
-import { readFile, writeFile, mkdir } from "fs/promises";
+import { readFile, writeFile } from "fs/promises";
 import { existsSync } from "fs";
 import { log } from "./index";
 
 const MEMORY_FILE = "./asin-memory.json";
-const REPOST_AFTER_DAYS = 180;
+const TITLE_MEMORY_FILE = "./title-memory.json";
 
 interface AsinRecord {
   title: string;
-  firstSeenAt: string;  // ISO
-  lastSeenAt: string;   // ISO
+  firstSeenAt: string;
   timesPosted: number;
 }
 
 type AsinStore = Record<string, AsinRecord>;
 
 let store: AsinStore = {};
-let dirty = false;
-let saveTimer: NodeJS.Timeout | null = null;
+let titleStore: Set<string> = new Set();
 
-/** Load memory from disk on boot */
+let dirty = false;
+let titleDirty = false;
+let saveTimer: NodeJS.Timeout | null = null;
+let titleSaveTimer: NodeJS.Timeout | null = null;
+
+function normalizeTitle(title: string): string {
+  return title.toLowerCase().replace(/\s+/g, " ").trim().slice(0, 120);
+}
+
+/** Load both memories from disk on boot */
 export async function initAsinMemory(): Promise<void> {
   try {
     if (existsSync(MEMORY_FILE)) {
@@ -37,15 +41,27 @@ export async function initAsinMemory(): Promise<void> {
       log(`[AsinMemory] Loaded ${Object.keys(store).length} ASINs from disk`);
     } else {
       store = {};
-      log("[AsinMemory] Starting fresh — no memory file yet");
     }
   } catch (err) {
     store = {};
-    log(`[AsinMemory] Could not read memory file, starting fresh: ${err}`);
+    log(`[AsinMemory] Could not read ASIN memory, starting fresh: ${err}`);
+  }
+
+  try {
+    if (existsSync(TITLE_MEMORY_FILE)) {
+      const raw = await readFile(TITLE_MEMORY_FILE, "utf-8");
+      const arr = JSON.parse(raw) as string[];
+      titleStore = new Set(arr);
+      log(`[AsinMemory] Loaded ${titleStore.size} titles from disk`);
+    } else {
+      titleStore = new Set();
+    }
+  } catch (err) {
+    titleStore = new Set();
+    log(`[AsinMemory] Could not read title memory, starting fresh: ${err}`);
   }
 }
 
-/** Flush to disk (debounced — max one write per 5 seconds) */
 function scheduleSave() {
   dirty = true;
   if (saveTimer) return;
@@ -56,25 +72,43 @@ function scheduleSave() {
     try {
       await writeFile(MEMORY_FILE, JSON.stringify(store, null, 2), "utf-8");
     } catch (err) {
-      log(`[AsinMemory] Save error: ${err}`);
+      log(`[AsinMemory] ASIN save error: ${err}`);
+    }
+  }, 5000);
+}
+
+function scheduleTitleSave() {
+  titleDirty = true;
+  if (titleSaveTimer) return;
+  titleSaveTimer = setTimeout(async () => {
+    titleSaveTimer = null;
+    if (!titleDirty) return;
+    titleDirty = false;
+    try {
+      await writeFile(TITLE_MEMORY_FILE, JSON.stringify([...titleStore], null, 2), "utf-8");
+    } catch (err) {
+      log(`[AsinMemory] Title save error: ${err}`);
     }
   }, 5000);
 }
 
 /**
- * Returns true if this ASIN was posted within the last 6 months.
- * Returns false if new or last posted more than 6 months ago.
+ * Returns true if this ASIN was ever posted before (permanent block).
  */
 export async function wasRecentlyPosted(asin: string): Promise<boolean> {
-  const record = store[asin];
-  if (!record) return false;
-  const daysSince = (Date.now() - new Date(record.lastSeenAt).getTime()) / (1000 * 60 * 60 * 24);
-  return daysSince < REPOST_AFTER_DAYS;
+  return !!store[asin];
 }
 
 /**
- * Records that we just posted this ASIN.
- * Updates in-memory store and schedules a disk flush.
+ * Returns true if a product with this title was ever posted before (permanent block).
+ * Used for products that have no ASIN.
+ */
+export async function wasTitlePosted(title: string): Promise<boolean> {
+  return titleStore.has(normalizeTitle(title));
+}
+
+/**
+ * Records that we just posted this ASIN — permanently blocks it.
  */
 export async function markAsPosted(asin: string, title: string): Promise<void> {
   const now = new Date().toISOString();
@@ -82,13 +116,21 @@ export async function markAsPosted(asin: string, title: string): Promise<void> {
   store[asin] = {
     title,
     firstSeenAt: existing?.firstSeenAt ?? now,
-    lastSeenAt: now,
     timesPosted: (existing?.timesPosted ?? 0) + 1,
   };
   scheduleSave();
 }
 
-/** Total unique ASINs ever recorded */
+/**
+ * Records a product by title — permanently blocks it.
+ * Used for products without an ASIN.
+ */
+export async function markTitleAsPosted(title: string): Promise<void> {
+  titleStore.add(normalizeTitle(title));
+  scheduleTitleSave();
+}
+
+/** Total unique products ever recorded (ASINs + titles) */
 export async function getTotalMemoryCount(): Promise<number> {
-  return Object.keys(store).length;
+  return Object.keys(store).length + titleStore.size;
 }

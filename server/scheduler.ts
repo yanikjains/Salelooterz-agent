@@ -3,7 +3,7 @@ import { generateTelegramMessageFromDiscovered, generateWhatsAppMessageFromDisco
 import { sendTelegramMessage } from "./telegram";
 import { appendToSheet } from "./sheets";
 import { storage } from "./storage";
-import { wasRecentlyPosted, markAsPosted, getTotalMemoryCount } from "./asinMemory";
+import { wasRecentlyPosted, wasTitlePosted, markAsPosted, markTitleAsPosted, getTotalMemoryCount } from "./asinMemory";
 import { log } from "./index";
 import { readFile, writeFile } from "fs/promises";
 import { existsSync } from "fs";
@@ -184,14 +184,22 @@ class Scheduler {
       const products = [];
       let skipped = 0;
       for (const p of rawProducts) {
-        if (!p.asin) { products.push(p); continue; }
-        const recent = await wasRecentlyPosted(p.asin);
-        if (recent) {
-          skipped++;
-          log(`[Scheduler] Skipping ${p.asin} (posted within 6 months)`);
+        if (p.asin) {
+          const seen = await wasRecentlyPosted(p.asin);
+          if (seen) {
+            skipped++;
+            log(`[Scheduler] Skipping ${p.asin} — already posted`);
+            continue;
+          }
         } else {
-          products.push(p);
+          const seen = await wasTitlePosted(p.title);
+          if (seen) {
+            skipped++;
+            log(`[Scheduler] Skipping "${p.title.slice(0, 50)}" (no ASIN) — already posted`);
+            continue;
+          }
         }
+        products.push(p);
       }
       this.lastBatchSkipped = skipped;
       if (skipped > 0) log(`[Scheduler] Deduplication: ${skipped} skipped, ${products.length} new`);
@@ -253,6 +261,8 @@ class Scheduler {
 
         if (product.asin) {
           await markAsPosted(product.asin, product.title);
+        } else {
+          await markTitleAsPosted(product.title);
         }
       }
 
