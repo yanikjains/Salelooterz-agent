@@ -1,5 +1,5 @@
-import { discoverProducts, discoverHotDeals, categories } from "./productDiscovery";
-import { generateTelegramMessageFromDiscovered, generateWhatsAppMessageFromDiscovered } from "./messageGenerator";
+import { discoverProducts, discoverHotDeals, categories, categorySearchTerms } from "./productDiscovery";
+import { generateTelegramMessageFromDiscovered, generateWhatsAppMessageFromDiscovered, generatePersonalizedWhatsAppMessage } from "./messageGenerator";
 import { sendTelegramMessage } from "./telegram";
 import { appendToSheet } from "./sheets";
 import { storage } from "./storage";
@@ -10,8 +10,14 @@ import { existsSync } from "fs";
 
 export const ADMIN_USER_ID = "admin-scheduler";
 
-const PRODUCTS_PER_BATCH = 15;
-const BATCH_INTERVAL_MS = 20 * 60 * 1000;
+// Telegram: 13 products × every 60 min × 24 h = 312/day
+const PRODUCTS_PER_BATCH   = 13;
+const BATCH_INTERVAL_MS    = 60 * 60 * 1000;   // 60 minutes
+
+// WhatsApp: 30 messages generated automatically once per day
+const WHATSAPP_BATCH_SIZE  = 30;
+const WA_DATE_FILE         = "./whatsapp-last-batch-date.txt";
+
 const SCHEDULER_CONFIG_FILE = "./scheduler-config.json";
 
 export interface SchedulerConfig {
@@ -66,6 +72,7 @@ async function clearSchedulerConfig(): Promise<void> {
 
 class Scheduler {
   private intervalId: NodeJS.Timeout | null = null;
+  private waIntervalId: NodeJS.Timeout | null = null;
   private isRunning = false;
   private nextRunAt: Date | null = null;
   private lastRunAt: Date | null = null;
@@ -75,10 +82,37 @@ class Scheduler {
   private categoryIndex = 0;
   private totalSent = 0;
   private telegramSent = 0;
+  private waDailyCount = 0;
   private memoryCount = 0;
   private hourCounts = new Map<string, number>();
   private dayCounts = new Map<string, number>();
   private config: SchedulerConfig | null = null;
+
+  /** IST date string e.g. "2026-07-05" */
+  private todayIST(): string {
+    return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
+  }
+
+  /** ms until next midnight IST */
+  private msUntilMidnightIST(): number {
+    const now = new Date();
+    const istOffset = 5.5 * 60 * 60 * 1000;
+    const istNow = new Date(now.getTime() + istOffset);
+    const midnight = new Date(istNow);
+    midnight.setUTCHours(24, 0, 0, 0);
+    return midnight.getTime() - istNow.getTime();
+  }
+
+  private async waLastDate(): Promise<string> {
+    try {
+      if (existsSync(WA_DATE_FILE)) return (await readFile(WA_DATE_FILE, "utf-8")).trim();
+    } catch {}
+    return "";
+  }
+
+  private async saveWaDate(date: string): Promise<void> {
+    try { await writeFile(WA_DATE_FILE, date, "utf-8"); } catch {}
+  }
 
   private hourKey() {
     const n = new Date();
@@ -120,15 +154,87 @@ class Scheduler {
       spreadsheetId: config.spreadsheetId || null,
     });
 
-    log("[Scheduler] Starting — first batch running now...");
+    log("[Scheduler] Starting — first Telegram batch running now...");
     await this.runBatch();
-
     this.intervalId = setInterval(() => this.runBatch(), BATCH_INTERVAL_MS);
     this.nextRunAt = new Date(Date.now() + BATCH_INTERVAL_MS);
+
+    // Daily WhatsApp batch — run immediately if not yet done today, then repeat every 24 h
+    await this.scheduleWhatsAppBatch();
+  }
+
+  private async scheduleWhatsAppBatch() {
+    const lastDate = await this.waLastDate();
+    const today    = this.todayIST();
+
+    if (lastDate !== today) {
+      log("[Scheduler] Daily WhatsApp batch not yet done today — running now...");
+      await this.runWhatsAppBatch();
+    } else {
+      log("[Scheduler] Daily WhatsApp batch already done today.");
+    }
+
+    // Schedule next batch at midnight IST
+    const msToMidnight = this.msUntilMidnightIST();
+    log(`[Scheduler] Next WhatsApp batch in ${Math.round(msToMidnight / 60000)} min (midnight IST)`);
+    if (this.waIntervalId) clearTimeout(this.waIntervalId);
+    this.waIntervalId = setTimeout(async () => {
+      await this.runWhatsAppBatch();
+      // After midnight, repeat every 24 h
+      this.waIntervalId = setInterval(() => this.runWhatsAppBatch(), 24 * 60 * 60 * 1000);
+    }, msToMidnight) as unknown as NodeJS.Timeout;
+  }
+
+  private async runWhatsAppBatch() {
+    if (!this.config) return;
+    const { affiliateTag } = this.config;
+    const user = await storage.getUser(ADMIN_USER_ID).catch(() => null);
+    const spreadsheetId = user?.spreadsheetId || null;
+    const catIds = Object.keys(categorySearchTerms);
+    let generated = 0;
+
+    log("[Scheduler] Running daily WhatsApp batch...");
+    for (const cat of catIds) {
+      if (generated >= WHATSAPP_BATCH_SIZE) break;
+      try {
+        const raw = await discoverProducts(cat, 5);
+        for (const product of raw) {
+          if (generated >= WHATSAPP_BATCH_SIZE) break;
+          // Dedup
+          if (product.asin) { if (await wasRecentlyPosted(product.asin)) continue; }
+          else              { if (await wasTitlePosted(product.title))    continue; }
+
+          const whatsappMessage = generatePersonalizedWhatsAppMessage(product, affiliateTag, cat);
+          await storage.createAutomation({
+            userId: ADMIN_USER_ID,
+            productUrl: product.url,
+            productTitle: product.title,
+            price: product.price,
+            rating: `${product.rating}/5`,
+            whatsappMessage,
+            telegramMessage: "",
+            affiliateTag,
+            spreadsheetId: spreadsheetId || null,
+          }).catch(() => {});
+
+          const pInfo = { title: product.title, price: product.price, originalPrice: (product as any).originalPrice || "", discount: (product as any).discount || "", rating: product.rating, category: cat, url: product.url };
+          if (product.asin) await markAsPosted(product.asin, pInfo);
+          else              await markTitleAsPosted(pInfo);
+
+          generated++;
+        }
+        await sleep(1200);
+      } catch { continue; }
+    }
+
+    this.waDailyCount = generated;
+    await this.saveWaDate(this.todayIST());
+    log(`[Scheduler] WhatsApp batch done: ${generated} messages stored`);
   }
 
   stop() {
-    if (this.intervalId) { clearInterval(this.intervalId); this.intervalId = null; }
+    if (this.intervalId)   { clearInterval(this.intervalId);   this.intervalId   = null; }
+    if (this.waIntervalId) { clearTimeout(this.waIntervalId);  this.waIntervalId = null; }
     this.isRunning = false;
     this.nextRunAt = null;
     clearSchedulerConfig();

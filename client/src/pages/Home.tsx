@@ -300,7 +300,7 @@ function Dashboard() {
                   </div>
                   {running ? (
                     <>
-                      <p className="text-[11px] text-white/30 mb-4">15 products · every 20 min · 45/hour · ~1,080/day</p>
+                      <p className="text-[11px] text-white/30 mb-4">13 products · every 60 min · 13/hour · ~312/day Telegram · 30 WhatsApp auto-daily</p>
                       <div className="grid grid-cols-3 gap-2">
                         {[
                           { label: "Next batch", value: countdown },
@@ -355,7 +355,7 @@ function Dashboard() {
             {/* Schedule chips */}
             <div className="flex flex-wrap items-center gap-2 px-1">
               <span className="text-[10px] font-bold uppercase tracking-widest text-white/15">Schedule</span>
-              {["Every 20 min", "15 products / batch", "45 / hour", "~1,080 / day"].map((t, i) => (
+              {["Every 60 min", "13 products / batch", "13 / hour", "~312 Telegram/day", "30 WhatsApp/day"].map((t, i) => (
                 <span key={i} className="text-[11px] px-2.5 py-1 rounded-lg border border-white/[0.07] text-white/30">{t}</span>
               ))}
             </div>
