@@ -1,7 +1,8 @@
 import type { Express } from "express";
 import { type Server } from "http";
 import { storage } from "./storage";
-import { discoverProducts, discoverFromAllCategories, discoverHotDeals, categories, categorySearchTerms } from "./productDiscovery";
+import { discoverProducts, discoverPremiumProducts, discoverFromAllCategories, discoverHotDeals, categories, categorySearchTerms } from "./productDiscovery";
+import { isPremiumDeal } from "./messageGenerator";
 import { wasRecentlyPosted, wasTitlePosted, markAsPosted, markTitleAsPosted, getMemoryStats, parseDiscountPct } from "./asinMemory";
 import { generateWhatsAppMessageFromDiscovered, generateTelegramMessageFromDiscovered, generatePersonalizedWhatsAppMessage } from "./messageGenerator";
 import { appendToSheet } from "./sheets";
@@ -232,15 +233,18 @@ export async function registerRoutes(
       const spreadsheetId = user?.spreadsheetId || null;
 
       const allCategoryIds = Object.keys(categorySearchTerms);
-      const PER_CATEGORY = 4;
+      const PER_CATEGORY = 6;
       const generated: { productTitle: string; category: string }[] = [];
 
       for (const cat of allCategoryIds) {
         try {
-          const raw = await discoverProducts(cat, PER_CATEGORY + 3);
+          // Use premium search terms for exclusive expensive deals
+          const raw = await discoverPremiumProducts(cat, PER_CATEGORY);
           for (const product of raw) {
             if (generated.length >= 30) break;
-            // Dedup
+            // Quality filter — skip cheap or low-discount products
+            if (!isPremiumDeal(product.price, product.discount || "")) continue;
+            // Lifetime dedup
             if (product.asin) {
               if (await wasRecentlyPosted(product.asin)) continue;
             } else {

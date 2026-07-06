@@ -4,6 +4,85 @@ export interface DiscoveredProduct extends ProductData {
   category: string;
 }
 
+/**
+ * Premium WhatsApp search terms — targets expensive products with genuine deals.
+ * Used exclusively for the daily WhatsApp batch.
+ */
+export const premiumWhatsAppSearchTerms: Record<string, string[]> = {
+  electronics: [
+    "Sony WH1000XM5 headphones",
+    "Apple AirPods Pro",
+    "Bose QuietComfort headphones",
+    "Samsung QLED TV 43 inch",
+    "Sony camera mirrorless",
+    "iPad 10th generation",
+    "MacBook Air M2",
+    "Kindle Paperwhite",
+    "GoPro camera",
+    "DJI drone",
+  ],
+  mobile: [
+    "iPhone 15",
+    "Samsung Galaxy S23",
+    "OnePlus 12",
+    "Google Pixel 8",
+    "Nothing Phone 2",
+    "Samsung Galaxy A55",
+    "Vivo X100",
+    "Motorola Edge 50 Pro",
+  ],
+  home: [
+    "Dyson vacuum cleaner",
+    "robot vacuum mop",
+    "LG washing machine fully automatic",
+    "Samsung double door refrigerator",
+    "Philips air fryer XXL",
+    "Instant Pot electric cooker",
+    "Dyson air purifier",
+    "Whirlpool microwave oven",
+  ],
+  fashion: [
+    "Ray Ban sunglasses",
+    "Nike Air Max shoes men",
+    "Adidas Ultraboost running shoes",
+    "Tommy Hilfiger jacket men",
+    "premium leather handbag women",
+    "Fastrack watch men",
+    "Woodland boots men",
+    "Levi 511 slim jeans men",
+  ],
+  beauty: [
+    "Dyson Airwrap hair styler",
+    "Philips hair straightener premium",
+    "La Roche Posay sunscreen",
+    "Minimalist face serum vitamin c",
+    "The Ordinary niacinamide",
+    "Bombay Shaving Company premium kit",
+    "Lakme premium makeup",
+    "Neutrogena moisturizer",
+  ],
+  fitness: [
+    "Garmin smartwatch",
+    "Fitbit Charge 6",
+    "treadmill motorized home",
+    "Whey protein premium 5kg",
+    "Bowflex dumbbells",
+    "Crossfit kettlebell set",
+    "smart fitness band",
+    "Nike gym shoes premium",
+  ],
+  kitchen: [
+    "Philips air fryer HD9252",
+    "Instant Pot Duo pressure cooker",
+    "Breville espresso machine",
+    "KitchenAid hand mixer",
+    "Tefal cookware set premium",
+    "Bosch food processor",
+    "Ninja blender",
+    "Le Creuset cast iron",
+  ],
+};
+
 export const categorySearchTerms: Record<string, string[]> = {
   electronics: [
     "wireless earbuds",
@@ -69,6 +148,31 @@ export const categories = [
 function getRandomSearchTerm(category: string): string {
   const terms = categorySearchTerms[category] || categorySearchTerms.electronics;
   return terms[Math.floor(Math.random() * terms.length)];
+}
+
+function getRandomPremiumTerm(category: string): string {
+  const terms = premiumWhatsAppSearchTerms[category] || premiumWhatsAppSearchTerms.electronics;
+  return terms[Math.floor(Math.random() * terms.length)];
+}
+
+/** Scrapes premium/expensive products for the daily WhatsApp batch */
+export async function discoverPremiumProducts(category: string, limit: number = 5): Promise<DiscoveredProduct[]> {
+  try {
+    const searchTerm = getRandomPremiumTerm(category);
+    console.log(`[Premium] Discovering "${category}" using: "${searchTerm}"`);
+    const products = await searchAmazonIndia(searchTerm, limit + 3);
+    if (products.length === 0) {
+      // fallback: try second premium term
+      const searchTerm2 = getRandomPremiumTerm(category);
+      const p2 = await searchAmazonIndia(searchTerm2, limit);
+      if (p2.length > 0) return p2.map(p => ({ ...p, category }));
+      return getFallbackProducts(category, limit).map(p => ({ ...p, category }));
+    }
+    return products.map(p => ({ ...p, category }));
+  } catch (error) {
+    console.error(`[Premium] Scraping failed for ${category}:`, error);
+    return getFallbackProducts(category, limit).map(p => ({ ...p, category }));
+  }
 }
 
 export async function discoverProducts(category: string, limit: number = 5): Promise<DiscoveredProduct[]> {

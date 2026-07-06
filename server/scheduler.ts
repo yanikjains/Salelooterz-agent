@@ -1,5 +1,5 @@
-import { discoverProducts, discoverHotDeals, categories, categorySearchTerms } from "./productDiscovery";
-import { generateTelegramMessageFromDiscovered, generateWhatsAppMessageFromDiscovered, generatePersonalizedWhatsAppMessage } from "./messageGenerator";
+import { discoverProducts, discoverPremiumProducts, discoverHotDeals, categories, categorySearchTerms } from "./productDiscovery";
+import { generateTelegramMessageFromDiscovered, generateWhatsAppMessageFromDiscovered, generatePersonalizedWhatsAppMessage, isPremiumDeal } from "./messageGenerator";
 import { sendTelegramMessage } from "./telegram";
 import { appendToSheet } from "./sheets";
 import { storage } from "./storage";
@@ -193,14 +193,17 @@ class Scheduler {
     const catIds = Object.keys(categorySearchTerms);
     let generated = 0;
 
-    log("[Scheduler] Running daily WhatsApp batch...");
+    log("[Scheduler] Running daily WhatsApp PREMIUM batch...");
     for (const cat of catIds) {
       if (generated >= WHATSAPP_BATCH_SIZE) break;
       try {
-        const raw = await discoverProducts(cat, 5);
+        // Use premium search terms for expensive products
+        const raw = await discoverPremiumProducts(cat, 6);
         for (const product of raw) {
           if (generated >= WHATSAPP_BATCH_SIZE) break;
-          // Dedup
+          // Quality filter — skip cheap or low-discount products
+          if (!isPremiumDeal(product.price, product.discount || "")) continue;
+          // Lifetime dedup
           if (product.asin) { if (await wasRecentlyPosted(product.asin)) continue; }
           else              { if (await wasTitlePosted(product.title))    continue; }
 
@@ -223,13 +226,13 @@ class Scheduler {
 
           generated++;
         }
-        await sleep(1200);
+        await sleep(1500);
       } catch { continue; }
     }
 
     this.waDailyCount = generated;
     await this.saveWaDate(this.todayIST());
-    log(`[Scheduler] WhatsApp batch done: ${generated} messages stored`);
+    log(`[Scheduler] WhatsApp premium batch done: ${generated} messages stored`);
   }
 
   stop() {

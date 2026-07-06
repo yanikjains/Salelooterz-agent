@@ -33,24 +33,25 @@ function formatIndianPrice(price: string): string {
 }
 
 const categoryLabels: Record<string, string> = {
-  electronics: "📱 Electronics Pick of the Day",
-  mobile:      "📲 Mobile Deal of the Day",
-  home:        "🏠 Home Essentials Deal",
-  fashion:     "👗 Fashion Deal of the Day",
-  beauty:      "💄 Beauty & Skincare Pick",
-  fitness:     "💪 Fitness Deal of the Day",
-  kitchen:     "🍳 Kitchen Deal of the Day",
-  deals:       "🔥 Hot Deal of the Day",
+  electronics: "📱 Premium Electronics Deal",
+  mobile:      "📲 Smartphone Exclusive Deal",
+  home:        "🏠 Premium Home Appliance Deal",
+  fashion:     "👗 Premium Fashion Deal",
+  beauty:      "💄 Luxury Beauty Deal",
+  fitness:     "💪 Premium Fitness Deal",
+  kitchen:     "🍳 Premium Kitchen Deal",
+  deals:       "🔥 Exclusive Hot Deal",
 };
 
-const personalClosings = [
-  "⚡ Sirf limited stock — jaldi lelo!",
-  "⏰ Ye deal zyada time nahi chalegi!",
-  "🏃‍♂️ Bahut log dekh rahe hain isko!",
-  "💨 Superfast delivery bhi milegi!",
-  "🎯 Personally recommend kar raha hoon!",
-  "🔥 Maine khud check kiya — genuine deal hai!",
-  "⭐ Top rated — apne ghar le aao aaj!",
+const premiumClosings = [
+  "💎 Ye deal bar bar nahi aata — aaj hi grab karo!",
+  "🏆 Premium product, genuine discount — miss mat karo!",
+  "⚡ Limited stock hai — stock khatam hone se pehle order karo!",
+  "🎯 Personally verified deal — 100% genuine Amazon listing!",
+  "🔥 Bahut log already order kar chuke hain — jaldi karo!",
+  "💰 Is price mein ye quality rarely milti hai — loot lo!",
+  "⭐ Best-in-class product, now at a price you can't ignore!",
+  "🚀 Amazon ke top sellers mein se ek — galti mat karo!",
 ];
 
 function getTodayDate(): string {
@@ -111,23 +112,54 @@ ${closing}`;
   return message;
 }
 
+function parsePriceNum(price: string): number {
+  return parseInt(price.replace(/[₹,\s]/g, '').replace(/[^0-9]/g, '')) || 0;
+}
+
+/** Returns true if product meets the premium WhatsApp quality bar */
+export function isPremiumDeal(price: string, discount: string): boolean {
+  const priceNum    = parsePriceNum(price);
+  const discountPct = parseInt(discount.match(/(\d+)/)?.[1] || '0');
+  if (priceNum < 999)  return false;   // skip anything under ₹999
+  if (priceNum >= 20000) return true;  // expensive items are always worth sharing
+  if (priceNum >= 5000)  return discountPct >= 10;  // ₹5k+ needs ≥10% off
+  return discountPct >= 20;            // cheaper items need ≥20% off
+}
+
 export function generatePersonalizedWhatsAppMessage(
   product: ProductData | DiscoveredProduct,
   affiliateTag: string,
   category?: string
 ): string {
-  const closing = getRandomElement(personalClosings);
+  const closing = getRandomElement(premiumClosings);
   const affiliateUrl = `${product.url}${product.url.includes('?') ? '&' : '?'}tag=${affiliateTag}`;
   const cat = category || ('category' in product ? (product as DiscoveredProduct).category : '');
-  const categoryLabel = categoryLabels[cat] || "🛍️ Deal of the Day";
+  const categoryLabel = categoryLabels[cat] || "🛍️ Exclusive Deal";
   const today = getTodayDate();
-  const title = product.title.length > 85 ? product.title.substring(0, 85) + '...' : product.title;
+  const title = product.title.length > 90 ? product.title.substring(0, 90) + '…' : product.title;
 
-  let msg = `🗓️ *${today}*\n${categoryLabel}\n\n`;
+  const dealPrice    = parsePriceNum(product.price);
+  const origPrice    = parsePriceNum((product as any).originalPrice || '');
+  const savingsAmt   = origPrice > dealPrice ? origPrice - dealPrice : 0;
+
+  let msg = `━━━━━━━━━━━━━━━━━━━━\n`;
+  msg += `🗓️ *${today}*\n`;
+  msg += `${categoryLabel}\n`;
+  msg += `━━━━━━━━━━━━━━━━━━━━\n\n`;
   msg += `*${title}*\n\n`;
-  msg += `💸 *${formatIndianPrice(product.price)}*`;
-  if (product.discount) msg += `  _(${product.discount})_`;
-  msg += `\n`;
+
+  // Price block
+  if (origPrice > dealPrice && origPrice > 0) {
+    msg += `💰 *Deal Price: ${formatIndianPrice(product.price)}*\n`;
+    msg += `~~MRP: ${formatIndianPrice((product as any).originalPrice)}~~\n`;
+    if (savingsAmt > 0) msg += `✅ *Aap bachate ho: ₹${savingsAmt.toLocaleString('en-IN')}`;
+    if (product.discount) msg += ` (${product.discount})`;
+    msg += `*\n`;
+  } else {
+    msg += `💰 *${formatIndianPrice(product.price)}*`;
+    if (product.discount) msg += `  ✅ *(${product.discount})*`;
+    msg += `\n`;
+  }
 
   if (product.rating > 0) {
     msg += `⭐ ${product.rating}/5`;
@@ -136,14 +168,15 @@ export function generatePersonalizedWhatsAppMessage(
   }
 
   if (product.features && product.features.length > 0) {
-    msg += `\n✨ *Why it's worth it:*\n`;
+    msg += `\n🔑 *Why this product:*\n`;
     msg += product.features.slice(0, 3)
-      .map(f => `• ${f.substring(0, 65)}${f.length > 65 ? '…' : ''}`)
+      .map(f => `  › ${f.substring(0, 70)}${f.length > 70 ? '…' : ''}`)
       .join('\n');
     msg += `\n`;
   }
 
-  msg += `\n🛒 *Order karo:*\n${affiliateUrl}\n\n${closing}`;
+  msg += `\n🛒 *Abhi order karo:*\n${affiliateUrl}\n\n`;
+  msg += `${closing}`;
   return msg;
 }
 
