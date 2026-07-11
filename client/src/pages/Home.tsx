@@ -54,13 +54,35 @@ function PinScreen({ onVerified }: { onVerified: () => void }) {
   const [attempts, setAttempts] = useState(0);
   const locked = attempts >= 5;
 
+  const PIN2 = "8101";
+
   const verify = async (e: React.FormEvent) => {
     e.preventDefault();
     if (locked) return;
     setLoading(true); setError(null);
+
+    // Step 2: verify locally (already passed server-verified step 1)
+    if (step === 2) {
+      await new Promise(r => setTimeout(r, 200)); // natural pause
+      if (pin.trim() === PIN2) {
+        onVerified();
+      } else {
+        const newAttempts = attempts + 1;
+        setAttempts(newAttempts);
+        if (newAttempts >= 5) {
+          setError("Too many wrong attempts. Locked.");
+        } else {
+          setError(`Wrong PIN — ${5 - newAttempts} attempt${5 - newAttempts === 1 ? "" : "s"} left.`);
+        }
+        setPin("");
+      }
+      setLoading(false);
+      return;
+    }
+
+    // Step 1: server-verified
     try {
-      const endpoint = step === 1 ? "/api/admin/verify-pin" : "/api/admin/verify-pin2";
-      const r = await fetch(endpoint, {
+      const r = await fetch("/api/admin/verify-pin", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pin }),
@@ -68,8 +90,7 @@ function PinScreen({ onVerified }: { onVerified: () => void }) {
       const d = await r.json();
       if (d.success) {
         setAttempts(0);
-        if (step === 1) { setStep(2); setPin(""); setError(null); }
-        else            { onVerified(); }
+        setStep(2); setPin(""); setError(null);
       } else {
         const newAttempts = attempts + 1;
         setAttempts(newAttempts);
