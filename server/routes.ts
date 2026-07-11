@@ -29,7 +29,7 @@ export async function registerRoutes(
 ): Promise<Server> {
   registerChatRoutes(app);
 
-  // ── ADMIN PIN AUTH ───────────────────────────────────────────
+  // ── ADMIN PIN AUTH — Step 1 ──────────────────────────────────
   app.post("/api/admin/verify-pin", (req, res) => {
     const { pin } = req.body;
     const correctPin = process.env.ADMIN_PIN || "2412";
@@ -37,6 +37,20 @@ export async function registerRoutes(
       return res.status(400).json({ success: false, error: "PIN required" });
     }
     if (pin.trim() === correctPin) {
+      res.json({ success: true });
+    } else {
+      res.status(401).json({ success: false, error: "Incorrect PIN" });
+    }
+  });
+
+  // ── ADMIN PIN AUTH — Step 2 ──────────────────────────────────
+  app.post("/api/admin/verify-pin2", (req, res) => {
+    const { pin } = req.body;
+    const correctPin2 = process.env.ADMIN_PIN2 || "8101";
+    if (!pin || typeof pin !== "string") {
+      return res.status(400).json({ success: false, error: "PIN required" });
+    }
+    if (pin.trim() === correctPin2) {
       res.json({ success: true });
     } else {
       res.status(401).json({ success: false, error: "Incorrect PIN" });

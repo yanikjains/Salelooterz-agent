@@ -46,23 +46,41 @@ function until(iso: string | null) {
 
 // ── PIN Screen ────────────────────────────────────────────────────────────────
 function PinScreen({ onVerified }: { onVerified: () => void }) {
-  const [pin, setPin] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const [step, setStep]       = useState<1 | 2>(1);
+  const [pin, setPin]         = useState("");
+  const [error, setError]     = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // track wrong attempts for lockout
+  const [attempts, setAttempts] = useState(0);
+  const locked = attempts >= 5;
 
   const verify = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (locked) return;
     setLoading(true); setError(null);
     try {
-      const r = await fetch("/api/admin/verify-pin", {
+      const endpoint = step === 1 ? "/api/admin/verify-pin" : "/api/admin/verify-pin2";
+      const r = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ pin }),
       });
       const d = await r.json();
-      if (d.success) onVerified();
-      else { setError("Wrong PIN — try again."); setPin(""); }
-    } catch { setError("Connection error."); }
+      if (d.success) {
+        setAttempts(0);
+        if (step === 1) { setStep(2); setPin(""); setError(null); }
+        else            { onVerified(); }
+      } else {
+        const newAttempts = attempts + 1;
+        setAttempts(newAttempts);
+        if (newAttempts >= 5) {
+          setError("Too many wrong attempts. Locked.");
+        } else {
+          setError(`Wrong PIN — ${5 - newAttempts} attempt${5 - newAttempts === 1 ? "" : "s"} left.`);
+        }
+        setPin("");
+      }
+    } catch { setError("Connection error — try again."); }
     finally { setLoading(false); }
   };
 
@@ -74,24 +92,42 @@ function PinScreen({ onVerified }: { onVerified: () => void }) {
           <div className="text-center mb-7">
             <img src={logo} alt="SaleLooterz" className="w-14 h-14 rounded-2xl object-cover mx-auto mb-4" />
             <h1 className="text-lg font-bold text-white">SaleLooterz AI</h1>
-            <p className="text-xs text-white/35 mt-1">Enter your admin PIN</p>
+            {/* Step indicator */}
+            <div className="flex items-center justify-center gap-2 mt-3">
+              <div className={`w-2 h-2 rounded-full transition-colors ${step >= 1 ? "bg-green-500" : "bg-white/20"}`} />
+              <div className={`w-8 h-px transition-colors ${step >= 2 ? "bg-green-500" : "bg-white/20"}`} />
+              <div className={`w-2 h-2 rounded-full transition-colors ${step >= 2 ? "bg-green-500" : "bg-white/20"}`} />
+            </div>
+            <p className="text-xs text-white/35 mt-2">
+              {step === 1 ? "Step 1 of 2 — Access Code" : "Step 2 of 2 — Security PIN"}
+            </p>
           </div>
-          <form onSubmit={verify} className="space-y-3">
-            <Input
-              type="password" inputMode="numeric" autoFocus
-              placeholder="••••••" value={pin} onChange={e => setPin(e.target.value)}
-              className="text-center text-2xl tracking-[0.6em] h-12 bg-black border-white/10 focus:border-green-500/50 rounded-xl placeholder:tracking-normal placeholder:text-lg text-white"
-            />
-            {error && (
-              <p className="text-[11px] text-red-400 flex items-center justify-center gap-1.5">
-                <XCircle className="w-3 h-3" />{error}
-              </p>
-            )}
-            <button type="submit" disabled={!pin || loading}
-              className="w-full h-11 rounded-xl btn-primary font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : "Unlock Dashboard"}
-            </button>
-          </form>
+
+          {locked ? (
+            <div className="text-center py-4">
+              <div className="text-3xl mb-3">🔒</div>
+              <p className="text-red-400 text-sm font-medium">Access locked</p>
+              <p className="text-white/30 text-xs mt-1">Reload the page to try again</p>
+            </div>
+          ) : (
+            <form onSubmit={verify} className="space-y-3">
+              <Input
+                type="password" inputMode="numeric" autoFocus
+                placeholder="••••••" value={pin}
+                onChange={e => setPin(e.target.value)}
+                className="text-center text-2xl tracking-[0.6em] h-12 bg-black border-white/10 focus:border-green-500/50 rounded-xl placeholder:tracking-normal placeholder:text-lg text-white"
+              />
+              {error && (
+                <p className="text-[11px] text-red-400 flex items-center justify-center gap-1.5">
+                  <XCircle className="w-3 h-3" />{error}
+                </p>
+              )}
+              <button type="submit" disabled={!pin || loading}
+                className="w-full h-11 rounded-xl btn-primary font-bold text-sm disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+                {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : step === 1 ? "Continue →" : "Unlock Dashboard"}
+              </button>
+            </form>
+          )}
         </div>
       </div>
     </div>
