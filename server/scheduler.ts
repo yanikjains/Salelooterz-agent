@@ -93,7 +93,7 @@ class Scheduler {
     return new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
   }
 
-  /** ms until next midnight IST */
+  /** ms until next midnight IST (used for WhatsApp) */
   private msUntilMidnightIST(): number {
     const now = new Date();
     const istOffset = 5.5 * 60 * 60 * 1000;
@@ -101,6 +101,19 @@ class Scheduler {
     const midnight = new Date(istNow);
     midnight.setUTCHours(24, 0, 0, 0);
     return midnight.getTime() - istNow.getTime();
+  }
+
+  /** ms until next 3:00 AM IST (used for Telegram batch) */
+  private msUntil3AMIST(): number {
+    const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000; // +5:30
+    const istNow = Date.now() + IST_OFFSET_MS;
+    // Minutes elapsed since last IST midnight
+    const istMinuteOfDay = Math.floor((istNow % (24 * 60 * 60 * 1000)) / 60000);
+    const target = 3 * 60; // 3:00 AM = 180 min from midnight IST
+    const remaining = istMinuteOfDay < target
+      ? (target - istMinuteOfDay) * 60 * 1000
+      : (24 * 60 - istMinuteOfDay + target) * 60 * 1000;
+    return remaining;
   }
 
   private async waLastDate(): Promise<string> {
@@ -246,15 +259,15 @@ class Scheduler {
   }
 
   private async scheduleTelegramNextDay() {
-    const msToMidnight = this.msUntilMidnightIST();
-    const nextMidnight = new Date(Date.now() + msToMidnight);
-    this.nextRunAt = nextMidnight;
-    log(`[Scheduler] Next Telegram batch in ${Math.round(msToMidnight / 60000)} min (midnight IST)`);
+    const msTo3AM = this.msUntil3AMIST();
+    const next3AM = new Date(Date.now() + msTo3AM);
+    this.nextRunAt = next3AM;
+    log(`[Scheduler] Next Telegram batch in ${Math.round(msTo3AM / 60000)} min (3:00 AM IST)`);
     if (this.intervalId) clearTimeout(this.intervalId as unknown as NodeJS.Timeout);
     this.intervalId = setTimeout(async () => {
       await this.runBatch();
       await this.scheduleTelegramNextDay();
-    }, msToMidnight) as unknown as NodeJS.Timeout;
+    }, msTo3AM) as unknown as NodeJS.Timeout;
   }
 
   stop() {
