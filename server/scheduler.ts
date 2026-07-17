@@ -10,11 +10,11 @@ import { existsSync } from "fs";
 
 export const ADMIN_USER_ID = "admin-scheduler";
 
-// Telegram: 13 products × every 60 min × 24 h = 312/day
-const PRODUCTS_PER_BATCH   = 13;
-const BATCH_INTERVAL_MS    = 60 * 60 * 1000;   // 60 minutes
+// Telegram: 300 products sent ALL AT ONCE, once per day
+const PRODUCTS_PER_BATCH   = 300;
+const TG_SEND_DELAY_MS     = 800;   // 800ms between sends (~4 min for 300 msgs)
 
-// WhatsApp: 30 messages generated automatically once per day
+// WhatsApp: exactly 30 messages generated automatically once per day
 const WHATSAPP_BATCH_SIZE  = 30;
 const WA_DATE_FILE         = "./whatsapp-last-batch-date.txt";
 
@@ -154,10 +154,9 @@ class Scheduler {
       spreadsheetId: config.spreadsheetId || null,
     });
 
-    log("[Scheduler] Starting — first Telegram batch running now...");
+    log("[Scheduler] Starting — sending all 300 Telegram messages now...");
     await this.runBatch();
-    this.intervalId = setInterval(() => this.runBatch(), BATCH_INTERVAL_MS);
-    this.nextRunAt = new Date(Date.now() + BATCH_INTERVAL_MS);
+    await this.scheduleTelegramNextDay();
 
     // Daily WhatsApp batch — run immediately if not yet done today, then repeat every 24 h
     await this.scheduleWhatsAppBatch();
@@ -235,9 +234,21 @@ class Scheduler {
     log(`[Scheduler] WhatsApp premium batch done: ${generated} messages stored`);
   }
 
+  private async scheduleTelegramNextDay() {
+    const msToMidnight = this.msUntilMidnightIST();
+    const nextMidnight = new Date(Date.now() + msToMidnight);
+    this.nextRunAt = nextMidnight;
+    log(`[Scheduler] Next Telegram batch in ${Math.round(msToMidnight / 60000)} min (midnight IST)`);
+    if (this.intervalId) clearTimeout(this.intervalId as unknown as NodeJS.Timeout);
+    this.intervalId = setTimeout(async () => {
+      await this.runBatch();
+      await this.scheduleTelegramNextDay();
+    }, msToMidnight) as unknown as NodeJS.Timeout;
+  }
+
   stop() {
-    if (this.intervalId)   { clearInterval(this.intervalId);   this.intervalId   = null; }
-    if (this.waIntervalId) { clearTimeout(this.waIntervalId);  this.waIntervalId = null; }
+    if (this.intervalId)   { clearTimeout(this.intervalId as unknown as NodeJS.Timeout); this.intervalId = null; }
+    if (this.waIntervalId) { clearTimeout(this.waIntervalId); this.waIntervalId = null; }
     this.isRunning = false;
     this.nextRunAt = null;
     clearSchedulerConfig();
@@ -270,133 +281,118 @@ class Scheduler {
     if (!this.config) return;
     const { affiliateTag, telegramBotToken, telegramChannelId, spreadsheetId } = this.config;
 
-    const categoryIds = categories.map(c => c.id);
-    const useHot = this.categoryIndex % 4 === 0;
-    const category = useHot ? "hot" : categoryIds[this.categoryIndex % categoryIds.length];
-    this.categoryIndex++;
+    log(`[Scheduler] Starting full Telegram batch — collecting up to ${PRODUCTS_PER_BATCH} products...`);
 
-    log(`[Scheduler] Batch — category: "${category}"`);
+    const collectedProducts: typeof categories[0] extends { id: string } ? any[] : any[] = [];
+    let totalSkipped = 0;
 
-    try {
-      const rawProducts = useHot
-        ? await discoverHotDeals(PRODUCTS_PER_BATCH)
-        : await discoverProducts(category, PRODUCTS_PER_BATCH);
-
-      if (!rawProducts?.length) {
-        log("[Scheduler] No products found, skipping");
-        this.lastBatchSuccess = false;
-        this.lastRunAt = new Date();
-        this.nextRunAt = new Date(Date.now() + BATCH_INTERVAL_MS);
-        return;
-      }
-
-      const products = [];
-      let skipped = 0;
-      for (const p of rawProducts) {
-        if (p.asin) {
-          const seen = await wasRecentlyPosted(p.asin);
-          if (seen) {
-            skipped++;
-            log(`[Scheduler] Skipping ${p.asin} — already posted`);
-            continue;
-          }
-        } else {
-          const seen = await wasTitlePosted(p.title);
-          if (seen) {
-            skipped++;
-            log(`[Scheduler] Skipping "${p.title.slice(0, 50)}" (no ASIN) — already posted`);
-            continue;
-          }
-        }
-        products.push(p);
-      }
-      this.lastBatchSkipped = skipped;
-      if (skipped > 0) log(`[Scheduler] Deduplication: ${skipped} skipped, ${products.length} new`);
-
-      if (!products.length) {
-        log("[Scheduler] All products in this batch were duplicates — skipping");
-        this.lastBatchCount = 0;
-        this.lastBatchSuccess = true;
-        this.lastRunAt = new Date();
-        this.nextRunAt = new Date(Date.now() + BATCH_INTERVAL_MS);
-        return;
-      }
-
-      let tgSent = 0;
-
-      for (const product of products) {
-        const telegramMessage = generateTelegramMessageFromDiscovered(product, affiliateTag);
-        const whatsappMessage = generateWhatsAppMessageFromDiscovered(product, affiliateTag);
-
-        // Send to Telegram
-        if (telegramBotToken && telegramChannelId) {
-          try {
-            const ok = await sendTelegramMessage(telegramBotToken, telegramChannelId, telegramMessage);
-            if (ok) { tgSent++; this.telegramSent++; }
-          } catch (e) { log(`[Scheduler] Telegram error: ${e}`); }
-          await sleep(2000);
-        }
-
-        // Google Sheets
-        if (spreadsheetId) {
-          try {
-            await appendToSheet(spreadsheetId, {
-              timestamp: new Date().toISOString(),
-              productTitle: product.title,
-              price: product.price,
-              rating: `${product.rating}/5`,
-              productUrl: `${product.url}?tag=${affiliateTag}`,
-              whatsappMessage,
-              telegramMessage,
-              affiliateTag,
-            });
-          } catch {}
-        }
-
-        // Store in automations log
+    // Cycle through all categories (+ hot deals) multiple times to fill 300
+    const allCategoryIds = [...categories.map(c => c.id), "hot"];
+    // Try each category up to 3 rounds to reach the target
+    outer: for (let round = 0; round < 3; round++) {
+      for (const cat of allCategoryIds) {
+        if (collectedProducts.length >= PRODUCTS_PER_BATCH) break outer;
+        const needed = PRODUCTS_PER_BATCH - collectedProducts.length;
+        const fetchCount = Math.min(needed + 5, 15);
+        log(`[Scheduler] Scraping "${cat}" (round ${round + 1}) — need ${needed} more`);
         try {
-          await storage.createAutomation({
-            userId: ADMIN_USER_ID,
-            productUrl: product.url,
+          const rawProducts = cat === "hot"
+            ? await discoverHotDeals(fetchCount)
+            : await discoverProducts(cat, fetchCount);
+
+          for (const p of (rawProducts || [])) {
+            if (collectedProducts.length >= PRODUCTS_PER_BATCH) break;
+            if (p.asin) {
+              if (await wasRecentlyPosted(p.asin)) { totalSkipped++; continue; }
+            } else {
+              if (await wasTitlePosted(p.title)) { totalSkipped++; continue; }
+            }
+            collectedProducts.push(p);
+          }
+          await sleep(800);
+        } catch (err) {
+          log(`[Scheduler] Scrape error for "${cat}": ${err}`);
+        }
+      }
+    }
+
+    if (totalSkipped > 0) log(`[Scheduler] Dedup: ${totalSkipped} skipped, ${collectedProducts.length} new`);
+
+    if (!collectedProducts.length) {
+      log("[Scheduler] No new products found — all were duplicates or scraping failed");
+      this.lastBatchCount = 0;
+      this.lastBatchSuccess = false;
+      this.lastRunAt = new Date();
+      return;
+    }
+
+    log(`[Scheduler] Sending ${collectedProducts.length} messages to Telegram...`);
+    let tgSent = 0;
+
+    for (const product of collectedProducts) {
+      const telegramMessage = generateTelegramMessageFromDiscovered(product, affiliateTag);
+      const whatsappMessage = generateWhatsAppMessageFromDiscovered(product, affiliateTag);
+
+      // Send to Telegram
+      if (telegramBotToken && telegramChannelId) {
+        try {
+          const ok = await sendTelegramMessage(telegramBotToken, telegramChannelId, telegramMessage);
+          if (ok) { tgSent++; this.telegramSent++; }
+        } catch (e) { log(`[Scheduler] Telegram error: ${e}`); }
+        await sleep(TG_SEND_DELAY_MS);
+      }
+
+      // Google Sheets
+      if (spreadsheetId) {
+        try {
+          await appendToSheet(spreadsheetId, {
+            timestamp: new Date().toISOString(),
             productTitle: product.title,
             price: product.price,
             rating: `${product.rating}/5`,
+            productUrl: `${product.url}?tag=${affiliateTag}`,
             whatsappMessage,
             telegramMessage,
             affiliateTag,
-            spreadsheetId: spreadsheetId || null,
           });
         } catch {}
-
-        const productInfo = {
-          title: product.title,
-          price: product.price,
-          originalPrice: (product as any).originalPrice || "",
-          discount: (product as any).discount || "",
-          rating: product.rating,
-          category: product.category,
-          url: product.url,
-        };
-        if (product.asin) {
-          await markAsPosted(product.asin, productInfo);
-        } else {
-          await markTitleAsPosted(productInfo);
-        }
       }
 
-      this.memoryCount = await getTotalMemoryCount();
-      this.increment(products.length);
-      this.lastBatchCount = products.length;
-      this.lastBatchSuccess = true;
-      this.lastRunAt = new Date();
-      this.nextRunAt = new Date(Date.now() + BATCH_INTERVAL_MS);
-      log(`[Scheduler] Done: ${products.length} sent | TG: ${tgSent} | Memory: ${this.memoryCount} ASINs`);
-    } catch (err) {
-      log(`[Scheduler] Batch error: ${err}`);
-      this.lastBatchSuccess = false;
-      this.lastRunAt = new Date();
-      this.nextRunAt = new Date(Date.now() + BATCH_INTERVAL_MS);
+      // Store in automations log
+      try {
+        await storage.createAutomation({
+          userId: ADMIN_USER_ID,
+          productUrl: product.url,
+          productTitle: product.title,
+          price: product.price,
+          rating: `${product.rating}/5`,
+          whatsappMessage,
+          telegramMessage,
+          affiliateTag,
+          spreadsheetId: spreadsheetId || null,
+        });
+      } catch {}
+
+      const productInfo = {
+        title: product.title,
+        price: product.price,
+        originalPrice: (product as any).originalPrice || "",
+        discount: (product as any).discount || "",
+        rating: product.rating,
+        category: product.category,
+        url: product.url,
+      };
+      if (product.asin) await markAsPosted(product.asin, productInfo);
+      else              await markTitleAsPosted(productInfo);
     }
+
+    this.memoryCount = await getTotalMemoryCount();
+    this.increment(collectedProducts.length);
+    this.lastBatchCount = collectedProducts.length;
+    this.lastBatchSkipped = totalSkipped;
+    this.lastBatchSuccess = true;
+    this.lastRunAt = new Date();
+    log(`[Scheduler] Batch complete: ${collectedProducts.length} processed | TG sent: ${tgSent} | Memory: ${this.memoryCount} ASINs`);
   }
 }
 
