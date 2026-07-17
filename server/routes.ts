@@ -246,19 +246,22 @@ export async function registerRoutes(
       const user = await storage.getUser(ADMIN_USER_ID);
       const spreadsheetId = user?.spreadsheetId || null;
 
-      const allCategoryIds = Object.keys(categorySearchTerms);
-      const PER_CATEGORY = 6;
+      // 7 product categories + 4 demographic groups = 11, ~3 per group = 30
+      const allGroups = [
+        ...Object.keys(categorySearchTerms),
+        "boys", "girls", "men", "women",
+      ];
+      const PER_GROUP = Math.ceil(30 / allGroups.length);
       const generated: { productTitle: string; category: string }[] = [];
 
-      for (const cat of allCategoryIds) {
+      for (const cat of allGroups) {
+        let groupCount = 0;
         try {
-          // Use premium search terms for exclusive expensive deals
-          const raw = await discoverPremiumProducts(cat, PER_CATEGORY);
+          const raw = await discoverPremiumProducts(cat, PER_GROUP + 3);
           for (const product of raw) {
             if (generated.length >= 30) break;
-            // Quality filter — skip cheap or low-discount products
+            if (groupCount >= PER_GROUP) break;
             if (!isPremiumDeal(product.price, product.discount || "")) continue;
-            // Lifetime dedup
             if (product.asin) {
               if (await wasRecentlyPosted(product.asin)) continue;
             } else {
@@ -284,6 +287,7 @@ export async function registerRoutes(
             else await markTitleAsPosted(pInfo);
 
             generated.push({ productTitle: product.title, category: cat });
+            groupCount++;
             if (generated.length >= 30) break;
           }
           await new Promise(r => setTimeout(r, 1200));

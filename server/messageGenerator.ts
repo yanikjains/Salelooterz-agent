@@ -41,6 +41,10 @@ const categoryLabels: Record<string, string> = {
   fitness:     "💪 Premium Fitness Deal",
   kitchen:     "🍳 Premium Kitchen Deal",
   deals:       "🔥 Exclusive Hot Deal",
+  boys:        "🎮 Boys' Exclusive Deal",
+  girls:       "💅 Girls' Exclusive Deal",
+  men:         "👔 Men's Premium Deal",
+  women:       "👗 Women's Exclusive Deal",
 };
 
 const premiumClosings = [

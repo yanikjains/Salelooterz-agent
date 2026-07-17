@@ -192,14 +192,23 @@ class Scheduler {
     const catIds = Object.keys(categorySearchTerms);
     let generated = 0;
 
-    log("[Scheduler] Running daily WhatsApp PREMIUM batch...");
-    for (const cat of catIds) {
+    // All groups: 7 product categories + 4 demographic groups = 11 total
+    // ~3 products per group = ~33, capped at WHATSAPP_BATCH_SIZE (30)
+    const allGroups = [
+      ...Object.keys(categorySearchTerms),   // electronics, mobile, home, fashion, beauty, fitness, kitchen
+      "boys", "girls", "men", "women",       // demographic groups
+    ];
+    const perGroup = Math.ceil(WHATSAPP_BATCH_SIZE / allGroups.length); // ~3
+
+    log(`[Scheduler] Running daily WhatsApp PREMIUM batch — ${allGroups.length} groups, ~${perGroup} each...`);
+    for (const cat of allGroups) {
       if (generated >= WHATSAPP_BATCH_SIZE) break;
       try {
-        // Use premium search terms for expensive products
-        const raw = await discoverPremiumProducts(cat, 6);
+        const raw = await discoverPremiumProducts(cat, perGroup + 3);
+        let groupCount = 0;
         for (const product of raw) {
           if (generated >= WHATSAPP_BATCH_SIZE) break;
+          if (groupCount >= perGroup) break;
           // Quality filter — skip cheap or low-discount products
           if (!isPremiumDeal(product.price, product.discount || "")) continue;
           // Lifetime dedup
@@ -224,7 +233,9 @@ class Scheduler {
           else              await markTitleAsPosted(pInfo);
 
           generated++;
+          groupCount++;
         }
+        log(`[Scheduler] WhatsApp group "${cat}": ${groupCount} products added`);
         await sleep(1500);
       } catch { continue; }
     }
