@@ -466,7 +466,7 @@ function Dashboard() {
                             <Copy className="w-2.5 h-2.5" />
                           </button>
                         </div>
-                        <a href={`${item.productUrl}?tag=${item.affiliateTag}`} target="_blank" rel="noopener noreferrer"
+                        <a href={item.productUrl} target="_blank" rel="noopener noreferrer"
                           className="flex items-center gap-1 text-[11px] text-white/25 hover:text-green-400/60 transition-colors">
                           <ExternalLink className="w-2.5 h-2.5" />View on Amazon
                         </a>
@@ -536,7 +536,7 @@ function Dashboard() {
                           </span>
                         </div>
                       </div>
-                      <a href={`${item.productUrl}?tag=${item.affiliateTag}`} target="_blank" rel="noopener noreferrer"
+                      <a href={item.productUrl} target="_blank" rel="noopener noreferrer"
                         className="shrink-0 flex items-center gap-1 text-[10px] text-white/20 hover:text-green-400/60 transition-colors">
                         <ExternalLink className="w-3 h-3" />
                       </a>
