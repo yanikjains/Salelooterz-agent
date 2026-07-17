@@ -294,7 +294,9 @@ class Scheduler {
 
     log(`[Scheduler] Starting full Telegram batch — collecting up to ${PRODUCTS_PER_BATCH} products...`);
 
-    const collectedProducts: typeof categories[0] extends { id: string } ? any[] : any[] = [];
+    const collectedProducts: any[] = [];
+    // Local dedup within THIS batch run (before markAsPosted is called)
+    const seenInBatch = new Set<string>();
     let totalSkipped = 0;
 
     // Cycle through all categories (+ hot deals) multiple times to fill 300
@@ -313,11 +315,15 @@ class Scheduler {
 
           for (const p of (rawProducts || [])) {
             if (collectedProducts.length >= PRODUCTS_PER_BATCH) break;
+            // Deduplicate: check both persistent memory AND current batch
+            const key = p.asin || `title:${p.title.toLowerCase().trim().slice(0, 80)}`;
+            if (seenInBatch.has(key)) { totalSkipped++; continue; }
             if (p.asin) {
               if (await wasRecentlyPosted(p.asin)) { totalSkipped++; continue; }
             } else {
               if (await wasTitlePosted(p.title)) { totalSkipped++; continue; }
             }
+            seenInBatch.add(key);
             collectedProducts.push(p);
           }
           await sleep(800);
