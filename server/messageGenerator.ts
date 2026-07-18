@@ -120,14 +120,14 @@ function parsePriceNum(price: string): number {
   return parseInt(price.replace(/[₹,\s]/g, '').replace(/[^0-9]/g, '')) || 0;
 }
 
-/** Returns true if product meets the premium WhatsApp quality bar */
+/** Returns true if product meets the LUXURY WhatsApp quality bar (expensive products only) */
 export function isPremiumDeal(price: string, discount: string): boolean {
   const priceNum    = parsePriceNum(price);
   const discountPct = parseInt(discount.match(/(\d+)/)?.[1] || '0');
-  if (priceNum < 999)  return false;   // skip anything under ₹999
-  if (priceNum >= 20000) return true;  // expensive items are always worth sharing
-  if (priceNum >= 5000)  return discountPct >= 10;  // ₹5k+ needs ≥10% off
-  return discountPct >= 20;            // cheaper items need ≥20% off
+  if (priceNum < 5000)   return false;   // minimum ₹5,000 — no cheap products on WhatsApp
+  if (priceNum >= 50000) return true;    // ₹50k+ always share regardless of discount
+  if (priceNum >= 15000) return discountPct >= 8;   // ₹15k–₹50k: needs ≥8% off
+  return discountPct >= 12;                          // ₹5k–₹15k: needs ≥12% off
 }
 
 export function generatePersonalizedWhatsAppMessage(
