@@ -13,6 +13,8 @@ import { log } from "./index";
 const MEMORY_FILE = "./asin-memory.json";
 const TITLE_MEMORY_FILE = "./title-memory.json";
 
+const THREE_MONTHS_MS = 90 * 24 * 60 * 60 * 1000; // 90 days
+
 export interface ProductRecord {
   title: string;
   price: string;
@@ -23,6 +25,7 @@ export interface ProductRecord {
   category: string;
   url: string;
   firstSeenAt: string;
+  lastPostedAt: string;      // updated every time product is posted
   timesPosted: number;
 }
 
@@ -55,6 +58,7 @@ export async function initAsinMemory(): Promise<void> {
       const parsed = JSON.parse(raw);
       // migrate old format (title/firstSeenAt/timesPosted only)
       for (const [k, v] of Object.entries(parsed as Record<string, any>)) {
+        const firstSeen = v.firstSeenAt ?? new Date().toISOString();
         store[k] = {
           title:        v.title        ?? "",
           price:        v.price        ?? "",
@@ -64,7 +68,8 @@ export async function initAsinMemory(): Promise<void> {
           rating:       v.rating       ?? 0,
           category:     v.category     ?? "",
           url:          v.url          ?? "",
-          firstSeenAt:  v.firstSeenAt  ?? new Date().toISOString(),
+          firstSeenAt:  firstSeen,
+          lastPostedAt: v.lastPostedAt ?? firstSeen,  // migrate: use firstSeenAt as fallback
           timesPosted:  v.timesPosted  ?? 1,
         };
       }
@@ -82,10 +87,14 @@ export async function initAsinMemory(): Promise<void> {
       // migrate old format (array of strings)
       if (Array.isArray(parsed)) {
         for (const t of parsed as string[]) {
-          titleStore[t] = { title: t, price: "", originalPrice: "", discount: "", discountPct: 0, rating: 0, category: "", url: "", firstSeenAt: new Date().toISOString(), timesPosted: 1 };
+          const now = new Date().toISOString();
+          titleStore[t] = { title: t, price: "", originalPrice: "", discount: "", discountPct: 0, rating: 0, category: "", url: "", firstSeenAt: now, lastPostedAt: now, timesPosted: 1 };
         }
       } else {
-        titleStore = parsed as TitleStore;
+        for (const [k, v] of Object.entries(parsed as Record<string, any>)) {
+          const firstSeen = v.firstSeenAt ?? new Date().toISOString();
+          titleStore[k] = { ...v, firstSeenAt: firstSeen, lastPostedAt: v.lastPostedAt ?? firstSeen };
+        }
       }
       log(`[AsinMemory] Loaded ${Object.keys(titleStore).length} titles from disk`);
     }
@@ -119,12 +128,20 @@ function scheduleTitleSave() {
   }, 5000);
 }
 
+/** Returns true if this ASIN was posted within the last 3 months */
 export async function wasRecentlyPosted(asin: string): Promise<boolean> {
-  return !!store[asin];
+  const record = store[asin];
+  if (!record) return false;
+  const msSinceLastPost = Date.now() - new Date(record.lastPostedAt).getTime();
+  return msSinceLastPost < THREE_MONTHS_MS;
 }
 
+/** Returns true if this title was posted within the last 3 months */
 export async function wasTitlePosted(title: string): Promise<boolean> {
-  return !!titleStore[normalizeTitle(title)];
+  const record = titleStore[normalizeTitle(title)];
+  if (!record) return false;
+  const msSinceLastPost = Date.now() - new Date(record.lastPostedAt).getTime();
+  return msSinceLastPost < THREE_MONTHS_MS;
 }
 
 export interface ProductInfo {
@@ -141,6 +158,7 @@ export async function markAsPosted(asin: string, product: ProductInfo): Promise<
   const now = new Date().toISOString();
   const existing = store[asin];
   store[asin] = {
+    // Always overwrite with CURRENT details — so re-posts after 3 months use fresh data
     title:         product.title,
     price:         product.price,
     originalPrice: product.originalPrice,
@@ -149,7 +167,8 @@ export async function markAsPosted(asin: string, product: ProductInfo): Promise<
     rating:        product.rating,
     category:      product.category,
     url:           product.url,
-    firstSeenAt:   existing?.firstSeenAt ?? now,
+    firstSeenAt:   existing?.firstSeenAt ?? now,  // never change first-seen date
+    lastPostedAt:  now,                            // always stamp the current post time
     timesPosted:   (existing?.timesPosted ?? 0) + 1,
   };
   scheduleSave();
@@ -160,6 +179,7 @@ export async function markTitleAsPosted(product: ProductInfo): Promise<void> {
   const now = new Date().toISOString();
   const existing = titleStore[key];
   titleStore[key] = {
+    // Always overwrite with CURRENT details — so re-posts after 3 months use fresh data
     title:         product.title,
     price:         product.price,
     originalPrice: product.originalPrice,
@@ -168,7 +188,8 @@ export async function markTitleAsPosted(product: ProductInfo): Promise<void> {
     rating:        product.rating,
     category:      product.category,
     url:           product.url,
-    firstSeenAt:   existing?.firstSeenAt ?? now,
+    firstSeenAt:   existing?.firstSeenAt ?? now,  // never change first-seen date
+    lastPostedAt:  now,                            // always stamp the current post time
     timesPosted:   (existing?.timesPosted ?? 0) + 1,
   };
   scheduleTitleSave();
