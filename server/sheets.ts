@@ -165,6 +165,87 @@ export async function createNewSheet(title: string) {
   return response.data.spreadsheetId!;
 }
 
+export interface WhatsAppRow {
+  category: string;
+  productTitle: string;
+  price: string;
+  discount: string;
+  productUrl: string;
+  message: string;
+}
+
+/**
+ * Writes a daily WhatsApp batch to a dedicated "WhatsApp" tab in the spreadsheet.
+ * Creates the tab with headers if it doesn't exist yet.
+ * Inserts a date-separator row at the top of each batch so messages are easy to find by date.
+ */
+export async function appendWhatsAppBatchToSheet(
+  spreadsheetId: string,
+  rows: WhatsAppRow[]
+): Promise<void> {
+  if (!spreadsheetId || !rows.length) return;
+
+  const sheets = await getUncachableGoogleSheetClient();
+  const TAB = "WhatsApp Messages";
+
+  // ── 1. Ensure the tab exists ──────────────────────────────────────────────
+  try {
+    await sheets.spreadsheets.values.get({
+      spreadsheetId,
+      range: `'${TAB}'!A1`,
+    });
+  } catch {
+    // Tab missing — create it with a header row
+    await sheets.spreadsheets.batchUpdate({
+      spreadsheetId,
+      requestBody: {
+        requests: [{ addSheet: { properties: { title: TAB } } }],
+      },
+    });
+    await sheets.spreadsheets.values.update({
+      spreadsheetId,
+      range: `'${TAB}'!A1:F1`,
+      valueInputOption: "RAW",
+      requestBody: {
+        values: [["Date & Time (IST)", "Category", "Product", "Price", "Discount", "Amazon URL", "WhatsApp Message"]],
+      },
+    });
+  }
+
+  // ── 2. Build rows ─────────────────────────────────────────────────────────
+  const nowIST = new Date().toLocaleString("en-IN", {
+    timeZone: "Asia/Kolkata",
+    day: "numeric", month: "short", year: "numeric",
+    hour: "2-digit", minute: "2-digit", hour12: true,
+  });
+  const dateLabel = new Date().toLocaleDateString("en-IN", {
+    timeZone: "Asia/Kolkata", day: "numeric", month: "long", year: "numeric",
+  });
+
+  // Date separator row
+  const separatorRow = [`══════ ${dateLabel} ══════`, "", "", "", "", "", ""];
+
+  const dataRows = rows.map(r => [
+    nowIST,
+    r.category,
+    r.productTitle,
+    r.price,
+    r.discount || "",
+    r.productUrl,
+    r.message,
+  ]);
+
+  // ── 3. Append to sheet ────────────────────────────────────────────────────
+  await sheets.spreadsheets.values.append({
+    spreadsheetId,
+    range: `'${TAB}'!A:G`,
+    valueInputOption: "RAW",
+    requestBody: { values: [separatorRow, ...dataRows] },
+  });
+
+  console.log(`✓ WhatsApp batch (${rows.length} msgs) written to Sheets tab "${TAB}"`);
+}
+
 export async function appendToMarketingSheet(email: string, name: string) {
   const sheets = await getUncachableGoogleSheetClient();
   

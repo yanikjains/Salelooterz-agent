@@ -5,7 +5,7 @@ import { discoverProducts, discoverPremiumProducts, discoverFromAllCategories, d
 import { isPremiumDeal } from "./messageGenerator";
 import { wasRecentlyPosted, wasTitlePosted, markAsPosted, markTitleAsPosted, getMemoryStats, parseDiscountPct } from "./asinMemory";
 import { generateWhatsAppMessageFromDiscovered, generateTelegramMessageFromDiscovered, generatePersonalizedWhatsAppMessage } from "./messageGenerator";
-import { appendToSheet } from "./sheets";
+import { appendToSheet, appendWhatsAppBatchToSheet, type WhatsAppRow } from "./sheets";
 import { z } from "zod";
 import { registerChatRoutes } from "./replit_integrations/chat";
 import { scheduler, ADMIN_USER_ID, type SchedulerConfig } from "./scheduler";
@@ -252,6 +252,7 @@ export async function registerRoutes(
         "boys", "girls", "men", "women",
       ];
       const PER_GROUP = Math.ceil(30 / allGroups.length);
+      const sheetRows: WhatsAppRow[] = [];
       const generated: { productTitle: string; category: string }[] = [];
 
       for (const cat of allGroups) {
@@ -259,8 +260,7 @@ export async function registerRoutes(
         try {
           const raw = await discoverPremiumProducts(cat, PER_GROUP + 3);
           for (const product of raw) {
-            if (generated.length >= 30) break;
-            if (groupCount >= PER_GROUP) break;
+            if (generated.length >= 30 || groupCount >= PER_GROUP) break;
             if (!isPremiumDeal(product.price, product.discount || "")) continue;
             if (product.asin) {
               if (await wasRecentlyPosted(product.asin)) continue;
@@ -270,16 +270,13 @@ export async function registerRoutes(
 
             const whatsappMessage = generatePersonalizedWhatsAppMessage(product, affiliateTag, cat);
 
-            await storage.createAutomation({
-              userId: ADMIN_USER_ID,
-              productUrl: product.url,
+            sheetRows.push({
+              category: cat,
               productTitle: product.title,
               price: product.price,
-              rating: `${product.rating}/5`,
-              whatsappMessage,
-              telegramMessage: "",
-              affiliateTag,
-              spreadsheetId: spreadsheetId || null,
+              discount: (product as any).discount || "",
+              productUrl: `${product.url}?tag=${affiliateTag}`,
+              message: whatsappMessage,
             });
 
             const pInfo = { title: product.title, price: product.price, originalPrice: (product as any).originalPrice || "", discount: (product as any).discount || "", rating: product.rating, category: cat, url: product.url };
@@ -288,7 +285,6 @@ export async function registerRoutes(
 
             generated.push({ productTitle: product.title, category: cat });
             groupCount++;
-            if (generated.length >= 30) break;
           }
           await new Promise(r => setTimeout(r, 1200));
         } catch {
@@ -297,7 +293,16 @@ export async function registerRoutes(
         if (generated.length >= 30) break;
       }
 
-      res.json({ success: true, count: generated.length, categories: [...new Set(generated.map(g => g.category))] });
+      // Export all messages to the "WhatsApp Messages" tab in Google Sheets
+      if (sheetRows.length && spreadsheetId) {
+        try {
+          await appendWhatsAppBatchToSheet(spreadsheetId, sheetRows);
+        } catch (err) {
+          console.error("WhatsApp Sheets export error:", err);
+        }
+      }
+
+      res.json({ success: true, count: generated.length, categories: [...new Set(generated.map(g => g.category))], sheetExported: !!(sheetRows.length && spreadsheetId) });
     } catch (err) {
       res.status(500).json({ success: false, error: err instanceof Error ? err.message : "Unknown error" });
     }

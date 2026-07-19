@@ -159,8 +159,7 @@ function PinScreen({ onVerified }: { onVerified: () => void }) {
 function Dashboard() {
   const [status, setStatus] = useState<SchedulerStatus | null>(null);
   const [acting, setActing] = useState(false);
-  const [tab, setTab] = useState<"control" | "whatsapp" | "settings">("control");
-  const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [tab, setTab] = useState<"control" | "settings">("control");
   const [generatingBatch, setGeneratingBatch] = useState(false);
   const [countdown, setCountdown] = useState("—");
 
@@ -255,12 +254,6 @@ function Dashboard() {
   };
 
   const copy = (t: string) => { navigator.clipboard.writeText(t); toast({ title: "Copied" }); };
-  const copyWA = (t: string, id: number) => {
-    navigator.clipboard.writeText(t);
-    setCopiedId(id);
-    toast({ title: "Copied — paste it into WhatsApp!" });
-    setTimeout(() => setCopiedId(prev => prev === id ? null : prev), 2000);
-  };
 
   const handleGenerateBatch = async () => {
     setGeneratingBatch(true);
@@ -268,8 +261,10 @@ function Dashboard() {
       const r = await fetch("/api/admin/whatsapp-batch", { method: "POST" });
       const d = await r.json();
       if (d.success) {
-        toast({ title: `✅ ${d.count} messages generated`, description: `Categories: ${d.categories?.join(", ") || "all"}` });
-        await fetchStatus();
+        toast({
+          title: `✅ ${d.count} WhatsApp messages exported`,
+          description: d.sheetExported ? "Open your Google Sheet → 'WhatsApp Messages' tab" : "Configure Sheet ID in Settings to export",
+        });
       } else {
         toast({ title: "Failed", description: d.error, variant: "destructive" });
       }
@@ -327,15 +322,6 @@ function Dashboard() {
           <button onClick={() => setTab("control")}
             className={`flex items-center gap-1.5 px-5 py-2 rounded-[10px] text-xs font-semibold transition-all ${tab === "control" ? "bg-white text-black shadow" : "text-white/35 hover:text-white"}`}>
             <Zap className="w-3 h-3" />Control
-          </button>
-          <button onClick={() => setTab("whatsapp")}
-            className={`flex items-center gap-1.5 px-5 py-2 rounded-[10px] text-xs font-semibold transition-all ${tab === "whatsapp" ? "bg-white text-black shadow" : "text-white/35 hover:text-white"}`}>
-            <MessageCircle className="w-3 h-3" />WhatsApp
-            {!!status?.recentAutomations?.filter(a => a.whatsappMessage).length && (
-              <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold ${tab === "whatsapp" ? "bg-black/15 text-black/60" : "bg-green-500/15 text-green-400"}`}>
-                {status.recentAutomations.filter(a => a.whatsappMessage).length}
-              </span>
-            )}
           </button>
           <button onClick={() => setTab("settings")}
             className={`flex items-center gap-1.5 px-5 py-2 rounded-[10px] text-xs font-semibold transition-all ${tab === "settings" ? "bg-white text-black shadow" : "text-white/35 hover:text-white"}`}>
@@ -412,9 +398,46 @@ function Dashboard() {
             {/* Schedule chips */}
             <div className="flex flex-wrap items-center gap-2 px-1">
               <span className="text-[10px] font-bold uppercase tracking-widest text-white/15">Schedule</span>
-              {["Every 60 min", "13 products / batch", "13 / hour", "~312 Telegram/day", "30 WhatsApp/day"].map((t, i) => (
+              {["3 AM IST Telegram", "300 msgs / day", "Midnight IST WhatsApp", "30 msgs / day"].map((t, i) => (
                 <span key={i} className="text-[11px] px-2.5 py-1 rounded-lg border border-white/[0.07] text-white/30">{t}</span>
               ))}
+            </div>
+
+            {/* WhatsApp → Google Sheets card */}
+            <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <div className="flex items-center gap-2">
+                  <MessageCircle className="w-4 h-4 text-green-400/70" />
+                  <div>
+                    <p className="text-xs font-bold text-white">WhatsApp Messages</p>
+                    <p className="text-[11px] text-white/30 mt-0.5">Auto-exported to Google Sheets every midnight IST · date-organised</p>
+                  </div>
+                </div>
+                {sheetId.trim() && (
+                  <a
+                    href={`https://docs.google.com/spreadsheets/d/${sheetId.trim()}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 flex items-center gap-1.5 h-8 px-3 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 hover:bg-green-500/20 transition-colors text-[11px] font-semibold"
+                  >
+                    <FileSpreadsheet className="w-3 h-3" />Open Sheet
+                  </a>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleGenerateBatch}
+                  disabled={generatingBatch}
+                  className="flex items-center gap-1.5 h-8 px-4 rounded-lg border border-white/[0.07] text-white/40 hover:text-white hover:border-white/20 text-xs font-semibold transition-colors disabled:opacity-40"
+                >
+                  {generatingBatch ? <><Loader2 className="w-3 h-3 animate-spin" />Generating…</> : <><RefreshCw className="w-3 h-3" />Generate Now</>}
+                </button>
+                {!sheetId.trim() && (
+                  <p className="text-[10px] text-white/20 flex items-center gap-1">
+                    <AlertCircle className="w-2.5 h-2.5" />Add Sheet ID in Settings to enable export
+                  </p>
+                )}
+              </div>
             </div>
 
             {/* Live Feed */}
@@ -476,90 +499,6 @@ function Dashboard() {
                 )
               )}
             </div>
-          </div>
-        )}
-
-        {/* WhatsApp Queue Tab */}
-        {tab === "whatsapp" && (
-          <div className="space-y-3">
-            {/* Header row */}
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-sm font-bold text-white">WhatsApp Queue</h2>
-                <p className="text-[11px] text-white/30 mt-0.5">
-                  {new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" })}
-                  {" · "}Copy messages and paste into WhatsApp manually
-                </p>
-              </div>
-              <button onClick={fetchStatus} className="shrink-0 w-7 h-7 flex items-center justify-center rounded-lg text-white/25 hover:text-white hover:bg-white/5 transition-colors">
-                <RefreshCw className="w-3 h-3" />
-              </button>
-            </div>
-
-            {/* Generate batch button */}
-            <div className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-4 flex flex-col sm:flex-row items-start sm:items-center gap-3">
-              <div className="flex-1">
-                <p className="text-xs font-semibold text-white">Generate Today's Batch</p>
-                <p className="text-[11px] text-white/30 mt-0.5">Scrapes ~4 best products from all 7 categories (25–30 messages total) with personalized messages &amp; today's date</p>
-              </div>
-              <button
-                onClick={handleGenerateBatch}
-                disabled={generatingBatch}
-                className="shrink-0 btn-primary rounded-lg h-9 px-5 text-xs font-bold flex items-center gap-2 disabled:opacity-50 shadow-lg shadow-green-900/30"
-              >
-                {generatingBatch ? <><Loader2 className="w-3.5 h-3.5 animate-spin" />Scraping all categories…</> : <><MessageCircle className="w-3.5 h-3.5" />Generate Batch</>}
-              </button>
-            </div>
-
-            {!status?.recentAutomations?.filter(a => a.whatsappMessage).length ? (
-              <div className="border border-white/[0.05] rounded-xl p-12 text-center">
-                <MessageCircle className="w-6 h-6 text-white/10 mx-auto mb-3" />
-                <p className="text-xs text-white/25">No WhatsApp messages yet</p>
-                <p className="text-[11px] text-white/15 mt-1">Click "Generate Batch" above to create today's 25–30 messages</p>
-              </div>
-            ) : (
-              <div className="space-y-2.5">
-                {status!.recentAutomations.filter(a => a.whatsappMessage).map(item => (
-                  <div key={item.id} className="border border-white/[0.07] rounded-xl p-4 hover:border-white/12 transition-colors">
-                    {/* Product info header */}
-                    <div className="flex items-start justify-between gap-3 mb-3">
-                      <div className="flex-1 min-w-0">
-                        <h4 className="text-xs font-semibold text-white line-clamp-1 leading-snug">{item.productTitle}</h4>
-                        <div className="flex items-center gap-3 mt-1">
-                          <span className="text-sm font-black text-green-400">₹{item.price}</span>
-                          <span className="text-[10px] text-white/25 flex items-center gap-1">
-                            <Star className="w-2.5 h-2.5 fill-white/20" />{item.rating}
-                          </span>
-                          <span className="text-[10px] text-white/20 flex items-center gap-1">
-                            <Clock className="w-2.5 h-2.5" />
-                            {new Date(item.createdAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
-                          </span>
-                        </div>
-                      </div>
-                      <a href={item.productUrl} target="_blank" rel="noopener noreferrer"
-                        className="shrink-0 flex items-center gap-1 text-[10px] text-white/20 hover:text-green-400/60 transition-colors">
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
-                    </div>
-
-                    {/* Message box */}
-                    <div className="relative">
-                      <pre className="text-[11px] p-3 bg-white/[0.025] border border-white/[0.05] rounded-lg whitespace-pre-wrap text-white/50 font-mono leading-relaxed max-h-36 overflow-y-auto pr-8">{item.whatsappMessage}</pre>
-                      <button
-                        onClick={() => copyWA(item.whatsappMessage, item.id)}
-                        className={`absolute top-2 right-2 flex items-center gap-1 px-2 h-6 rounded-md text-[10px] font-semibold transition-all ${
-                          copiedId === item.id
-                            ? "bg-green-500/20 text-green-400 border border-green-500/30"
-                            : "bg-white/5 hover:bg-white/10 text-white/35 hover:text-white border border-white/[0.07]"
-                        }`}
-                      >
-                        {copiedId === item.id ? <><Check className="w-2.5 h-2.5" />Copied!</> : <><Copy className="w-2.5 h-2.5" />Copy</>}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         )}
 

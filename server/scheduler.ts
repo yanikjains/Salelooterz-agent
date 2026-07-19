@@ -1,7 +1,7 @@
 import { discoverProducts, discoverPremiumProducts, discoverHotDeals, categories, categorySearchTerms } from "./productDiscovery";
 import { generateTelegramMessageFromDiscovered, generateWhatsAppMessageFromDiscovered, generatePersonalizedWhatsAppMessage, isPremiumDeal } from "./messageGenerator";
 import { sendTelegramMessage } from "./telegram";
-import { appendToSheet } from "./sheets";
+import { appendToSheet, appendWhatsAppBatchToSheet, type WhatsAppRow } from "./sheets";
 import { storage } from "./storage";
 import { wasRecentlyPosted, wasTitlePosted, markAsPosted, markTitleAsPosted, getTotalMemoryCount } from "./asinMemory";
 import { log } from "./index";
@@ -199,47 +199,43 @@ class Scheduler {
 
   private async runWhatsAppBatch() {
     if (!this.config) return;
-    const { affiliateTag } = this.config;
+    const { affiliateTag, spreadsheetId: configSheetId } = this.config;
     const user = await storage.getUser(ADMIN_USER_ID).catch(() => null);
-    const spreadsheetId = user?.spreadsheetId || null;
-    const catIds = Object.keys(categorySearchTerms);
-    let generated = 0;
+    const spreadsheetId = configSheetId || user?.spreadsheetId || null;
 
     // All groups: 7 product categories + 4 demographic groups = 11 total
-    // ~3 products per group = ~33, capped at WHATSAPP_BATCH_SIZE (30)
     const allGroups = [
-      ...Object.keys(categorySearchTerms),   // electronics, mobile, home, fashion, beauty, fitness, kitchen
-      "boys", "girls", "men", "women",       // demographic groups
+      ...Object.keys(categorySearchTerms),
+      "boys", "girls", "men", "women",
     ];
-    const perGroup = Math.ceil(WHATSAPP_BATCH_SIZE / allGroups.length); // ~3
+    const perGroup = Math.ceil(WHATSAPP_BATCH_SIZE / allGroups.length);
 
     log(`[Scheduler] Running daily WhatsApp PREMIUM batch — ${allGroups.length} groups, ~${perGroup} each...`);
+
+    const sheetRows: WhatsAppRow[] = [];
+    let generated = 0;
+
     for (const cat of allGroups) {
       if (generated >= WHATSAPP_BATCH_SIZE) break;
       try {
         const raw = await discoverPremiumProducts(cat, perGroup + 3);
         let groupCount = 0;
         for (const product of raw) {
-          if (generated >= WHATSAPP_BATCH_SIZE) break;
-          if (groupCount >= perGroup) break;
-          // Quality filter — skip cheap or low-discount products
+          if (generated >= WHATSAPP_BATCH_SIZE || groupCount >= perGroup) break;
           if (!isPremiumDeal(product.price, product.discount || "")) continue;
-          // Lifetime dedup
           if (product.asin) { if (await wasRecentlyPosted(product.asin)) continue; }
           else              { if (await wasTitlePosted(product.title))    continue; }
 
           const whatsappMessage = generatePersonalizedWhatsAppMessage(product, affiliateTag, cat);
-          await storage.createAutomation({
-            userId: ADMIN_USER_ID,
-            productUrl: product.url,
+
+          sheetRows.push({
+            category: cat,
             productTitle: product.title,
             price: product.price,
-            rating: `${product.rating}/5`,
-            whatsappMessage,
-            telegramMessage: "",
-            affiliateTag,
-            spreadsheetId: spreadsheetId || null,
-          }).catch(() => {});
+            discount: (product as any).discount || "",
+            productUrl: `${product.url}?tag=${affiliateTag}`,
+            message: whatsappMessage,
+          });
 
           const pInfo = { title: product.title, price: product.price, originalPrice: (product as any).originalPrice || "", discount: (product as any).discount || "", rating: product.rating, category: cat, url: product.url };
           if (product.asin) await markAsPosted(product.asin, pInfo);
@@ -248,14 +244,26 @@ class Scheduler {
           generated++;
           groupCount++;
         }
-        log(`[Scheduler] WhatsApp group "${cat}": ${groupCount} products added`);
+        log(`[Scheduler] WhatsApp group "${cat}": ${groupCount} products`);
         await sleep(1500);
       } catch { continue; }
     }
 
+    // Write all messages to Google Sheets (date-organised tab)
+    if (sheetRows.length && spreadsheetId) {
+      try {
+        await appendWhatsAppBatchToSheet(spreadsheetId, sheetRows);
+        log(`[Scheduler] WhatsApp: ${sheetRows.length} messages exported to Google Sheets`);
+      } catch (err) {
+        log(`[Scheduler] WhatsApp Sheets export failed: ${err}`);
+      }
+    } else if (!spreadsheetId) {
+      log(`[Scheduler] WhatsApp: no Sheet ID configured — messages not exported`);
+    }
+
     this.waDailyCount = generated;
     await this.saveWaDate(this.todayIST());
-    log(`[Scheduler] WhatsApp premium batch done: ${generated} messages stored`);
+    log(`[Scheduler] WhatsApp premium batch done: ${generated} messages → Sheets`);
   }
 
   private async scheduleTelegramNextDay() {
