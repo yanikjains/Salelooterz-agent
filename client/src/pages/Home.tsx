@@ -4,7 +4,7 @@ import {
   Loader2, Zap, Send, TrendingUp, Settings, Play, Square,
   RefreshCw, Copy, ExternalLink, XCircle, Clock, Activity,
   Star, ChevronDown, ChevronUp, IndianRupee, FileSpreadsheet,
-  AlertCircle, Brain, MessageCircle, Check,
+  AlertCircle, Brain, MessageCircle, Check, Download,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import logo from "@assets/Salelooterz_logo_1780831157664.jpg";
@@ -261,9 +261,13 @@ function Dashboard() {
       const r = await fetch("/api/admin/whatsapp-batch", { method: "POST" });
       const d = await r.json();
       if (d.success) {
+        const lines: string[] = [];
+        if (d.fileSaved) lines.push("Saved locally — click Download Messages below");
+        if (d.sheetExported) lines.push("Also exported to Google Sheet ✓");
+        else if (!d.fileSaved) lines.push("Nothing saved — check affiliate tag");
         toast({
-          title: `✅ ${d.count} WhatsApp messages exported`,
-          description: d.sheetExported ? "Open your Google Sheet → 'WhatsApp Messages' tab" : "Configure Sheet ID in Settings to export",
+          title: `✅ ${d.count} WhatsApp messages generated`,
+          description: lines.join(" · "),
         });
       } else {
         toast({ title: "Failed", description: d.error, variant: "destructive" });
@@ -410,7 +414,7 @@ function Dashboard() {
                   <MessageCircle className="w-4 h-4 text-green-400/70" />
                   <div>
                     <p className="text-xs font-bold text-white">WhatsApp Messages</p>
-                    <p className="text-[11px] text-white/30 mt-0.5">Auto-exported to Google Sheets every midnight IST · date-organised</p>
+                    <p className="text-[11px] text-white/30 mt-0.5">Generated midnight IST · saved locally + Google Sheets</p>
                   </div>
                 </div>
                 {sheetId.trim() && (
@@ -424,7 +428,7 @@ function Dashboard() {
                   </a>
                 )}
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   onClick={handleGenerateBatch}
                   disabled={generatingBatch}
@@ -432,11 +436,13 @@ function Dashboard() {
                 >
                   {generatingBatch ? <><Loader2 className="w-3 h-3 animate-spin" />Generating…</> : <><RefreshCw className="w-3 h-3" />Generate Now</>}
                 </button>
-                {!sheetId.trim() && (
-                  <p className="text-[10px] text-white/20 flex items-center gap-1">
-                    <AlertCircle className="w-2.5 h-2.5" />Add Sheet ID in Settings to enable export
-                  </p>
-                )}
+                <a
+                  href="/api/admin/whatsapp-messages/download"
+                  download
+                  className="flex items-center gap-1.5 h-8 px-4 rounded-lg bg-green-500/10 border border-green-500/20 text-green-400 hover:bg-green-500/20 transition-colors text-xs font-semibold"
+                >
+                  <Download className="w-3 h-3" />Download Messages
+                </a>
               </div>
             </div>
 

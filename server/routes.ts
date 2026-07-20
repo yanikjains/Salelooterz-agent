@@ -1,6 +1,8 @@
 import type { Express } from "express";
 import { type Server } from "http";
 import { storage } from "./storage";
+import fs from "fs";
+import path from "path";
 import { discoverProducts, discoverPremiumProducts, discoverFromAllCategories, discoverHotDeals, categories, categorySearchTerms } from "./productDiscovery";
 import { isPremiumDeal } from "./messageGenerator";
 import { wasRecentlyPosted, wasTitlePosted, markAsPosted, markTitleAsPosted, getMemoryStats, parseDiscountPct } from "./asinMemory";
@@ -235,18 +237,14 @@ export async function registerRoutes(
   });
 
   // ── WHATSAPP DAILY BATCH ─────────────────────────────────────────────────────
-  // Picks 4 products from each category (28 total), deduplicates, stores WA messages only
   app.post("/api/admin/whatsapp-batch", async (_req, res) => {
     try {
       const config = scheduler.getStatus().config;
       if (!config?.affiliateTag) {
         return res.status(400).json({ success: false, error: "Set your affiliate tag in Settings first" });
       }
-      const { affiliateTag } = config;
-      const user = await storage.getUser(ADMIN_USER_ID);
-      const spreadsheetId = user?.spreadsheetId || null;
+      const { affiliateTag, spreadsheetId } = config;
 
-      // 7 product categories + 4 demographic groups = 11, ~3 per group = 30
       const allGroups = [
         ...Object.keys(categorySearchTerms),
         "boys", "girls", "men", "women",
@@ -293,18 +291,83 @@ export async function registerRoutes(
         if (generated.length >= 30) break;
       }
 
-      // Export all messages to the "WhatsApp Messages" tab in Google Sheets
-      if (sheetRows.length && spreadsheetId) {
+      // Always save to local file first (works without Google auth)
+      let fileSaved = false;
+      if (sheetRows.length) {
         try {
-          await appendWhatsAppBatchToSheet(spreadsheetId, sheetRows);
+          const dataDir = path.join(process.cwd(), "data");
+          if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+          const filePath = path.join(dataDir, "whatsapp-messages.json");
+          const existing = fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, "utf8")) : [];
+          const dateIST = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" });
+          existing.push({ date: dateIST, generatedAt: new Date().toISOString(), rows: sheetRows });
+          // Keep last 30 days
+          const trimmed = existing.slice(-30);
+          fs.writeFileSync(filePath, JSON.stringify(trimmed, null, 2), "utf8");
+          fileSaved = true;
         } catch (err) {
-          console.error("WhatsApp Sheets export error:", err);
+          console.error("[WhatsApp] Local file save error:", err);
         }
       }
 
-      res.json({ success: true, count: generated.length, categories: [...new Set(generated.map(g => g.category))], sheetExported: !!(sheetRows.length && spreadsheetId) });
+      // Also try Google Sheets export
+      let sheetExported = false;
+      if (sheetRows.length && spreadsheetId) {
+        try {
+          await appendWhatsAppBatchToSheet(spreadsheetId, sheetRows);
+          sheetExported = true;
+        } catch (err) {
+          console.error("[WhatsApp] Sheets export error:", err);
+        }
+      }
+
+      res.json({ success: true, count: generated.length, categories: [...new Set(generated.map(g => g.category))], sheetExported, fileSaved });
     } catch (err) {
       res.status(500).json({ success: false, error: err instanceof Error ? err.message : "Unknown error" });
+    }
+  });
+
+  // ── WHATSAPP MESSAGES DOWNLOAD ────────────────────────────────────────────────
+  app.get("/api/admin/whatsapp-messages/download", (_req, res) => {
+    try {
+      const filePath = path.join(process.cwd(), "data", "whatsapp-messages.json");
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: "No messages saved yet. Click 'Generate Now' first." });
+      }
+      const batches: { date: string; generatedAt: string; rows: WhatsAppRow[] }[] = JSON.parse(fs.readFileSync(filePath, "utf8"));
+
+      // Build a plain text file: one batch per day, messages separated by ---
+      let text = "SaleLooterz WhatsApp Messages\n";
+      text += "==============================\n\n";
+      for (const batch of batches.slice().reverse()) {
+        text += `═══ ${batch.date} ═══\n\n`;
+        for (const row of batch.rows) {
+          text += `[${row.category.toUpperCase()}] ${row.productTitle}\n`;
+          text += `Price: ${row.price}  Discount: ${row.discount}\n`;
+          text += `Link: ${row.productUrl}\n\n`;
+          text += `${row.message}\n`;
+          text += `---\n\n`;
+        }
+      }
+
+      res.setHeader("Content-Type", "text/plain; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="whatsapp-messages-${new Date().toISOString().slice(0,10)}.txt"`);
+      res.send(text);
+    } catch (err) {
+      res.status(500).json({ error: "Failed to read messages" });
+    }
+  });
+
+  // ── WHATSAPP MESSAGES JSON (for dashboard) ────────────────────────────────────
+  app.get("/api/admin/whatsapp-messages", (_req, res) => {
+    try {
+      const filePath = path.join(process.cwd(), "data", "whatsapp-messages.json");
+      if (!fs.existsSync(filePath)) return res.json({ batches: [] });
+      const batches = JSON.parse(fs.readFileSync(filePath, "utf8"));
+      // Return only last 3 batches to keep response small
+      res.json({ batches: batches.slice(-3).reverse() });
+    } catch {
+      res.json({ batches: [] });
     }
   });
 
