@@ -1,5 +1,5 @@
 import nodemailer from "nodemailer";
-import type { Transporter } from "nodemailer";
+import { log } from "./index";
 
 // Email service for sending password reset codes
 export async function sendPasswordResetEmail(email: string, resetCode: string): Promise<boolean> {
@@ -12,8 +12,7 @@ export async function sendPasswordResetEmail(email: string, resetCode: string): 
     const fromEmail = process.env.SMTP_FROM_EMAIL || "salelooterz@gmail.com";
 
     if (!smtpHost || !smtpPort || !smtpUser || !smtpPass) {
-      console.warn("SMTP credentials not configured. Password reset email not sent.");
-      console.warn("To enable email: Set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS environment variables");
+      log("[Email] SMTP not configured — skipping password reset email (set SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS)");
       return false;
     }
 
@@ -57,10 +56,10 @@ export async function sendPasswordResetEmail(email: string, resetCode: string): 
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`Password reset email sent to ${email}`);
+    log(`[Email] Password reset email sent to ${email}`);
     return true;
   } catch (error) {
-    console.error("Failed to send password reset email:", error);
+    log(`[Email] Failed to send password reset email: ${error}`);
     return false;
   }
 }
