@@ -1,4 +1,5 @@
 import { searchAmazonIndia, ProductData, getFallbackProducts } from './scraper';
+import { log } from './index';
 
 export interface DiscoveredProduct extends ProductData {
   category: string;
@@ -203,7 +204,7 @@ function getRandomPremiumTerm(category: string): string {
 export async function discoverPremiumProducts(category: string, limit: number = 5): Promise<DiscoveredProduct[]> {
   try {
     const searchTerm = getRandomPremiumTerm(category);
-    console.log(`[Premium] Discovering "${category}" using: "${searchTerm}"`);
+    log(`[Premium] Discovering "${category}" using: "${searchTerm}"`);
     const products = await searchAmazonIndia(searchTerm, limit + 3);
     if (products.length === 0) {
       // fallback: try second premium term
@@ -214,7 +215,7 @@ export async function discoverPremiumProducts(category: string, limit: number = 
     }
     return products.map(p => ({ ...p, category }));
   } catch (error) {
-    console.error(`[Premium] Scraping failed for ${category}:`, error);
+    log(`[Premium] Scraping failed for ${category}: ${error}`);
     return getFallbackProducts(category, limit).map(p => ({ ...p, category }));
   }
 }
@@ -222,30 +223,19 @@ export async function discoverPremiumProducts(category: string, limit: number = 
 export async function discoverProducts(category: string, limit: number = 5): Promise<DiscoveredProduct[]> {
   try {
     const searchTerm = getRandomSearchTerm(category);
-    console.log(`Discovering products for "${category}" using search: "${searchTerm}"`);
-    
+    log(`[Discovery] "${category}" — searching: "${searchTerm}"`);
+
     const products = await searchAmazonIndia(searchTerm, limit);
-    
+
     if (products.length === 0) {
-      console.log(`No products found via scraping, using fallback for ${category}`);
-      const fallbackData = getFallbackProducts(category, limit);
-      return fallbackData.map(product => ({
-        ...product,
-        category,
-      }));
+      log(`[Discovery] No results for "${category}" — using fallback products`);
+      return getFallbackProducts(category, limit).map(product => ({ ...product, category }));
     }
-    
-    return products.map(product => ({
-      ...product,
-      category,
-    }));
+
+    return products.map(product => ({ ...product, category }));
   } catch (error) {
-    console.error(`Scraping failed for ${category}, using fallback:`, error);
-    const fallbackData = getFallbackProducts(category, limit);
-    return fallbackData.map(product => ({
-      ...product,
-      category,
-    }));
+    log(`[Discovery] Scraping failed for "${category}" — using fallback: ${error}`);
+    return getFallbackProducts(category, limit).map(product => ({ ...product, category }));
   }
 }
 
@@ -258,12 +248,12 @@ export async function discoverFromAllCategories(limit: number = 5): Promise<Disc
     try {
       const products = await discoverProducts(category, perCategory);
       allProducts.push(...products);
-      
+
       if (allProducts.length >= limit) break;
-      
+
       await new Promise(resolve => setTimeout(resolve, 1500));
     } catch (error) {
-      console.error(`Skipping ${category}:`, error);
+      log(`[Discovery] Skipping "${category}": ${error}`);
       continue;
     }
   }
@@ -282,24 +272,21 @@ export async function discoverHotDeals(limit: number = 5): Promise<DiscoveredPro
   const searchTerm = dealSearchTerms[Math.floor(Math.random() * dealSearchTerms.length)];
   
   try {
-    console.log(`Discovering hot deals using: "${searchTerm}"`);
+    log(`[Discovery] Hot deals — searching: "${searchTerm}"`);
     const products = await searchAmazonIndia(searchTerm, limit);
-    
+
     if (products.length === 0) {
-      console.log('No deals found via scraping, using mixed fallback');
+      log(`[Discovery] No hot deals found — using mixed fallback`);
       const allFallback: DiscoveredProduct[] = [];
       for (const cat of Object.keys(categorySearchTerms).slice(0, 3)) {
         allFallback.push(...getFallbackProducts(cat, 2).map(p => ({ ...p, category: cat })));
       }
       return allFallback.slice(0, limit);
     }
-    
-    return products.map(product => ({
-      ...product,
-      category: "deals",
-    }));
+
+    return products.map(product => ({ ...product, category: "deals" }));
   } catch (error) {
-    console.error('Hot deals scraping failed:', error);
+    log(`[Discovery] Hot deals scraping failed — using fallback: ${error}`);
     const allFallback: DiscoveredProduct[] = [];
     for (const cat of Object.keys(categorySearchTerms).slice(0, 3)) {
       allFallback.push(...getFallbackProducts(cat, 2).map(p => ({ ...p, category: cat })));

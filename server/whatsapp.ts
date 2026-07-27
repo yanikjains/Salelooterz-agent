@@ -1,8 +1,8 @@
 /**
- * WHATSAPP CHANNEL MANAGER — Baileys RC11
+ * WHATSAPP CHANNEL MANAGER — Baileys RC13
  *
- * Key fix: after connecting, call newsletterMetadata() to establish the
- * admin session context that WhatsApp requires before accepting channel posts.
+ * After connecting, newsletterMetadata() is called to establish the admin
+ * session context that WhatsApp requires before accepting channel posts.
  * Without this warmup, the server silently drops newsletter message stanzas
  * even though Baileys reports "sent".
  */

@@ -1,5 +1,6 @@
 import axios from 'axios';
 import * as cheerio from 'cheerio';
+import { log } from './index';
 
 export interface ProductData {
   title: string;
@@ -96,14 +97,14 @@ async function fetchWithRetry(url: string, maxRetries: number = 3): Promise<stri
       
     } catch (error) {
       lastError = error instanceof Error ? error : new Error('Unknown error');
-      console.log(`Attempt ${attempt}/${maxRetries} failed: ${lastError.message}`);
+      log(`[Scraper] Attempt ${attempt}/${maxRetries} failed: ${lastError.message}`);
       
       if (attempt < maxRetries) {
         await delay(2000 * attempt);
       }
     }
   }
-  
+
   throw lastError || new Error('Failed to fetch after retries');
 }
 
@@ -231,7 +232,7 @@ export async function scrapeAmazonProduct(url: string): Promise<ProductData> {
     };
 
   } catch (error) {
-    console.error('Scraping error:', error);
+    log(`[Scraper] Scraping error: ${error}`);
     throw error;
   }
 }
@@ -311,7 +312,7 @@ export async function searchAmazonIndia(query: string, limit: number = 5): Promi
     return products;
 
   } catch (error) {
-    console.error('Search error:', error);
+    log(`[Scraper] Search error: ${error}`);
     throw error;
   }
 }

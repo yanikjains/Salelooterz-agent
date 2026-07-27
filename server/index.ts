@@ -9,12 +9,6 @@ import { initAsinMemory, getTotalMemoryCount } from "./asinMemory";
 const app = express();
 const httpServer = createServer(app);
 
-declare module "http" {
-  interface IncomingMessage {
-    rawBody: unknown;
-  }
-}
-
 app.use(
   express.json({
     verify: (req, _res, buf) => {
@@ -64,7 +58,7 @@ app.use((req, res, next) => {
   // Ensure admin user exists on boot
   const existing = await storage.getUser(ADMIN_USER_ID);
   if (!existing) {
-    await storage.upsertUserWithId(ADMIN_USER_ID, "admin", "salelooterz@gmail.com");
+    await storage.upsertUserWithId(ADMIN_USER_ID, "admin", null);
   }
 
   // Initialize ASIN memory table (creates it if not exists)

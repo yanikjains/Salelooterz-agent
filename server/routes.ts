@@ -33,8 +33,11 @@ export async function registerRoutes(
 
   // ── ADMIN PIN AUTH — Step 1 ──────────────────────────────────
   app.post("/api/admin/verify-pin", (req, res) => {
+    const correctPin = process.env.ADMIN_PIN;
+    if (!correctPin) {
+      return res.status(503).json({ success: false, error: "ADMIN_PIN not configured on server" });
+    }
     const { pin } = req.body;
-    const correctPin = process.env.ADMIN_PIN || "2412";
     if (!pin || typeof pin !== "string") {
       return res.status(400).json({ success: false, error: "PIN required" });
     }
@@ -47,8 +50,11 @@ export async function registerRoutes(
 
   // ── ADMIN PIN AUTH — Step 2 ──────────────────────────────────
   app.post("/api/admin/verify-pin2", (req, res) => {
+    const correctPin2 = process.env.ADMIN_PIN2;
+    if (!correctPin2) {
+      return res.status(503).json({ success: false, error: "ADMIN_PIN2 not configured on server" });
+    }
     const { pin } = req.body;
-    const correctPin2 = process.env.ADMIN_PIN2 || "8101";
     if (!pin || typeof pin !== "string") {
       return res.status(400).json({ success: false, error: "PIN required" });
     }

@@ -1,4 +1,5 @@
 import { google } from 'googleapis';
+import { log } from './index';
 
 let cachedConnectionSettings: any = null;
 let tokenExpiryTime = 0;
@@ -61,7 +62,7 @@ async function getAccessToken() {
 
     return accessToken;
   } catch (error) {
-    console.error('Failed to get access token:', error);
+    log(`[Sheets] Failed to get access token: ${error}`);
     throw error;
   }
 }
@@ -118,51 +119,12 @@ export async function appendToSheet(spreadsheetId: string, row: SheetRow) {
       },
     });
 
-    console.log(`✓ Successfully appended to Google Sheet ${spreadsheetId}: ${row.productTitle}`);
+    log(`[Sheets] ✓ Appended: ${row.productTitle}`);
     return response;
   } catch (error) {
-    console.error(`✗ Failed to append to Google Sheet ${spreadsheetId}:`, error);
+    log(`[Sheets] ✗ Failed to append to sheet ${spreadsheetId}: ${error}`);
     throw error;
   }
-}
-
-export async function createNewSheet(title: string) {
-  const sheets = await getUncachableGoogleSheetClient();
-  
-  const response = await sheets.spreadsheets.create({
-    requestBody: {
-      properties: {
-        title,
-      },
-      sheets: [
-        {
-          properties: {
-            title: 'Sheet1',
-          },
-          data: [
-            {
-              rowData: [
-                {
-                  values: [
-                    { userEnteredValue: { stringValue: 'Timestamp' } },
-                    { userEnteredValue: { stringValue: 'Product Title' } },
-                    { userEnteredValue: { stringValue: 'Price' } },
-                    { userEnteredValue: { stringValue: 'Rating' } },
-                    { userEnteredValue: { stringValue: 'Product URL' } },
-                    { userEnteredValue: { stringValue: 'WhatsApp Message' } },
-                    { userEnteredValue: { stringValue: 'Telegram Message' } },
-                    { userEnteredValue: { stringValue: 'Affiliate Tag' } },
-                  ]
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    }
-  });
-
-  return response.data.spreadsheetId!;
 }
 
 export interface WhatsAppRow {
@@ -243,62 +205,6 @@ export async function appendWhatsAppBatchToSheet(
     requestBody: { values: [separatorRow, ...dataRows] },
   });
 
-  console.log(`✓ WhatsApp batch (${rows.length} msgs) written to Sheets tab "${TAB}"`);
+  log(`[Sheets] ✓ WhatsApp batch (${rows.length} msgs) written to tab "${TAB}"`);
 }
 
-export async function appendToMarketingSheet(email: string, name: string) {
-  const sheets = await getUncachableGoogleSheetClient();
-  
-  try {
-    // Try to append to existing "Marketing Leads" sheet
-    await sheets.spreadsheets.values.append({
-      spreadsheetId: process.env.MARKETING_SHEET_ID || "marketing-leads",
-      range: 'Sheet1!A:B',
-      valueInputOption: 'RAW',
-      requestBody: {
-        values: [[email, name]]
-      },
-    });
-  } catch (err) {
-    console.error('Marketing sheet append error:', err);
-    throw err;
-  }
-}
-
-export async function getOrCreateSheet(sheetName: string = 'AmzViral Automation'): Promise<string> {
-  const sheets = await getUncachableGoogleSheetClient();
-  
-  try {
-    const response = await sheets.spreadsheets.create({
-      requestBody: {
-        properties: {
-          title: sheetName,
-        },
-      },
-    });
-    
-    const spreadsheetId = response.data.spreadsheetId!;
-    
-    await sheets.spreadsheets.values.update({
-      spreadsheetId,
-      range: 'Sheet1!A1:H1',
-      valueInputOption: 'RAW',
-      requestBody: {
-        values: [[
-          'Timestamp',
-          'Product Title',
-          'Price',
-          'Rating',
-          'Product URL',
-          'WhatsApp Message',
-          'Telegram Message',
-          'Affiliate Tag'
-        ]]
-      }
-    });
-    
-    return spreadsheetId;
-  } catch (error) {
-    throw error;
-  }
-}
