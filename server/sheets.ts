@@ -131,15 +131,24 @@ export interface WhatsAppRow {
   category: string;
   productTitle: string;
   price: string;
+  originalPrice: string;
   discount: string;
+  rating: string;
   productUrl: string;
   message: string;
 }
 
+// Column headers — keep in sync with dataRows below
+const WA_HEADERS = [
+  "Date & Time (IST)", "Category", "Product",
+  "Deal Price", "Original Price", "Discount", "Rating",
+  "Amazon URL", "WhatsApp Message",
+];
+
 /**
- * Writes a daily WhatsApp batch to a dedicated "WhatsApp" tab in the spreadsheet.
- * Creates the tab with headers if it doesn't exist yet.
- * Inserts a date-separator row at the top of each batch so messages are easy to find by date.
+ * Writes a daily WhatsApp batch to a dedicated "WhatsApp Messages" tab.
+ * Creates the tab + header row on first run.
+ * Inserts a date-separator row before each batch so messages are easy to scan by date.
  */
 export async function appendWhatsAppBatchToSheet(
   spreadsheetId: string,
@@ -150,28 +159,33 @@ export async function appendWhatsAppBatchToSheet(
   const sheets = await getUncachableGoogleSheetClient();
   const TAB = "WhatsApp Messages";
 
-  // ── 1. Ensure the tab exists ──────────────────────────────────────────────
+  // ── 1. Ensure the tab + header exist ─────────────────────────────────────
+  let tabExists = false;
   try {
-    await sheets.spreadsheets.values.get({
-      spreadsheetId,
-      range: `'${TAB}'!A1`,
-    });
-  } catch {
-    // Tab missing — create it with a header row
+    const meta = await sheets.spreadsheets.get({ spreadsheetId });
+    tabExists = (meta.data.sheets || []).some(
+      s => s.properties?.title === TAB
+    );
+  } catch (err) {
+    log(`[Sheets] Could not read spreadsheet metadata: ${err}`);
+    throw err;
+  }
+
+  if (!tabExists) {
     await sheets.spreadsheets.batchUpdate({
       spreadsheetId,
       requestBody: {
         requests: [{ addSheet: { properties: { title: TAB } } }],
       },
     });
+    // Write header row
     await sheets.spreadsheets.values.update({
       spreadsheetId,
-      range: `'${TAB}'!A1:F1`,
+      range: `'${TAB}'!A1`,
       valueInputOption: "RAW",
-      requestBody: {
-        values: [["Date & Time (IST)", "Category", "Product", "Price", "Discount", "Amazon URL", "WhatsApp Message"]],
-      },
+      requestBody: { values: [WA_HEADERS] },
     });
+    log(`[Sheets] Created tab "${TAB}" with headers`);
   }
 
   // ── 2. Build rows ─────────────────────────────────────────────────────────
@@ -184,15 +198,17 @@ export async function appendWhatsAppBatchToSheet(
     timeZone: "Asia/Kolkata", day: "numeric", month: "long", year: "numeric",
   });
 
-  // Date separator row
-  const separatorRow = [`══════ ${dateLabel} ══════`, "", "", "", "", "", ""];
+  const colCount = WA_HEADERS.length;
+  const separatorRow = [`══════ ${dateLabel} ══════`, ...Array(colCount - 1).fill("")];
 
   const dataRows = rows.map(r => [
     nowIST,
     r.category,
     r.productTitle,
     r.price,
+    r.originalPrice || "",
     r.discount || "",
+    r.rating || "",
     r.productUrl,
     r.message,
   ]);
@@ -200,11 +216,11 @@ export async function appendWhatsAppBatchToSheet(
   // ── 3. Append to sheet ────────────────────────────────────────────────────
   await sheets.spreadsheets.values.append({
     spreadsheetId,
-    range: `'${TAB}'!A:G`,
+    range: `'${TAB}'!A:I`,
     valueInputOption: "RAW",
     requestBody: { values: [separatorRow, ...dataRows] },
   });
 
-  log(`[Sheets] ✓ WhatsApp batch (${rows.length} msgs) written to tab "${TAB}"`);
+  log(`[Sheets] ✓ WhatsApp batch (${rows.length} msgs) written to "${TAB}"`);
 }
 

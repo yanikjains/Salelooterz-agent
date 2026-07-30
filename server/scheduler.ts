@@ -191,14 +191,14 @@ class Scheduler {
     const user = await storage.getUser(ADMIN_USER_ID).catch(() => null);
     const spreadsheetId = configSheetId || user?.spreadsheetId || null;
 
-    // All groups: 7 product categories + 4 demographic groups = 11 total
+    // All 7 product categories + 4 demographic groups = 11 total
     const allGroups = [
       ...Object.keys(categorySearchTerms),
       "boys", "girls", "men", "women",
     ];
     const perGroup = Math.ceil(WHATSAPP_BATCH_SIZE / allGroups.length);
 
-    log(`[Scheduler] Running daily WhatsApp PREMIUM batch — ${allGroups.length} groups, ~${perGroup} each...`);
+    log(`[Scheduler] Running daily WhatsApp 60%+ deals batch — ${allGroups.length} groups, ~${perGroup} each...`);
 
     const sheetRows: WhatsAppRow[] = [];
     let generated = 0;
@@ -206,11 +206,19 @@ class Scheduler {
     for (const cat of allGroups) {
       if (generated >= WHATSAPP_BATCH_SIZE) break;
       try {
-        const raw = await discoverPremiumProducts(cat, perGroup + 3);
+        const raw = await discoverPremiumProducts(cat, perGroup + 8);
         let groupCount = 0;
         for (const product of raw) {
           if (generated >= WHATSAPP_BATCH_SIZE || groupCount >= perGroup) break;
-          if (!isPremiumDeal(product.price, product.discount || "")) continue;
+
+          // Require 60%+ discount
+          const discountStr = (product as any).discount || "";
+          const discountPct = parseInt(discountStr.match(/(\d+)/)?.[1] || "0");
+          if (discountPct < 60) continue;
+
+          // Require a real rating (≥3.5) — skip junk products
+          if (product.rating > 0 && product.rating < 3.5) continue;
+
           if (product.asin) { if (await wasRecentlyPosted(product.asin)) continue; }
           else              { if (await wasTitlePosted(product.title))    continue; }
 
@@ -220,19 +228,21 @@ class Scheduler {
             category: cat,
             productTitle: product.title,
             price: product.price,
-            discount: (product as any).discount || "",
+            originalPrice: (product as any).originalPrice || "",
+            discount: discountStr,
+            rating: product.rating > 0 ? `${product.rating}/5` : "",
             productUrl: `${product.url}?tag=${affiliateTag}`,
             message: whatsappMessage,
           });
 
-          const pInfo = { title: product.title, price: product.price, originalPrice: (product as any).originalPrice || "", discount: (product as any).discount || "", rating: product.rating, category: cat, url: product.url };
+          const pInfo = { title: product.title, price: product.price, originalPrice: (product as any).originalPrice || "", discount: discountStr, rating: product.rating, category: cat, url: product.url };
           if (product.asin) await markAsPosted(product.asin, pInfo);
           else              await markTitleAsPosted(pInfo);
 
           generated++;
           groupCount++;
         }
-        log(`[Scheduler] WhatsApp group "${cat}": ${groupCount} products`);
+        log(`[Scheduler] WhatsApp group "${cat}": ${groupCount} products (60%+ deals)`);
         await sleep(1500);
       } catch { continue; }
     }
@@ -254,15 +264,27 @@ class Scheduler {
     log(`[Scheduler] WhatsApp premium batch done: ${generated} messages → Sheets`);
   }
 
+  /** ms until next 3:00 PM IST */
+  private msUntil3PMIST(): number {
+    const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+    const istNow = Date.now() + IST_OFFSET_MS;
+    const istMinuteOfDay = Math.floor((istNow % (24 * 60 * 60 * 1000)) / 60000);
+    const target = 15 * 60; // 3:00 PM = 900 min from midnight IST
+    const remaining = istMinuteOfDay < target
+      ? (target - istMinuteOfDay) * 60 * 1000
+      : (24 * 60 - istMinuteOfDay + target) * 60 * 1000;
+    return remaining;
+  }
+
   private scheduleNextTelegramBatch() {
-    const MS_24H = 24 * 60 * 60 * 1000;
-    this.nextRunAt = new Date(Date.now() + MS_24H);
-    log(`[Scheduler] Next Telegram batch in 24 h (${this.nextRunAt.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST)`);
+    const msTo3PM = this.msUntil3PMIST();
+    this.nextRunAt = new Date(Date.now() + msTo3PM);
+    log(`[Scheduler] Next Telegram batch in ${Math.round(msTo3PM / 60000)} min (3:00 PM IST)`);
     if (this.intervalId) clearTimeout(this.intervalId as unknown as NodeJS.Timeout);
     this.intervalId = setTimeout(async () => {
       await this.runBatch();
       this.scheduleNextTelegramBatch();
-    }, MS_24H) as unknown as NodeJS.Timeout;
+    }, msTo3PM) as unknown as NodeJS.Timeout;
   }
 
   stop() {
