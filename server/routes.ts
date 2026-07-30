@@ -9,7 +9,6 @@ import { wasRecentlyPosted, wasTitlePosted, markAsPosted, markTitleAsPosted, get
 import { generateWhatsAppMessageFromDiscovered, generateTelegramMessageFromDiscovered, generatePersonalizedWhatsAppMessage } from "./messageGenerator";
 import { appendToSheet, appendWhatsAppBatchToSheet, type WhatsAppRow } from "./sheets";
 import { z } from "zod";
-import { registerChatRoutes } from "./replit_integrations/chat";
 import { scheduler, ADMIN_USER_ID, type SchedulerConfig } from "./scheduler";
 
 const schedulerConfigSchema = z.object({
@@ -29,8 +28,6 @@ export async function registerRoutes(
   httpServer: Server,
   app: Express
 ): Promise<Server> {
-  registerChatRoutes(app);
-
   // ── ADMIN PIN AUTH — Step 1 ──────────────────────────────────
   app.post("/api/admin/verify-pin", (req, res) => {
     const correctPin = process.env.ADMIN_PIN;
