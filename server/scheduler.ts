@@ -103,18 +103,6 @@ class Scheduler {
     return midnight.getTime() - istNow.getTime();
   }
 
-  /** ms until next 3:00 AM IST (used for Telegram batch) */
-  private msUntil3AMIST(): number {
-    const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000; // +5:30
-    const istNow = Date.now() + IST_OFFSET_MS;
-    // Minutes elapsed since last IST midnight
-    const istMinuteOfDay = Math.floor((istNow % (24 * 60 * 60 * 1000)) / 60000);
-    const target = 3 * 60; // 3:00 AM = 180 min from midnight IST
-    const remaining = istMinuteOfDay < target
-      ? (target - istMinuteOfDay) * 60 * 1000
-      : (24 * 60 - istMinuteOfDay + target) * 60 * 1000;
-    return remaining;
-  }
 
   private async waLastDate(): Promise<string> {
     try {
@@ -169,7 +157,7 @@ class Scheduler {
 
     log("[Scheduler] Starting — sending all 300 Telegram messages now...");
     await this.runBatch();
-    await this.scheduleTelegramNextDay();
+    this.scheduleNextTelegramBatch();
 
     // Daily WhatsApp batch — run immediately if not yet done today, then repeat every 24 h
     await this.scheduleWhatsAppBatch();
@@ -266,16 +254,15 @@ class Scheduler {
     log(`[Scheduler] WhatsApp premium batch done: ${generated} messages → Sheets`);
   }
 
-  private async scheduleTelegramNextDay() {
-    const msTo3AM = this.msUntil3AMIST();
-    const next3AM = new Date(Date.now() + msTo3AM);
-    this.nextRunAt = next3AM;
-    log(`[Scheduler] Next Telegram batch in ${Math.round(msTo3AM / 60000)} min (3:00 AM IST)`);
+  private scheduleNextTelegramBatch() {
+    const MS_24H = 24 * 60 * 60 * 1000;
+    this.nextRunAt = new Date(Date.now() + MS_24H);
+    log(`[Scheduler] Next Telegram batch in 24 h (${this.nextRunAt.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST)`);
     if (this.intervalId) clearTimeout(this.intervalId as unknown as NodeJS.Timeout);
     this.intervalId = setTimeout(async () => {
       await this.runBatch();
-      await this.scheduleTelegramNextDay();
-    }, msTo3AM) as unknown as NodeJS.Timeout;
+      this.scheduleNextTelegramBatch();
+    }, MS_24H) as unknown as NodeJS.Timeout;
   }
 
   stop() {

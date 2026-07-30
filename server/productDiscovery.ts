@@ -130,53 +130,110 @@ export const premiumWhatsAppSearchTerms: Record<string, string[]> = {
 
 export const categorySearchTerms: Record<string, string[]> = {
   electronics: [
-    "wireless earbuds",
-    "smartwatch under 2000",
+    // Budget (under ₹1000)
+    "USB C cable fast charging under 500",
+    "phone holder for car under 300",
+    "earphones under 500 wired",
+    // Mid (₹1000–₹5000)
+    "wireless earbuds under 2000",
+    "smartwatch under 3000",
     "power bank 20000mah",
-    "bluetooth speaker",
-    "headphones"
+    "bluetooth speaker under 2000",
+    "USB hub multiport",
+    // Premium (₹5000+)
+    "headphones noise cancelling",
+    "smartwatch premium GPS",
+    "portable projector mini"
   ],
   mobile: [
+    // Budget
+    "smartphone under 8000",
+    "4G phone under 6000",
+    // Mid
     "smartphone under 15000",
-    "mobile 5G phone",
+    "5G phone under 20000",
     "redmi phone",
-    "samsung phone",
-    "realme phone"
+    "realme phone",
+    // Premium
+    "samsung phone flagship",
+    "oneplus 5G flagship",
+    "google pixel smartphone"
   ],
   home: [
-    "air purifier",
-    "water purifier",
-    "mixer grinder",
-    "vacuum cleaner",
-    "ceiling fan"
+    // Budget
+    "mosquito repellent electric",
+    "water bottle stainless steel under 300",
+    "extension cord 4 socket",
+    // Mid
+    "air purifier room",
+    "water purifier RO",
+    "mixer grinder 750W",
+    "ceiling fan energy saving",
+    // Premium
+    "robot vacuum cleaner",
+    "air conditioner 1.5 ton 5 star",
+    "washing machine fully automatic"
   ],
   fashion: [
-    "men casual shoes",
+    // Budget
+    "men t-shirt combo pack under 500",
+    "women casual top under 400",
+    "men slippers under 300",
+    // Mid
+    "men casual shoes under 2000",
     "women handbag",
     "men wallet leather",
     "women kurta set",
-    "sports shoes men"
+    "sports shoes men",
+    // Premium
+    "men formal shoes leather premium",
+    "women saree silk",
+    "men jacket winter premium"
   ],
   beauty: [
+    // Budget
+    "face wash under 200",
+    "sunscreen SPF 50 under 300",
+    "lipstick under 300",
+    // Mid
     "face serum vitamin c",
-    "hair dryer",
+    "hair dryer 1800W",
     "trimmer for men",
-    "sunscreen",
-    "lipstick"
+    "moisturiser SPF day cream",
+    // Premium
+    "serum retinol anti ageing",
+    "hair straightener ceramic professional",
+    "perfume for women EDP 100ml"
   ],
   fitness: [
-    "yoga mat",
-    "dumbbells",
-    "resistance band",
-    "protein powder",
-    "gym gloves"
+    // Budget
+    "skipping rope",
+    "gym gloves under 300",
+    "resistance band set",
+    // Mid
+    "yoga mat anti slip 6mm",
+    "dumbbells set adjustable",
+    "protein powder whey 1kg",
+    "ab roller wheel",
+    // Premium
+    "treadmill home use motorized",
+    "adjustable dumbbell set 20kg",
+    "smartwatch fitness GPS heart rate"
   ],
   kitchen: [
-    "non stick pan",
-    "pressure cooker",
-    "lunch box steel",
-    "water bottle",
-    "knife set"
+    // Budget
+    "lunch box steel under 300",
+    "water bottle under 200",
+    "wooden spatula set",
+    // Mid
+    "non stick pan set",
+    "pressure cooker 5L",
+    "knife set stainless steel",
+    "chopping board bamboo",
+    // Premium
+    "air fryer digital 5L",
+    "stand mixer kitchen",
+    "espresso coffee maker"
   ]
 };
 
