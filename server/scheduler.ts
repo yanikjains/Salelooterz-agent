@@ -325,45 +325,59 @@ class Scheduler {
     log(`[Scheduler] Starting full Telegram batch — collecting up to ${PRODUCTS_PER_BATCH} products...`);
 
     const collectedProducts: any[] = [];
-    // Local dedup within THIS batch run (before markAsPosted is called)
+    // Dual-key dedup: exact ASIN  +  normalised title prefix (catches variants with same title)
     const seenInBatch = new Set<string>();
     let totalSkipped = 0;
 
-    // Cycle through all categories (+ hot deals) multiple times to fill 300
+    const normTitle = (t: string) =>
+      t.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 55);
+
+    // ── Fixed per-category quotas — every category contributes equally ────────
     const allCategoryIds = [...categories.map(c => c.id), "hot"];
-    // Try each category up to 3 rounds to reach the target
-    outer: for (let round = 0; round < 3; round++) {
-      for (const cat of allCategoryIds) {
-        if (collectedProducts.length >= PRODUCTS_PER_BATCH) break outer;
-        const needed = PRODUCTS_PER_BATCH - collectedProducts.length;
-        const fetchCount = Math.min(needed + 5, 15);
-        log(`[Scheduler] Scraping "${cat}" (round ${round + 1}) — need ${needed} more`);
+    const quotaPerCat = Math.ceil(PRODUCTS_PER_BATCH / allCategoryIds.length); // ~38
+
+    for (const cat of allCategoryIds) {
+      const catTarget = Math.min(quotaPerCat, PRODUCTS_PER_BATCH - collectedProducts.length);
+      if (catTarget <= 0) break;
+
+      let catCollected = 0;
+      // Try up to 3 different search terms for this category
+      for (let attempt = 0; attempt < 3 && catCollected < catTarget; attempt++) {
+        const fetchCount = catTarget - catCollected + 5;
+        log(`[Scheduler] Scraping "${cat}" (attempt ${attempt + 1}) — need ${catTarget - catCollected} more`);
         try {
           const rawProducts = cat === "hot"
             ? await discoverHotDeals(fetchCount)
             : await discoverProducts(cat, fetchCount);
 
           for (const p of (rawProducts || [])) {
-            if (collectedProducts.length >= PRODUCTS_PER_BATCH) break;
-            // Deduplicate: check both persistent memory AND current batch
-            const key = p.asin || `title:${p.title.toLowerCase().trim().slice(0, 80)}`;
-            if (seenInBatch.has(key)) { totalSkipped++; continue; }
+            if (catCollected >= catTarget) break;
+            // ASIN key
+            const asinKey = p.asin ? `asin:${p.asin}` : null;
+            // Normalised-title key (catches same-product variants)
+            const titleKey = `t:${normTitle(p.title)}`;
+            if ((asinKey && seenInBatch.has(asinKey)) || seenInBatch.has(titleKey)) {
+              totalSkipped++; continue;
+            }
             if (p.asin) {
               if (await wasRecentlyPosted(p.asin)) { totalSkipped++; continue; }
             } else {
               if (await wasTitlePosted(p.title)) { totalSkipped++; continue; }
             }
-            seenInBatch.add(key);
+            if (asinKey) seenInBatch.add(asinKey);
+            seenInBatch.add(titleKey);
             collectedProducts.push(p);
+            catCollected++;
           }
-          await sleep(800);
+          if (catCollected < catTarget) await sleep(900);
         } catch (err) {
           log(`[Scheduler] Scrape error for "${cat}": ${err}`);
         }
       }
+      log(`[Scheduler] "${cat}" → ${catCollected} products (quota ${catTarget})`);
     }
 
-    if (totalSkipped > 0) log(`[Scheduler] Dedup: ${totalSkipped} skipped, ${collectedProducts.length} new`);
+    log(`[Scheduler] Collection done: ${collectedProducts.length} products, ${totalSkipped} dupes skipped`);
 
     if (!collectedProducts.length) {
       log("[Scheduler] No new products found — all were duplicates or scraping failed");

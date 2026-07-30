@@ -288,11 +288,22 @@ export async function searchAmazonIndia(query: string, limit: number = 5): Promi
 
       const image = $(element).find('img.s-image').attr('src') || '';
 
-      const origNum = parseFloat(originalPrice.replace(/[₹,]/g, '')) || 0;
+      // ── Discount: prefer the badge text (e.g. "-67%"), fall back to computed ──
       let discount = '';
-      if (origNum > priceNum && priceNum > 0) {
-        const discountPercent = Math.round(((origNum - priceNum) / origNum) * 100);
-        if (discountPercent > 0 && discountPercent < 100) discount = `${discountPercent}% OFF`;
+      // Amazon renders discount badges as ".a-badge-label", ".savingsPercentage",
+      // or a plain bold label like "-67%"
+      const badgeRaw = $(element)
+        .find('.a-badge-label, .savingsPercentage, .a-color-price.a-text-bold')
+        .first().text().trim();
+      const badgeMatch = badgeRaw.match(/(\d+)\s*%/);
+      if (badgeMatch) {
+        discount = `${badgeMatch[1]}% OFF`;
+      } else {
+        const origNum = parseFloat(originalPrice.replace(/[₹,]/g, '')) || 0;
+        if (origNum > priceNum && priceNum > 0) {
+          const pct = Math.round(((origNum - priceNum) / origNum) * 100);
+          if (pct > 0 && pct < 100) discount = `${pct}% OFF`;
+        }
       }
 
       products.push({
