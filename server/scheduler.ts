@@ -390,6 +390,28 @@ class Scheduler {
     log(`[Scheduler] Sending ${collectedProducts.length} messages to Telegram...`);
     let tgSent = 0;
 
+    // ── Test Sheets connectivity ONCE before the loop ─────────────────────────
+    // If the connector isn't set up, skip all per-product writes silently
+    // instead of logging 300 identical errors.
+    let sheetsEnabled = false;
+    if (spreadsheetId) {
+      try {
+        await appendToSheet(spreadsheetId, {
+          timestamp: new Date().toISOString(),
+          productTitle: "__ connectivity check __",
+          price: "", rating: "", productUrl: "", whatsappMessage: "", telegramMessage: "", affiliateTag: "",
+        });
+        sheetsEnabled = true;
+      } catch (e) {
+        const msg = String(e);
+        if (msg.includes("connector not configured") || msg.includes("REPLIT_CONNECTORS")) {
+          log("[Scheduler] Google Sheets connector not set up — Sheets logging disabled for this batch");
+        } else {
+          log(`[Scheduler] Sheets connectivity check failed: ${e}`);
+        }
+      }
+    }
+
     for (const product of collectedProducts) {
       const telegramMessage = generateTelegramMessageFromDiscovered(product, affiliateTag);
       const whatsappMessage = generateWhatsAppMessageFromDiscovered(product, affiliateTag);
@@ -403,10 +425,10 @@ class Scheduler {
         await sleep(TG_SEND_DELAY_MS);
       }
 
-      // Google Sheets
-      if (spreadsheetId) {
+      // Google Sheets — only if connector is confirmed working
+      if (sheetsEnabled) {
         try {
-          await appendToSheet(spreadsheetId, {
+          await appendToSheet(spreadsheetId!, {
             timestamp: new Date().toISOString(),
             productTitle: product.title,
             price: product.price,
