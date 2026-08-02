@@ -16,7 +16,7 @@ interface SchedulerStatus {
   todayCount: number;
   telegramSent: number;
   memoryCount: number;
-  config: { affiliateTag: string; telegramChannelId?: string } | null;
+  config: { affiliateTag: string; telegramChannelId?: string; googleAppsScriptUrl?: string } | null;
   recentAutomations: any[];
 }
 
@@ -167,6 +167,8 @@ function Dashboard() {
   const [botToken, setBotToken] = useState("");
   const [channelId, setChannelId] = useState("");
   const [sheetId, setSheetId] = useState("");
+  const [appsScriptUrl, setAppsScriptUrl] = useState("");
+  const [appsScriptSecret, setAppsScriptSecret] = useState("");
   const [showTokens, setShowTokens] = useState(false);
   const [testingTg, setTestingTg] = useState(false);
 
@@ -191,6 +193,8 @@ function Dashboard() {
       setBotToken(d.telegramBotToken || "");
       setChannelId(d.telegramChannelId || "");
       setSheetId(d.spreadsheetId || "");
+      setAppsScriptUrl(d.googleAppsScriptUrl || "");
+      setAppsScriptSecret(d.googleAppsScriptSecret || "");
       if (d.affiliateTag) {
         setAffiliateTag(d.affiliateTag);
         localStorage.setItem("sl_tag", d.affiliateTag);
@@ -213,6 +217,8 @@ function Dashboard() {
     telegramBotToken: botToken.trim() || undefined,
     telegramChannelId: channelId.trim() || undefined,
     spreadsheetId: sheetId.trim() || undefined,
+    googleAppsScriptUrl: appsScriptUrl.trim() || undefined,
+    googleAppsScriptSecret: appsScriptSecret.trim() || undefined,
   });
 
   const handleStart = async () => {
@@ -398,7 +404,7 @@ function Dashboard() {
                 <div>
                   <p className="text-[13px] font-bold text-white">WhatsApp Messages</p>
                   <p className="text-[11px] text-white/30 mt-0.5">
-                     Generated daily at 3 PM IST → saved automatically as CSV
+                     Generated daily at 3 PM IST → pushed to Google Sheets + CSV backup
                   </p>
                 </div>
                 {sheetId.trim() && (
@@ -442,7 +448,9 @@ function Dashboard() {
             <div className="grid sm:grid-cols-2 gap-3">
               {[
                 { label: "Affiliate Tag", icon: <IndianRupee className="w-2.5 h-2.5" />, value: affiliateTag, onChange: setAffiliateTag, placeholder: "yourtag-21", required: true },
-                { label: "Google Sheet ID", icon: <FileSpreadsheet className="w-2.5 h-2.5" />, value: sheetId, onChange: setSheetId, placeholder: "Sheet ID from URL" },
+                 { label: "Google Sheet ID (optional)", icon: <FileSpreadsheet className="w-2.5 h-2.5" />, value: sheetId, onChange: setSheetId, placeholder: "Only for Replit connector" },
+                 { label: "Apps Script Web App URL", icon: <FileSpreadsheet className="w-2.5 h-2.5" />, value: appsScriptUrl, onChange: setAppsScriptUrl, placeholder: "https://script.google.com/macros/s/.../exec" },
+                 { label: "Apps Script Secret", icon: <Settings className="w-2.5 h-2.5" />, value: appsScriptSecret, onChange: setAppsScriptSecret, placeholder: "Same secret as Apps Script", secret: true },
                 { label: "Telegram Bot Token", icon: <Send className="w-2.5 h-2.5" />, value: botToken, onChange: setBotToken, placeholder: "1234567890:AAF…", secret: true },
                 { label: "Telegram Channel ID", icon: <Send className="w-2.5 h-2.5" />, value: channelId, onChange: setChannelId, placeholder: "@yourchannel" },
               ].map((field, i) => (

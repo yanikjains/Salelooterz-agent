@@ -1,29 +1,33 @@
 # Google Apps Script setup (no Replit connector)
 
-This is a free alternative to the Replit Google Sheets connector. Your own
-Google Sheet runs the sync and imports the WhatsApp archive from SaleLooterz.
+This is a free alternative to the Replit Google Sheets connector. SaleLooterz
+pushes each WhatsApp batch directly to your own Google Sheet through a Google
+Apps Script web app. Replit does not need to be published.
 
 ## Setup
 
-1. Make sure the SaleLooterz app is published and copy its public URL.
-2. Open the Google Sheet where you want the deals.
-3. Select **Extensions → Apps Script**.
-4. Open `google-apps-script/Code.gs` from this project and paste it into
+1. Open the Google Sheet where you want the deals.
+2. Select **Extensions → Apps Script**.
+3. Paste `google-apps-script/Code.gs` into
    the Apps Script editor.
-5. Replace `PASTE_YOUR_PUBLISHED_REPLIT_URL_HERE` with the public app URL,
-   for example `https://your-app.example`.
-6. Click **Save**, choose `setup` from the function dropdown, and click
-   **Run**.
-7. Approve the Google permissions when prompted.
+4. Change `CHANGE_THIS_SECRET` to a private value.
+5. Click **Save**, choose `setup` from the function dropdown, and click
+   **Run** once.
+6. Approve the Google permissions when prompted.
+7. Click **Deploy → New deployment → Web app**.
+8. Choose **Execute as: Me** and **Who has access: Anyone**, then deploy.
+9. Copy the URL ending in `/exec`.
+10. In SaleLooterz Settings, paste it into **Apps Script Web App URL** and
+    paste the same secret into **Apps Script Secret**, then save.
 
-The script creates a `WhatsApp Messages` tab, imports the existing deals, and
-creates a daily trigger around **3:15 PM IST**. It uses the Amazon URL to avoid
-importing the same deal twice.
+The script creates a `WhatsApp Messages` tab and receives the daily batch after
+SaleLooterz generates it at 3 PM IST. It uses the Amazon URL to avoid duplicate
+imports.
 
-You can run `syncWhatsAppDeals` manually whenever you want an immediate import.
+You can use the dashboard's **Generate Now** action to test an immediate push.
 
 ## Important
 
-The Replit app must be reachable by Google Apps Script. Use a published app URL,
-not `localhost` or a temporary browser preview URL. The bot continues generating
-and saving the deals at 3 PM IST; the Sheet imports them shortly afterward.
+The Replit workflow must be running when the batch is generated because the app
+performs the outgoing POST. A workspace that is stopped or sleeping cannot run
+the scheduled batch until it is started again.

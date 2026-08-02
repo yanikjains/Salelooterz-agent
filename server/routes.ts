@@ -10,13 +10,20 @@ import { generateWhatsAppMessageFromDiscovered, generateTelegramMessageFromDisco
 import { appendToSheet, appendWhatsAppBatchToSheet, type WhatsAppRow } from "./sheets";
 import { z } from "zod";
 import { scheduler, ADMIN_USER_ID, type SchedulerConfig } from "./scheduler";
-import { saveWhatsAppBatchFiles, whatsappBatchesToCsv, type WhatsAppBatch } from "./whatsappExport";
+import {
+  saveWhatsAppBatchFiles,
+  pushWhatsAppBatchToAppsScript,
+  whatsappBatchesToCsv,
+  type WhatsAppBatch,
+} from "./whatsappExport";
 
 const schedulerConfigSchema = z.object({
   affiliateTag: z.string().min(1),
   telegramBotToken: z.string().optional(),
   telegramChannelId: z.string().optional(),
   spreadsheetId: z.string().optional(),
+  googleAppsScriptUrl: z.string().url().optional(),
+  googleAppsScriptSecret: z.string().optional(),
 });
 
 const manualDiscoverSchema = z.object({
@@ -119,6 +126,8 @@ export async function registerRoutes(
         telegramBotToken: savedConfig?.telegramBotToken || user?.telegramBotToken || "",
         telegramChannelId: savedConfig?.telegramChannelId || user?.telegramChannelId || "",
         spreadsheetId: savedConfig?.spreadsheetId || user?.spreadsheetId || "",
+        googleAppsScriptUrl: savedConfig?.googleAppsScriptUrl || "",
+        googleAppsScriptSecret: savedConfig?.googleAppsScriptSecret || "",
         affiliateTag: savedConfig?.affiliateTag || "",
       });
     } catch (error) {
@@ -226,7 +235,13 @@ export async function registerRoutes(
       if (!config?.affiliateTag) {
         return res.status(400).json({ success: false, error: "Set your affiliate tag in Settings first" });
       }
-      const { affiliateTag, spreadsheetId } = config;
+      const {
+        affiliateTag,
+        spreadsheetId: configuredSpreadsheetId,
+        googleAppsScriptUrl,
+        googleAppsScriptSecret,
+      } = config;
+      const spreadsheetId = googleAppsScriptUrl ? undefined : configuredSpreadsheetId;
 
       const allGroups = [
         ...Object.keys(categorySearchTerms),
@@ -276,20 +291,39 @@ export async function registerRoutes(
         if (generated.length >= 30) break;
       }
 
+      const generatedAt = new Date().toISOString();
+
       // Always save local JSON + CSV first (works without Google auth)
       let fileSaved = false;
       if (sheetRows.length) {
         try {
           const dateIST = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" });
-          saveWhatsAppBatchFiles(sheetRows, dateIST);
+          saveWhatsAppBatchFiles(sheetRows, dateIST, generatedAt);
           fileSaved = true;
         } catch (err) {
           console.error("[WhatsApp] Local file save error:", err);
         }
       }
 
-      // Also try Google Sheets export
+      // Push to the user's Google Apps Script web app (no Replit connector/OAuth)
       let sheetExported = false;
+      if (sheetRows.length && googleAppsScriptUrl) {
+        try {
+          const dateIST = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" });
+          await pushWhatsAppBatchToAppsScript(
+            googleAppsScriptUrl,
+            sheetRows,
+            dateIST,
+            googleAppsScriptSecret,
+            generatedAt,
+          );
+          sheetExported = true;
+        } catch (err) {
+          console.error("[WhatsApp] Apps Script push error:", err);
+        }
+      }
+
+      // Legacy Replit Google Sheets connector path
       if (sheetRows.length && spreadsheetId) {
         try {
           await appendWhatsAppBatchToSheet(spreadsheetId, sheetRows);

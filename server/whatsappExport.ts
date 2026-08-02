@@ -55,3 +55,23 @@ export function saveWhatsAppBatchFiles(rows: WhatsAppRow[], date: string, genera
   fs.writeFileSync(jsonPath, JSON.stringify(batches, null, 2), "utf8");
   fs.writeFileSync(path.join(dataDir, "whatsapp-messages.csv"), whatsappBatchesToCsv(batches), "utf8");
 }
+
+/** Push a batch to the user's Google Apps Script web app, without OAuth. */
+export async function pushWhatsAppBatchToAppsScript(
+  appsScriptUrl: string,
+  rows: WhatsAppRow[],
+  date: string,
+  secret?: string,
+  generatedAt = new Date().toISOString(),
+): Promise<void> {
+  const response = await fetch(appsScriptUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ secret: secret || "", date, generatedAt, rows }),
+    signal: AbortSignal.timeout(20_000),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Apps Script returned HTTP ${response.status}`);
+  }
+}

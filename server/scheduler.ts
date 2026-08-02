@@ -7,7 +7,7 @@ import { wasRecentlyPosted, wasTitlePosted, markAsPosted, markTitleAsPosted, get
 import { log } from "./index";
 import { readFile, writeFile } from "fs/promises";
 import { existsSync } from "fs";
-import { saveWhatsAppBatchFiles } from "./whatsappExport";
+import { saveWhatsAppBatchFiles, pushWhatsAppBatchToAppsScript } from "./whatsappExport";
 
 export const ADMIN_USER_ID = "admin-scheduler";
 
@@ -26,6 +26,8 @@ export interface SchedulerConfig {
   telegramBotToken?: string;
   telegramChannelId?: string;
   spreadsheetId?: string;
+  googleAppsScriptUrl?: string;
+  googleAppsScriptSecret?: string;
 }
 
 export interface SchedulerStats {
@@ -188,7 +190,12 @@ class Scheduler {
 
   private async runWhatsAppBatch() {
     if (!this.config) return;
-    const { affiliateTag, spreadsheetId: configSheetId } = this.config;
+    const {
+      affiliateTag,
+      spreadsheetId: configSheetId,
+      googleAppsScriptUrl,
+      googleAppsScriptSecret,
+    } = this.config;
     const user = await storage.getUser(ADMIN_USER_ID).catch(() => null);
     const spreadsheetId = configSheetId || user?.spreadsheetId || null;
 
@@ -249,13 +256,31 @@ class Scheduler {
       } catch { continue; }
     }
 
+     const generatedAt = new Date().toISOString();
+
      // Always save a local archive and spreadsheet-ready CSV first.
      if (sheetRows.length) {
        try {
-         saveWhatsAppBatchFiles(sheetRows, this.todayIST());
+         saveWhatsAppBatchFiles(sheetRows, this.todayIST(), generatedAt);
          log(`[Scheduler] WhatsApp: local JSON + CSV backup saved`);
        } catch (err) {
          log(`[Scheduler] WhatsApp local backup failed: ${err}`);
+       }
+     }
+
+     // Optional no-OAuth Google Sheets path: POST to the user's Apps Script web app.
+     if (sheetRows.length && googleAppsScriptUrl) {
+       try {
+         await pushWhatsAppBatchToAppsScript(
+           googleAppsScriptUrl,
+           sheetRows,
+           this.todayIST(),
+           googleAppsScriptSecret,
+           generatedAt,
+         );
+         log(`[Scheduler] WhatsApp: ${sheetRows.length} messages pushed to Apps Script`);
+       } catch (err) {
+         log(`[Scheduler] Apps Script push failed: ${err}`);
        }
      }
 
@@ -267,8 +292,8 @@ class Scheduler {
       } catch (err) {
         log(`[Scheduler] WhatsApp Sheets export failed: ${err}`);
       }
-    } else if (!spreadsheetId) {
-      log(`[Scheduler] WhatsApp: no Sheet ID configured — messages not exported`);
+     } else if (!spreadsheetId && !googleAppsScriptUrl) {
+       log(`[Scheduler] WhatsApp: no Google Sheets export configured — local backup only`);
     }
 
     this.waDailyCount = generated;
@@ -337,7 +362,13 @@ class Scheduler {
 
   private async runBatch() {
     if (!this.config) return;
-    const { affiliateTag, telegramBotToken, telegramChannelId, spreadsheetId } = this.config;
+    const {
+      affiliateTag,
+      telegramBotToken,
+      telegramChannelId,
+      googleAppsScriptUrl,
+    } = this.config;
+    const spreadsheetId = googleAppsScriptUrl ? undefined : this.config.spreadsheetId;
 
     log(`[Scheduler] Starting Telegram batch — collecting up to ${PRODUCTS_PER_BATCH} products...`);
 
