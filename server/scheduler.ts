@@ -10,9 +10,9 @@ import { existsSync } from "fs";
 
 export const ADMIN_USER_ID = "admin-scheduler";
 
-// Telegram: 300 products sent ALL AT ONCE, once per day
-const PRODUCTS_PER_BATCH   = 300;
-const TG_SEND_DELAY_MS     = 800;   // 800ms between sends (~4 min for 300 msgs)
+// Telegram: 150 products per batch, twice daily (10 AM IST + 7 PM IST)
+const PRODUCTS_PER_BATCH   = 150;
+const TG_SEND_DELAY_MS     = 800;   // 800ms between sends (~2 min for 150 msgs)
 
 // WhatsApp: exactly 30 messages generated automatically once per day
 const WHATSAPP_BATCH_SIZE  = 30;
@@ -155,7 +155,7 @@ class Scheduler {
       spreadsheetId: config.spreadsheetId || null,
     });
 
-    log("[Scheduler] Starting — sending all 300 Telegram messages now...");
+    log("[Scheduler] Starting — sending first 150 Telegram messages now...");
     await this.runBatch();
     this.scheduleNextTelegramBatch();
 
@@ -264,12 +264,12 @@ class Scheduler {
     log(`[Scheduler] WhatsApp premium batch done: ${generated} messages → Sheets`);
   }
 
-  /** ms until next 3:00 PM IST */
-  private msUntil3PMIST(): number {
+  /** ms until the next occurrence of a given IST hour:minute */
+  private msUntilISTTime(hour: number, minute = 0): number {
     const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
     const istNow = Date.now() + IST_OFFSET_MS;
     const istMinuteOfDay = Math.floor((istNow % (24 * 60 * 60 * 1000)) / 60000);
-    const target = 15 * 60; // 3:00 PM = 900 min from midnight IST
+    const target = hour * 60 + minute;
     const remaining = istMinuteOfDay < target
       ? (target - istMinuteOfDay) * 60 * 1000
       : (24 * 60 - istMinuteOfDay + target) * 60 * 1000;
@@ -277,14 +277,19 @@ class Scheduler {
   }
 
   private scheduleNextTelegramBatch() {
-    const msTo3PM = this.msUntil3PMIST();
-    this.nextRunAt = new Date(Date.now() + msTo3PM);
-    log(`[Scheduler] Next Telegram batch in ${Math.round(msTo3PM / 60000)} min (3:00 PM IST)`);
+    // Two daily slots: 10:00 AM IST and 7:00 PM IST
+    const msTo10AM = this.msUntilISTTime(10, 0);
+    const msTo7PM  = this.msUntilISTTime(19, 0);
+    // Pick whichever is sooner
+    const msNext = Math.min(msTo10AM, msTo7PM);
+    const label  = msNext === msTo10AM ? "10:00 AM IST" : "7:00 PM IST";
+    this.nextRunAt = new Date(Date.now() + msNext);
+    log(`[Scheduler] Next Telegram batch in ${Math.round(msNext / 60000)} min (${label})`);
     if (this.intervalId) clearTimeout(this.intervalId as unknown as NodeJS.Timeout);
     this.intervalId = setTimeout(async () => {
       await this.runBatch();
       this.scheduleNextTelegramBatch();
-    }, msTo3PM) as unknown as NodeJS.Timeout;
+    }, msNext) as unknown as NodeJS.Timeout;
   }
 
   stop() {
@@ -322,7 +327,7 @@ class Scheduler {
     if (!this.config) return;
     const { affiliateTag, telegramBotToken, telegramChannelId, spreadsheetId } = this.config;
 
-    log(`[Scheduler] Starting full Telegram batch — collecting up to ${PRODUCTS_PER_BATCH} products...`);
+    log(`[Scheduler] Starting Telegram batch — collecting up to ${PRODUCTS_PER_BATCH} products...`);
 
     const collectedProducts: any[] = [];
     // Dual-key dedup: exact ASIN  +  normalised title prefix (catches variants with same title)
