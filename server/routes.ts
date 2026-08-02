@@ -10,6 +10,7 @@ import { generateWhatsAppMessageFromDiscovered, generateTelegramMessageFromDisco
 import { appendToSheet, appendWhatsAppBatchToSheet, type WhatsAppRow } from "./sheets";
 import { z } from "zod";
 import { scheduler, ADMIN_USER_ID, type SchedulerConfig } from "./scheduler";
+import { saveWhatsAppBatchFiles, whatsappBatchesToCsv, type WhatsAppBatch } from "./whatsappExport";
 
 const schedulerConfigSchema = z.object({
   affiliateTag: z.string().min(1),
@@ -254,7 +255,9 @@ export async function registerRoutes(
               category: cat,
               productTitle: product.title,
               price: product.price,
+               originalPrice: (product as any).originalPrice || "",
               discount: (product as any).discount || "",
+               rating: product.rating > 0 ? `${product.rating}/5` : "",
               productUrl: `${product.url}?tag=${affiliateTag}`,
               message: whatsappMessage,
             });
@@ -273,19 +276,12 @@ export async function registerRoutes(
         if (generated.length >= 30) break;
       }
 
-      // Always save to local file first (works without Google auth)
+      // Always save local JSON + CSV first (works without Google auth)
       let fileSaved = false;
       if (sheetRows.length) {
         try {
-          const dataDir = path.join(process.cwd(), "data");
-          if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-          const filePath = path.join(dataDir, "whatsapp-messages.json");
-          const existing = fs.existsSync(filePath) ? JSON.parse(fs.readFileSync(filePath, "utf8")) : [];
           const dateIST = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" });
-          existing.push({ date: dateIST, generatedAt: new Date().toISOString(), rows: sheetRows });
-          // Keep last 30 days
-          const trimmed = existing.slice(-30);
-          fs.writeFileSync(filePath, JSON.stringify(trimmed, null, 2), "utf8");
+          saveWhatsAppBatchFiles(sheetRows, dateIST);
           fileSaved = true;
         } catch (err) {
           console.error("[WhatsApp] Local file save error:", err);
@@ -366,6 +362,25 @@ export async function registerRoutes(
     } catch (err) {
       res.status(500).json({ error: "Failed to read messages" });
     }
+  });
+
+  // ── WHATSAPP CSV EXPORT (no Google account or connector required) ─────────────
+  app.get("/api/admin/whatsapp-messages/download.csv", (_req, res) => {
+    const dataDir = path.join(process.cwd(), "data");
+    const filePath = path.join(dataDir, "whatsapp-messages.csv");
+    const jsonPath = path.join(dataDir, "whatsapp-messages.json");
+    if (!fs.existsSync(filePath) && fs.existsSync(jsonPath)) {
+      try {
+        const batches: WhatsAppBatch[] = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
+        fs.writeFileSync(filePath, whatsappBatchesToCsv(batches), "utf8");
+      } catch {
+        return res.status(500).json({ error: "Saved messages could not be converted to CSV." });
+      }
+    }
+    if (!fs.existsSync(filePath)) {
+      return res.status(404).json({ error: "No messages saved yet. Generate a batch first." });
+    }
+    res.download(filePath, `whatsapp-messages-${new Date().toISOString().slice(0, 10)}.csv`);
   });
 
   // ── WHATSAPP MESSAGES JSON (for dashboard) ────────────────────────────────────

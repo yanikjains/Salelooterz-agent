@@ -1,0 +1,1 @@
+- [WhatsApp export fallback](whatsapp-export-fallback.md) — keep local JSON and CSV exports available when Google Sheets OAuth is unavailable.

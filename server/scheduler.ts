@@ -7,6 +7,7 @@ import { wasRecentlyPosted, wasTitlePosted, markAsPosted, markTitleAsPosted, get
 import { log } from "./index";
 import { readFile, writeFile } from "fs/promises";
 import { existsSync } from "fs";
+import { saveWhatsAppBatchFiles } from "./whatsappExport";
 
 export const ADMIN_USER_ID = "admin-scheduler";
 
@@ -224,7 +225,8 @@ class Scheduler {
 
           const whatsappMessage = generatePersonalizedWhatsAppMessage(product, affiliateTag, cat);
 
-          sheetRows.push({
+           const discountStr = (product as any).discount || "";
+           sheetRows.push({
             category: cat,
             productTitle: product.title,
             price: product.price,
@@ -247,7 +249,17 @@ class Scheduler {
       } catch { continue; }
     }
 
-    // Write all messages to Google Sheets (date-organised tab)
+     // Always save a local archive and spreadsheet-ready CSV first.
+     if (sheetRows.length) {
+       try {
+         saveWhatsAppBatchFiles(sheetRows, this.todayIST());
+         log(`[Scheduler] WhatsApp: local JSON + CSV backup saved`);
+       } catch (err) {
+         log(`[Scheduler] WhatsApp local backup failed: ${err}`);
+       }
+     }
+
+     // Write all messages to Google Sheets (date-organised tab)
     if (sheetRows.length && spreadsheetId) {
       try {
         await appendWhatsAppBatchToSheet(spreadsheetId, sheetRows);

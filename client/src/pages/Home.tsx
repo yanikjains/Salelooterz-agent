@@ -398,7 +398,7 @@ function Dashboard() {
                 <div>
                   <p className="text-[13px] font-bold text-white">WhatsApp Messages</p>
                   <p className="text-[11px] text-white/30 mt-0.5">
-                    Generated daily at 3 PM IST → exported to Google Sheets
+                     Generated daily at 3 PM IST → saved automatically as CSV
                   </p>
                 </div>
                 {sheetId.trim() && (
@@ -421,6 +421,10 @@ function Dashboard() {
                 <a href="/api/admin/whatsapp-messages/download" download
                   className="flex items-center gap-1.5 h-8 px-4 rounded-lg bg-green-600/15 border border-green-500/25 text-green-400 hover:bg-green-600/25 transition-colors text-xs font-semibold">
                   <Download className="w-3 h-3" />Download Messages
+                </a>
+                <a href="/api/admin/whatsapp-messages/download.csv" download
+                  className="flex items-center gap-1.5 h-8 px-4 rounded-lg bg-blue-600/15 border border-blue-500/25 text-blue-400 hover:bg-blue-600/25 transition-colors text-xs font-semibold">
+                  <Download className="w-3 h-3" />Download CSV
                 </a>
               </div>
             </div>
