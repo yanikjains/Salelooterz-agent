@@ -1,0 +1,180 @@
+const CONFIG = {
+  SHEET_NAME: "WhatsApp Messages",
+  TIME_ZONE: "Asia/Kolkata",
+
+  // Change this to your own private value
+  APP_SECRET: "CHANGE_THIS_SECRET",
+};
+
+const HEADERS = [
+  "Date & Time (IST)",
+  "Category",
+  "Product",
+  "Deal Price",
+  "Original Price",
+  "Discount",
+  "Rating",
+  "Amazon URL",
+  "WhatsApp Message",
+];
+
+function setup() {
+  const sheet = getOrCreateSheet_();
+  ensureHeaders_(sheet);
+  sheet.setFrozenRows(1);
+  sheet.autoResizeColumns(1, HEADERS.length);
+}
+
+function doPost(e) {
+  try {
+    if (!e || !e.postData || !e.postData.contents) {
+      return response_({ ok: false, error: "Missing request body" });
+    }
+
+    const payload = JSON.parse(e.postData.contents);
+
+    if (
+      CONFIG.APP_SECRET &&
+      payload.secret !== CONFIG.APP_SECRET
+    ) {
+      return response_({ ok: false, error: "Unauthorized" });
+    }
+
+    if (!Array.isArray(payload.rows)) {
+      return response_({ ok: false, error: "rows must be an array" });
+    }
+
+    const sheet = getOrCreateSheet_();
+    ensureHeaders_(sheet);
+
+    const existingUrls = getExistingUrls_(sheet);
+    const newRows = [];
+
+    payload.rows.forEach(function (row) {
+      const amazonUrl = String(
+        row.productUrl || row.productTitle || ""
+      ).trim();
+
+      if (!amazonUrl || existingUrls.has(amazonUrl)) {
+        return;
+      }
+
+      newRows.push([
+        formatIst_(payload.generatedAt, payload.date),
+        row.category || "",
+        row.productTitle || "",
+        row.price || "",
+        row.originalPrice || "",
+        row.discount || "",
+        row.rating || "",
+        row.productUrl || "",
+        row.message || "",
+      ]);
+
+      existingUrls.add(amazonUrl);
+    });
+
+    if (newRows.length > 0) {
+      sheet
+        .getRange(
+          sheet.getLastRow() + 1,
+          1,
+          newRows.length,
+          HEADERS.length
+        )
+        .setValues(newRows);
+
+      sheet
+        .getRange(
+          2,
+          1,
+          Math.max(sheet.getLastRow() - 1, 1),
+          1
+        )
+        .setNumberFormat("dd mmm yyyy HH:mm:ss");
+    }
+
+    sheet.setFrozenRows(1);
+
+    return response_({
+      ok: true,
+      imported: newRows.length,
+    });
+  } catch (error) {
+    Logger.log(String(error));
+
+    return response_({
+      ok: false,
+      error: String(error),
+    });
+  }
+}
+
+function getOrCreateSheet_() {
+  const spreadsheet = SpreadsheetApp.getActiveSpreadsheet();
+
+  return (
+    spreadsheet.getSheetByName(CONFIG.SHEET_NAME) ||
+    spreadsheet.insertSheet(CONFIG.SHEET_NAME)
+  );
+}
+
+function ensureHeaders_(sheet) {
+  if (sheet.getLastRow() === 0) {
+    sheet
+      .getRange(1, 1, 1, HEADERS.length)
+      .setValues([HEADERS]);
+
+    sheet
+      .getRange(1, 1, 1, HEADERS.length)
+      .setFontWeight("bold")
+      .setBackground("#0f172a")
+      .setFontColor("#ffffff");
+  }
+}
+
+function getExistingUrls_(sheet) {
+  const urls = new Set();
+
+  if (sheet.getLastRow() < 2) {
+    return urls;
+  }
+
+  // Amazon URL is column 8
+  sheet
+    .getRange(2, 8, sheet.getLastRow() - 1, 1)
+    .getValues()
+    .forEach(function (row) {
+      const url = String(row[0] || "").trim();
+
+      if (url) {
+        urls.add(url);
+      }
+    });
+
+  return urls;
+}
+
+function formatIst_(generatedAt, fallbackDate) {
+  if (!generatedAt) {
+    return fallbackDate || "";
+  }
+
+  const date = new Date(generatedAt);
+
+  if (isNaN(date.getTime())) {
+    return fallbackDate || "";
+  }
+
+  return Utilities.formatDate(
+    date,
+    CONFIG.TIME_ZONE,
+    "dd MMM yyyy HH:mm:ss"
+  );
+}
+
+function response_(data) {
+  return ContentService
+    .createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}
