@@ -309,6 +309,34 @@ export async function registerRoutes(
     }
   });
 
+  // ── WHATSAPP TEST — generate & return N messages instantly ───────────────────
+  app.get("/api/admin/whatsapp-test", async (req, res) => {
+    try {
+      const limit = Math.min(parseInt((req.query.limit as string) || "2", 10), 10);
+      const config = scheduler.getStatus().config;
+      const affiliateTag = config?.affiliateTag || "salelooterz0a-21";
+
+      const messages: { category: string; title: string; price: string; message: string }[] = [];
+      const cats = Object.keys(categorySearchTerms);
+
+      for (const cat of cats) {
+        if (messages.length >= limit) break;
+        try {
+          const products = await discoverPremiumProducts(cat, 5);
+          for (const p of products) {
+            if (messages.length >= limit) break;
+            const msg = generatePersonalizedWhatsAppMessage(p, affiliateTag, cat);
+            messages.push({ category: cat, title: p.title, price: p.price, message: msg });
+          }
+        } catch { continue; }
+      }
+
+      res.json({ success: true, count: messages.length, messages });
+    } catch (err) {
+      res.status(500).json({ success: false, error: err instanceof Error ? err.message : "Unknown error" });
+    }
+  });
+
   // ── WHATSAPP MESSAGES DOWNLOAD ────────────────────────────────────────────────
   app.get("/api/admin/whatsapp-messages/download", (_req, res) => {
     try {
