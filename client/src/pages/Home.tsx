@@ -402,7 +402,7 @@ function Dashboard() {
             {/* Schedule chips */}
             <div className="flex flex-wrap items-center gap-2 px-1">
               <span className="text-[10px] font-bold uppercase tracking-widest text-white/15">Schedule</span>
-              {["3 AM IST Telegram", "300 msgs / day", "Midnight IST WhatsApp", "30 msgs / day"].map((t, i) => (
+              {["3 PM IST Telegram", "300 msgs / day", "Midnight IST WhatsApp", "30 msgs / day"].map((t, i) => (
                 <span key={i} className="text-[11px] px-2.5 py-1 rounded-lg border border-white/[0.07] text-white/30">{t}</span>
               ))}
             </div>

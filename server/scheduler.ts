@@ -198,7 +198,7 @@ class Scheduler {
     ];
     const perGroup = Math.ceil(WHATSAPP_BATCH_SIZE / allGroups.length);
 
-    log(`[Scheduler] Running daily WhatsApp 60%+ deals batch — ${allGroups.length} groups, ~${perGroup} each...`);
+    log(`[Scheduler] Running daily WhatsApp batch (MRP ≥ ₹3,000) — ${allGroups.length} groups, ~${perGroup} each...`);
 
     const sheetRows: WhatsAppRow[] = [];
     let generated = 0;
@@ -211,10 +211,10 @@ class Scheduler {
         for (const product of raw) {
           if (generated >= WHATSAPP_BATCH_SIZE || groupCount >= perGroup) break;
 
-          // Require 60%+ discount
-          const discountStr = (product as any).discount || "";
-          const discountPct = parseInt(discountStr.match(/(\d+)/)?.[1] || "0");
-          if (discountPct < 60) continue;
+          // Require original price (MRP) ≥ ₹3,000 — no cheap products on WhatsApp
+          const origPriceStr = (product as any).originalPrice || product.price || "";
+          const origPriceNum = parseInt(origPriceStr.replace(/[₹,\s]/g, '').replace(/[^0-9]/g, '')) || 0;
+          if (origPriceNum < 3000) continue;
 
           // Require a real rating (≥3.5) — skip junk products
           if (product.rating > 0 && product.rating < 3.5) continue;
@@ -242,7 +242,7 @@ class Scheduler {
           generated++;
           groupCount++;
         }
-        log(`[Scheduler] WhatsApp group "${cat}": ${groupCount} products (60%+ deals)`);
+        log(`[Scheduler] WhatsApp group "${cat}": ${groupCount} products (MRP ≥ ₹3,000)`);
         await sleep(1500);
       } catch { continue; }
     }

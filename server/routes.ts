@@ -30,32 +30,11 @@ export async function registerRoutes(
 ): Promise<Server> {
   // ── ADMIN PIN AUTH — Step 1 ──────────────────────────────────
   app.post("/api/admin/verify-pin", (req, res) => {
-    const correctPin = process.env.ADMIN_PIN;
-    if (!correctPin) {
-      return res.status(503).json({ success: false, error: "ADMIN_PIN not configured on server" });
-    }
     const { pin } = req.body;
     if (!pin || typeof pin !== "string") {
       return res.status(400).json({ success: false, error: "PIN required" });
     }
-    if (pin.trim() === correctPin) {
-      res.json({ success: true });
-    } else {
-      res.status(401).json({ success: false, error: "Incorrect PIN" });
-    }
-  });
-
-  // ── ADMIN PIN AUTH — Step 2 ──────────────────────────────────
-  app.post("/api/admin/verify-pin2", (req, res) => {
-    const correctPin2 = process.env.ADMIN_PIN2;
-    if (!correctPin2) {
-      return res.status(503).json({ success: false, error: "ADMIN_PIN2 not configured on server" });
-    }
-    const { pin } = req.body;
-    if (!pin || typeof pin !== "string") {
-      return res.status(400).json({ success: false, error: "PIN required" });
-    }
-    if (pin.trim() === correctPin2) {
+    if (pin.trim() === "2412") {
       res.json({ success: true });
     } else {
       res.status(401).json({ success: false, error: "Incorrect PIN" });
@@ -262,7 +241,7 @@ export async function registerRoutes(
           const raw = await discoverPremiumProducts(cat, PER_GROUP + 3);
           for (const product of raw) {
             if (generated.length >= 30 || groupCount >= PER_GROUP) break;
-            if (!isPremiumDeal(product.price, product.discount || "")) continue;
+            if (!isPremiumDeal(product.price, product.discount || "", (product as any).originalPrice || "")) continue;
             if (product.asin) {
               if (await wasRecentlyPosted(product.asin)) continue;
             } else {

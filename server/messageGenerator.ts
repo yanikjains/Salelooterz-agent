@@ -120,14 +120,10 @@ function parsePriceNum(price: string): number {
   return parseInt(price.replace(/[₹,\s]/g, '').replace(/[^0-9]/g, '')) || 0;
 }
 
-/** Returns true if product meets the LUXURY WhatsApp quality bar (expensive products only) */
-export function isPremiumDeal(price: string, discount: string): boolean {
-  const priceNum    = parsePriceNum(price);
-  const discountPct = parseInt(discount.match(/(\d+)/)?.[1] || '0');
-  if (priceNum < 5000)   return false;   // minimum ₹5,000 — no cheap products on WhatsApp
-  if (priceNum >= 50000) return true;    // ₹50k+ always share regardless of discount
-  if (priceNum >= 15000) return discountPct >= 8;   // ₹15k–₹50k: needs ≥8% off
-  return discountPct >= 12;                          // ₹5k–₹15k: needs ≥12% off
+/** Returns true if product MRP (original price) is ≥ ₹3,000 — no cheap products on WhatsApp */
+export function isPremiumDeal(price: string, discount: string, originalPrice?: string): boolean {
+  const mrp = originalPrice ? parsePriceNum(originalPrice) : parsePriceNum(price);
+  return mrp >= 3000;
 }
 
 export function generatePersonalizedWhatsAppMessage(
@@ -195,51 +191,34 @@ function getDealTime(): string {
 }
 
 export function generateTelegramMessage(product: ProductData | DiscoveredProduct, affiliateTag: string): string {
-  const hook = getRandomElement(viralHooksHindi);
-  const closing = getRandomElement(closingLinesHindi);
-  
   const affiliateUrl = `${product.url}${product.url.includes('?') ? '&' : '?'}tag=${affiliateTag}`;
-  
-  let message = `${hook} 🚀
 
-**${product.title}**
+  const title = product.title.length > 80 ? product.title.substring(0, 80) + '...' : product.title;
 
-`;
+  let message = `${title}\n\n`;
 
-  message += `💰 **Deal Price:** ${formatIndianPrice(product.price)}`;
-  
-  if (product.discount) {
-    message += ` 🏷️ ${product.discount}`;
+  const origPrice = (product as any).originalPrice || '';
+  if (origPrice) {
+    message += `❌ MRP: ${formatIndianPrice(origPrice)}\n`;
   }
-  
-  message += `
 
-`;
+  message += `✅ Deal Price: ${formatIndianPrice(product.price)}`;
+  if (product.discount) {
+    message += ` (${product.discount})`;
+  }
+  message += `\n`;
 
   if (product.rating > 0) {
-    message += `⭐ **Rating:** ${product.rating}/5`;
+    message += `\n⭐ Rating: ${product.rating}/5`;
     if (product.reviews > 0) {
       message += ` (${product.reviews.toLocaleString('en-IN')} reviews)`;
     }
-    message += `
-
-`;
+    message += `\n`;
   }
 
-  if (product.features && product.features.length > 0) {
-    message += `✨ **Key Features:**
-${product.features.slice(0, 4).map(f => `🔹 ${f.substring(0, 70)}${f.length > 70 ? '...' : ''}`).join('\n')}
-
-`;
-  }
-
-  message += `🛒 **ORDER NOW:** [Click Here](${affiliateUrl})
-
-${closing}
-
-#Amazon #India #Deals #Shopping #OnlineShopping
-
-Deal time ${getDealTime()} 🤘`;
+  message += `\n🛒 BUY NOW:\n${affiliateUrl}\n\n`;
+  message += `⚡ Don't miss this deal!\n\n`;
+  message += `#AmazonIndia #Deals #Shopping #Loot`;
 
   return message;
 }
