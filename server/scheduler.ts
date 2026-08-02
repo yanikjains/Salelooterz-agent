@@ -174,15 +174,15 @@ class Scheduler {
       log("[Scheduler] Daily WhatsApp batch already done today.");
     }
 
-    // Schedule next batch at midnight IST
-    const msToMidnight = this.msUntilMidnightIST();
-    log(`[Scheduler] Next WhatsApp batch in ${Math.round(msToMidnight / 60000)} min (midnight IST)`);
+    // Schedule next batch at 3:00 PM IST
+    const msTo3PM = this.msUntilISTTime(15, 0);
+    log(`[Scheduler] Next WhatsApp batch in ${Math.round(msTo3PM / 60000)} min (3:00 PM IST)`);
     if (this.waIntervalId) clearTimeout(this.waIntervalId);
     this.waIntervalId = setTimeout(async () => {
       await this.runWhatsAppBatch();
-      // After midnight, repeat every 24 h
+      // After 3 PM, repeat every 24 h
       this.waIntervalId = setInterval(() => this.runWhatsAppBatch(), 24 * 60 * 60 * 1000);
-    }, msToMidnight) as unknown as NodeJS.Timeout;
+    }, msTo3PM) as unknown as NodeJS.Timeout;
   }
 
   private async runWhatsAppBatch() {
