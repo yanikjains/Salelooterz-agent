@@ -158,11 +158,10 @@ class Scheduler {
       spreadsheetId: config.spreadsheetId || null,
     });
 
-    log("[Scheduler] Starting — sending first 150 Telegram messages now...");
-    await this.runBatch();
+    log("[Scheduler] Started — Telegram batches scheduled for 10:00 AM and 7:00 PM IST.");
     this.scheduleNextTelegramBatch();
 
-    // Daily WhatsApp batch — run immediately if not yet done today, then repeat every 24 h
+    // Daily notepad batch at 3:00 PM IST (30 messages)
     await this.scheduleWhatsAppBatch();
   }
 
@@ -170,16 +169,14 @@ class Scheduler {
     const lastDate = await this.waLastDate();
     const today    = this.todayIST();
 
-    if (lastDate !== today) {
-      log("[Scheduler] Daily WhatsApp batch not yet done today — running now...");
-      await this.runWhatsAppBatch();
-    } else {
-      log("[Scheduler] Daily WhatsApp batch already done today.");
+    // Never run immediately on startup — always wait for 3:00 PM IST
+    if (lastDate === today) {
+      log("[Scheduler] Notepad batch already done today — next one at 3:00 PM IST tomorrow.");
     }
 
     // Schedule next batch at 3:00 PM IST
     const msTo3PM = this.msUntilISTTime(15, 0);
-    log(`[Scheduler] Next WhatsApp batch in ${Math.round(msTo3PM / 60000)} min (3:00 PM IST)`);
+    log(`[Scheduler] Next notepad batch in ${Math.round(msTo3PM / 60000)} min (3:00 PM IST)`);
     if (this.waIntervalId) clearTimeout(this.waIntervalId);
     this.waIntervalId = setTimeout(async () => {
       await this.runWhatsAppBatch();
@@ -219,7 +216,12 @@ class Scheduler {
         for (const product of raw) {
           if (generated >= WHATSAPP_BATCH_SIZE || groupCount >= perGroup) break;
 
-          // Require original price (MRP) ≥ ₹3,000 — no cheap products on WhatsApp
+          // Real-values guard: must have a title and a non-zero deal price
+          if (!product.title || product.title.trim().length < 5) continue;
+          const dealPriceNum = parseFloat(String(product.price || "").replace(/[₹,\s]/g, "").replace(/[^0-9.]/g, "")) || 0;
+          if (dealPriceNum <= 0) continue;
+
+          // Require original price (MRP) ≥ ₹3,000 — no cheap products on notepad
           const origPriceStr = (product as any).originalPrice || product.price || "";
           const origPriceNum = parseInt(origPriceStr.replace(/[₹,\s]/g, '').replace(/[^0-9]/g, '')) || 0;
           if (origPriceNum < 3000) continue;
@@ -400,6 +402,14 @@ class Scheduler {
 
           for (const p of (rawProducts || [])) {
             if (catCollected >= catTarget) break;
+
+            // ── Real-values guard: skip products with missing/zero price, no title, or no rating ──
+            if (!p.title || p.title.trim().length < 5) { totalSkipped++; continue; }
+            const priceNum = parseFloat(String(p.price || "").replace(/[₹,\s]/g, "").replace(/[^0-9.]/g, "")) || 0;
+            if (priceNum <= 0) { totalSkipped++; continue; }
+            const ratingNum = typeof p.rating === "number" ? p.rating : parseFloat(String(p.rating || "0"));
+            if (ratingNum <= 0) { totalSkipped++; continue; }
+
             // ASIN key
             const asinKey = p.asin ? `asin:${p.asin}` : null;
             // Normalised-title key (catches same-product variants)
