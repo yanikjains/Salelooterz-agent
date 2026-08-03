@@ -273,16 +273,15 @@ export async function discoverPremiumProducts(category: string, limit: number = 
     log(`[Premium] Discovering "${category}" using: "${searchTerm}"`);
     const products = await searchAmazonIndia(searchTerm, limit + 3);
     if (products.length === 0) {
-      // fallback: try second premium term
+      // Try a second premium term before giving up
       const searchTerm2 = getRandomPremiumTerm(category);
       const p2 = await searchAmazonIndia(searchTerm2, limit);
-      if (p2.length > 0) return p2.map(p => ({ ...p, category }));
-      return getFallbackProducts(category, limit).map(p => ({ ...p, category }));
+      return p2.map(p => ({ ...p, category }));
     }
     return products.map(p => ({ ...p, category }));
   } catch (error) {
     log(`[Premium] Scraping failed for ${category}: ${error}`);
-    return getFallbackProducts(category, limit).map(p => ({ ...p, category }));
+    return []; // no fake data — only live Amazon results
   }
 }
 
@@ -290,18 +289,15 @@ export async function discoverProducts(category: string, limit: number = 5): Pro
   try {
     const searchTerm = getRandomSearchTerm(category);
     log(`[Discovery] "${category}" — searching: "${searchTerm}"`);
-
     const products = await searchAmazonIndia(searchTerm, limit);
-
     if (products.length === 0) {
-      log(`[Discovery] No results for "${category}" — using fallback products`);
-      return getFallbackProducts(category, limit).map(product => ({ ...product, category }));
+      log(`[Discovery] No results for "${category}" — skipping (no fake data)`);
+      return [];
     }
-
     return products.map(product => ({ ...product, category }));
   } catch (error) {
-    log(`[Discovery] Scraping failed for "${category}" — using fallback: ${error}`);
-    return getFallbackProducts(category, limit).map(product => ({ ...product, category }));
+    log(`[Discovery] Scraping failed for "${category}": ${error}`);
+    return []; // no fake data — only live Amazon results
   }
 }
 
@@ -342,21 +338,13 @@ export async function discoverHotDeals(limit: number = 5): Promise<DiscoveredPro
     const products = await searchAmazonIndia(searchTerm, limit);
 
     if (products.length === 0) {
-      log(`[Discovery] No hot deals found — using mixed fallback`);
-      const allFallback: DiscoveredProduct[] = [];
-      for (const cat of Object.keys(categorySearchTerms).slice(0, 3)) {
-        allFallback.push(...getFallbackProducts(cat, 2).map(p => ({ ...p, category: cat })));
-      }
-      return allFallback.slice(0, limit);
+      log(`[Discovery] No hot deals found — skipping (no fake data)`);
+      return [];
     }
 
     return products.map(product => ({ ...product, category: "deals" }));
   } catch (error) {
-    log(`[Discovery] Hot deals scraping failed — using fallback: ${error}`);
-    const allFallback: DiscoveredProduct[] = [];
-    for (const cat of Object.keys(categorySearchTerms).slice(0, 3)) {
-      allFallback.push(...getFallbackProducts(cat, 2).map(p => ({ ...p, category: cat })));
-    }
-    return allFallback.slice(0, limit);
+    log(`[Discovery] Hot deals scraping failed: ${error}`);
+    return []; // no fake data — only live Amazon results
   }
 }
