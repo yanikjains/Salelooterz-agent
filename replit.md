@@ -4,6 +4,12 @@
 
 Affiliate Bot is a web application that automates the creation and distribution of Amazon affiliate marketing messages. The platform scrapes Amazon product data, generates viral marketing content optimized for WhatsApp and Telegram, and automatically exports campaigns to Google Sheets for tracking. It features product discovery across multiple categories with Hindi-English hybrid messaging to target Indian markets.
 
+## Running the app
+
+- Start the application with `npm run dev`.
+- The web preview is served on port 5000.
+- Google Sheets, sign-in, email, payment, Telegram, and WhatsApp features may require their respective external configuration; the core dashboard and local JSON/CSV WhatsApp exports can run without them.
+
 **Creator:** Yanik Jain | **Email:** salelooterz@gmail.com
 
 ## Recent Updates (May 2, 2026)
