@@ -180,8 +180,8 @@ class Scheduler {
     if (this.waIntervalId) clearTimeout(this.waIntervalId);
     this.waIntervalId = setTimeout(async () => {
       await this.runWhatsAppBatch();
-      // After 3 PM, repeat every 24 h
-      this.waIntervalId = setInterval(() => this.runWhatsAppBatch(), 24 * 60 * 60 * 1000);
+      // Recalculate from the next fixed IST target so batch duration never drifts the schedule.
+      await this.scheduleWhatsAppBatch();
     }, msTo3PM) as unknown as NodeJS.Timeout;
   }
 
@@ -306,13 +306,12 @@ class Scheduler {
   /** ms until the next occurrence of a given IST hour:minute */
   private msUntilISTTime(hour: number, minute = 0): number {
     const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
+    const DAY_MS = 24 * 60 * 60 * 1000;
     const istNow = Date.now() + IST_OFFSET_MS;
-    const istMinuteOfDay = Math.floor((istNow % (24 * 60 * 60 * 1000)) / 60000);
-    const target = hour * 60 + minute;
-    const remaining = istMinuteOfDay < target
-      ? (target - istMinuteOfDay) * 60 * 1000
-      : (24 * 60 - istMinuteOfDay + target) * 60 * 1000;
-    return remaining;
+    const istDayStart = Math.floor(istNow / DAY_MS) * DAY_MS;
+    let target = istDayStart + (hour * 60 + minute) * 60 * 1000;
+    if (target <= istNow) target += DAY_MS;
+    return target - istNow;
   }
 
   private scheduleNextTelegramBatch() {
