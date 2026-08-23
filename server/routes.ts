@@ -42,15 +42,40 @@ export async function registerRoutes(
     if (!pin || typeof pin !== "string") {
       return res.status(400).json({ success: false, error: "PIN required" });
     }
-    if (pin.trim() === "2412") {
-      res.json({ success: true });
-    } else {
-      res.status(401).json({ success: false, error: "Incorrect PIN" });
+    const firstPin = process.env.ADMIN_PIN;
+    const secondPin = process.env.ADMIN_PIN2;
+    if (!firstPin || !secondPin) {
+      return res.status(503).json({ success: false, error: "Admin access is not configured" });
     }
+
+    const session = req.session as typeof req.session & { adminPinStage?: number; adminVerified?: boolean };
+    if (session.adminPinStage !== 1 && pin.trim() === firstPin) {
+      session.adminPinStage = 1;
+      return res.json({ success: true, nextStep: 2 });
+    }
+    if (session.adminPinStage === 1 && pin.trim() === secondPin) {
+      session.adminVerified = true;
+      delete session.adminPinStage;
+      return res.json({ success: true, verified: true });
+    }
+    delete session.adminPinStage;
+    session.adminVerified = false;
+    res.status(401).json({ success: false, error: "Incorrect PIN" });
+  });
+
+  const requireAdmin = (req: any, res: any, next: any) => {
+    if (req.session?.adminVerified === true) return next();
+    res.status(401).json({ success: false, error: "Admin authentication required" });
+  };
+
+  // All admin APIs other than the PIN handshake require the server session.
+  app.use("/api/admin", (req, res, next) => {
+    if (req.path === "/verify-pin") return next();
+    return requireAdmin(req, res, next);
   });
 
   // ── TELEGRAM TEST ────────────────────────────────────────────
-  app.post("/api/telegram/test", async (req, res) => {
+  app.post("/api/telegram/test", requireAdmin, async (req, res) => {
     const { botToken, channelId } = req.body;
     if (!botToken || !channelId) {
       return res.status(400).json({ success: false, error: "botToken and channelId are required" });

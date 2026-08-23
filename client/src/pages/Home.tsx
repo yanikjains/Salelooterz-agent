@@ -45,25 +45,13 @@ function PinScreen({ onVerified }: { onVerified: () => void }) {
   const [loading, setLoading] = useState(false);
   const [attempts, setAttempts] = useState(0);
   const locked = attempts >= 5;
-  const PIN2 = "8101";
-
   const verify = async (e: React.FormEvent) => {
     e.preventDefault();
     if (locked) return;
     setLoading(true); setError(null);
 
     if (step === 2) {
-      await new Promise(r => setTimeout(r, 200));
-      if (pin.trim() === PIN2) {
-        onVerified();
-      } else {
-        const n = attempts + 1;
-        setAttempts(n);
-        setError(n >= 5 ? "Too many attempts. Locked." : `Wrong PIN — ${5 - n} attempt${5 - n === 1 ? "" : "s"} left.`);
-        setPin("");
-      }
-      setLoading(false);
-      return;
+      // Step 2 is verified by the server too; do not keep this PIN in browser code.
     }
 
     try {
@@ -73,7 +61,9 @@ function PinScreen({ onVerified }: { onVerified: () => void }) {
         body: JSON.stringify({ pin }),
       });
       const d = await r.json();
-      if (d.success) {
+      if (d.success && d.verified) {
+        onVerified();
+      } else if (d.success && d.nextStep === 2) {
         setAttempts(0); setStep(2); setPin(""); setError(null);
       } else {
         const n = attempts + 1;
