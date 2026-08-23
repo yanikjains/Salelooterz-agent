@@ -1,1 +1,2 @@
 - [WhatsApp export fallback](whatsapp-export-fallback.md) — keep local JSON and CSV exports available when Google Sheets OAuth is unavailable.
+- [Always-on scheduler deployment](always-on-scheduler-deployment.md) — background timers require an always-running VM deployment; autoscaling is not a 24/7 scheduler guarantee.

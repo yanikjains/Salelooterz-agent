@@ -358,7 +358,7 @@ export async function registerRoutes(
         }
       }
 
-      res.json({ success: true, count: generated.length, categories: [...new Set(generated.map(g => g.category))], sheetExported, fileSaved });
+      res.json({ success: true, count: generated.length, categories: Array.from(new Set(generated.map(g => g.category))), sheetExported, fileSaved });
     } catch (err) {
       res.status(500).json({ success: false, error: err instanceof Error ? err.message : "Unknown error" });
     }

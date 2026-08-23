@@ -380,7 +380,8 @@ class WhatsAppManager {
         const info = await (this.sock as any).newsletterMetadata("invite", code);
         if (info?.id) {
           jid = info.id.endsWith("@newsletter") ? info.id : `${info.id}@newsletter`;
-          return { jid, name: info?.name || jid, subscribers: info?.subscribers || 0 };
+          const resolvedJid = jid as string;
+          return { jid: resolvedJid, name: info?.name || resolvedJid, subscribers: info?.subscribers || 0 };
         }
       } catch { jid = `${code}@newsletter`; }
     }
