@@ -419,6 +419,7 @@ function Dashboard() {
                   <Download className="w-3 h-3" />Download Messages
                 </a>
                 <a href="/api/admin/whatsapp-messages/download.csv" download
+                  title="Open an Excel-compatible file with one complete WhatsApp message per row"
                   className="flex items-center gap-1.5 h-8 px-4 rounded-lg bg-blue-600/15 border border-blue-500/25 text-blue-400 hover:bg-blue-600/25 transition-colors text-xs font-semibold">
                   <Download className="w-3 h-3" />Download CSV
                 </a>

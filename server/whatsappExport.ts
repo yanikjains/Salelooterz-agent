@@ -14,29 +14,19 @@ function csvEscape(value: unknown): string {
 }
 
 export function whatsappBatchesToCsv(batches: WhatsAppBatch[]): string {
-  const headers = [
-    "Date & Time (IST)", "Category", "Product", "Deal Price",
-    "Original Price", "Discount", "Rating", "Amazon URL", "WhatsApp Message",
-  ];
+  // Keep this export deliberately simple: Excel opens one complete message per row,
+  // ready to copy and paste into a WhatsApp channel.
+  const headers = ["WhatsApp Messages"];
   const lines = [headers.map(csvEscape).join(",")];
 
   for (const batch of batches) {
     for (const row of batch.rows) {
-      lines.push([
-        batch.generatedAt,
-        row.category,
-        row.productTitle,
-        row.price,
-        row.originalPrice,
-        row.discount,
-        row.rating,
-        row.productUrl,
-        row.message,
-      ].map(csvEscape).join(","));
+      lines.push(csvEscape(row.message));
     }
   }
 
-  return `${lines.join("\n")}\n`;
+  // BOM helps Excel preserve Hindi text, emojis, and other Unicode characters.
+  return `\ufeff${lines.join("\r\n")}\r\n`;
 }
 
 /** Save the JSON archive and a spreadsheet-ready CSV without requiring OAuth. */
