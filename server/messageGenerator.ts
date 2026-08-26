@@ -129,13 +129,19 @@ export function isPremiumDeal(price: string, discount: string, originalPrice?: s
 export function generatePersonalizedWhatsAppMessage(
   product: ProductData | DiscoveredProduct,
   affiliateTag: string,
-  category?: string
+  category?: string,
+  referenceDate = new Date()
 ): string {
   const closing = getRandomElement(premiumClosings);
   const affiliateUrl = `${product.url}${product.url.includes('?') ? '&' : '?'}tag=${affiliateTag}`;
   const cat = category || ('category' in product ? (product as DiscoveredProduct).category : '');
   const categoryLabel = categoryLabels[cat] || "🛍️ Exclusive Deal";
-  const today = getTodayDate();
+  const today = referenceDate.toLocaleDateString('en-IN', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'Asia/Kolkata',
+  });
   const title = product.title.length > 90 ? product.title.substring(0, 90) + '…' : product.title;
 
   const dealPrice    = parsePriceNum(product.price);
@@ -177,17 +183,13 @@ export function generatePersonalizedWhatsAppMessage(
 
   msg += `\n🛒 *Abhi order karo:*\n${affiliateUrl}\n\n`;
   msg += `${closing}\n\n`;
-  msg += `🕐 *Deal Time: ${getDealTime()}*`;
-  return msg;
-}
-
-function getDealTime(): string {
-  return new Date().toLocaleTimeString('en-IN', {
+  msg += `🕐 *Deal Time: ${referenceDate.toLocaleTimeString('en-IN', {
     hour: '2-digit',
     minute: '2-digit',
     hour12: true,
     timeZone: 'Asia/Kolkata',
-  }).toUpperCase().replace(' ', ' ') + ' IST';
+  }).toUpperCase()} IST*`;
+  return msg;
 }
 
 export function generateTelegramMessage(product: ProductData | DiscoveredProduct, affiliateTag: string): string {

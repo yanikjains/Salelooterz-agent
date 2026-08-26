@@ -3,7 +3,7 @@ import { generateTelegramMessageFromDiscovered, generateWhatsAppMessageFromDisco
 import { sendTelegramMessage } from "./telegram";
 import { appendToSheet, appendWhatsAppBatchToSheet, type WhatsAppRow } from "./sheets";
 import { storage } from "./storage";
-import { wasRecentlyPosted, wasTitlePosted, markAsPosted, markTitleAsPosted, getTotalMemoryCount } from "./asinMemory";
+import { wasRecentlyPosted, wasTitlePosted, markAsPosted, markTitleAsPosted, normalizeTitle, getTotalMemoryCount } from "./asinMemory";
 import { log } from "./index";
 import { readFile, writeFile } from "fs/promises";
 import { existsSync } from "fs";
@@ -187,6 +187,9 @@ class Scheduler {
 
   private async runWhatsAppBatch() {
     if (!this.config) return;
+    // One timestamp is shared by every message in this scheduled batch.
+    const batchStartedAt = new Date();
+    const generatedAt = batchStartedAt.toISOString();
     const {
       affiliateTag,
       spreadsheetId: configSheetId,
@@ -201,20 +204,22 @@ class Scheduler {
       ...Object.keys(categorySearchTerms),
       "boys", "girls", "men", "women",
     ];
-    const perGroup = Math.ceil(WHATSAPP_BATCH_SIZE / allGroups.length);
-
-    log(`[Scheduler] Running daily WhatsApp batch (MRP ≥ ₹3,000) — ${allGroups.length} groups, ~${perGroup} each...`);
+    log(`[Scheduler] Running daily WhatsApp batch at ${batchStartedAt.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST (MRP ≥ ₹3,000) — target ${WHATSAPP_BATCH_SIZE}...`);
 
     const sheetRows: WhatsAppRow[] = [];
-    let generated = 0;
+    const pendingRecords: { asin?: string; info: Parameters<typeof markAsPosted>[1] }[] = [];
+    const seenInBatch = new Set<string>();
 
-    for (const cat of allGroups) {
-      if (generated >= WHATSAPP_BATCH_SIZE) break;
-      try {
-        const raw = await discoverPremiumProducts(cat, perGroup + 8);
-        let groupCount = 0;
-        for (const product of raw) {
-          if (generated >= WHATSAPP_BATCH_SIZE || groupCount >= perGroup) break;
+    // Search multiple rounds. A fixed three-per-category cap caused partial
+    // batches whenever Amazon returned blocked, duplicate, or filtered results.
+    for (let round = 1; round <= 3 && sheetRows.length < WHATSAPP_BATCH_SIZE; round++) {
+      for (const cat of allGroups) {
+        if (sheetRows.length >= WHATSAPP_BATCH_SIZE) break;
+        try {
+          const raw = await discoverPremiumProducts(cat, 15);
+          let acceptedForCategory = 0;
+          for (const product of raw) {
+            if (sheetRows.length >= WHATSAPP_BATCH_SIZE) break;
 
           // Real-values guard: must have a title and a non-zero deal price
           if (!product.title || product.title.trim().length < 5) continue;
@@ -229,10 +234,15 @@ class Scheduler {
           // Require a real rating (≥3.5) — skip junk products
           if (product.rating > 0 && product.rating < 3.5) continue;
 
+          const batchKey = product.asin
+            ? `asin:${product.asin}`
+            : `title:${normalizeTitle(product.title)}`;
+          if (seenInBatch.has(batchKey)) continue;
           if (product.asin) { if (await wasRecentlyPosted(product.asin)) continue; }
           else              { if (await wasTitlePosted(product.title))    continue; }
+          seenInBatch.add(batchKey);
 
-          const whatsappMessage = generatePersonalizedWhatsAppMessage(product, affiliateTag, cat);
+          const whatsappMessage = generatePersonalizedWhatsAppMessage(product, affiliateTag, cat, batchStartedAt);
 
            const discountStr = (product as any).discount || "";
            sheetRows.push({
@@ -247,23 +257,27 @@ class Scheduler {
           });
 
           const pInfo = { title: product.title, price: product.price, originalPrice: (product as any).originalPrice || "", discount: discountStr, rating: product.rating, category: cat, url: product.url };
-          if (product.asin) await markAsPosted(product.asin, pInfo);
-          else              await markTitleAsPosted(pInfo);
-
-          generated++;
-          groupCount++;
+          pendingRecords.push({ asin: product.asin || undefined, info: pInfo });
+          acceptedForCategory++;
         }
-        log(`[Scheduler] WhatsApp group "${cat}": ${groupCount} products (MRP ≥ ₹3,000)`);
-        await sleep(1500);
-      } catch { continue; }
+          log(`[Scheduler] WhatsApp round ${round}, group "${cat}": ${acceptedForCategory} products`);
+          await sleep(1500);
+        } catch { continue; }
+      }
     }
 
-     const generatedAt = new Date().toISOString();
+     const generated = sheetRows.length;
+     if (generated !== WHATSAPP_BATCH_SIZE) {
+       log(`[Scheduler] WhatsApp batch not saved: found ${generated}/${WHATSAPP_BATCH_SIZE} qualified live products.`);
+       return;
+     }
 
      // Always save a local archive and spreadsheet-ready CSV first.
+     let localSaved = false;
      if (sheetRows.length) {
        try {
          saveWhatsAppBatchFiles(sheetRows, this.todayIST(), generatedAt);
+         localSaved = true;
          log(`[Scheduler] WhatsApp: local JSON + CSV backup saved`);
        } catch (err) {
          log(`[Scheduler] WhatsApp local backup failed: ${err}`);
@@ -271,6 +285,7 @@ class Scheduler {
      }
 
      // Optional no-OAuth Google Sheets path: POST to the user's Apps Script web app.
+     let appsScriptSaved = false;
      if (sheetRows.length && googleAppsScriptUrl) {
        try {
          await pushWhatsAppBatchToAppsScript(
@@ -280,6 +295,7 @@ class Scheduler {
            googleAppsScriptSecret,
            generatedAt,
          );
+         appsScriptSaved = true;
          log(`[Scheduler] WhatsApp: ${sheetRows.length} messages pushed to Apps Script`);
        } catch (err) {
          log(`[Scheduler] Apps Script push failed: ${err}`);
@@ -287,9 +303,11 @@ class Scheduler {
      }
 
      // Write all messages to Google Sheets (date-organised tab)
+     let sheetSaved = false;
     if (sheetRows.length && spreadsheetId) {
       try {
-        await appendWhatsAppBatchToSheet(spreadsheetId, sheetRows);
+         await appendWhatsAppBatchToSheet(spreadsheetId, sheetRows, generatedAt);
+         sheetSaved = true;
         log(`[Scheduler] WhatsApp: ${sheetRows.length} messages exported to Google Sheets`);
       } catch (err) {
         log(`[Scheduler] WhatsApp Sheets export failed: ${err}`);
@@ -297,6 +315,24 @@ class Scheduler {
      } else if (!spreadsheetId && !googleAppsScriptUrl) {
        log(`[Scheduler] WhatsApp: no Google Sheets export configured — local backup only`);
     }
+
+     const requiredExports = [
+       spreadsheetId ? sheetSaved : null,
+       googleAppsScriptUrl ? appsScriptSaved : null,
+     ].filter((value): value is boolean => value !== null);
+     const deliverySucceeded = requiredExports.length
+       ? requiredExports.every(Boolean)
+       : localSaved;
+     if (!deliverySucceeded) {
+       log(`[Scheduler] WhatsApp batch not marked as posted because the required export failed.`);
+       return;
+     }
+
+     // Mark products only after the complete 30-message batch is saved/exported.
+     for (const record of pendingRecords) {
+       if (record.asin) await markAsPosted(record.asin, record.info);
+       else await markTitleAsPosted(record.info);
+     }
 
     this.waDailyCount = generated;
     await this.saveWaDate(this.todayIST());

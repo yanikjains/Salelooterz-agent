@@ -152,7 +152,8 @@ const WA_HEADERS = [
  */
 export async function appendWhatsAppBatchToSheet(
   spreadsheetId: string,
-  rows: WhatsAppRow[]
+  rows: WhatsAppRow[],
+  generatedAt = new Date().toISOString()
 ): Promise<void> {
   if (!spreadsheetId || !rows.length) return;
 
@@ -189,7 +190,7 @@ export async function appendWhatsAppBatchToSheet(
   }
 
   // ── 2. Build rows ─────────────────────────────────────────────────────────
-  const nowIST = new Date().toLocaleString("en-IN", {
+  const nowIST = new Date(generatedAt).toLocaleString("en-IN", {
     timeZone: "Asia/Kolkata",
     day: "numeric", month: "short", year: "numeric",
     hour: "2-digit", minute: "2-digit", hour12: true,
