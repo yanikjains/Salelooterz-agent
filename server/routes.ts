@@ -256,109 +256,15 @@ export async function registerRoutes(
   // ── WHATSAPP DAILY BATCH ─────────────────────────────────────────────────────
   app.post("/api/admin/whatsapp-batch", async (_req, res) => {
     try {
-      const config = scheduler.getStatus().config;
-      if (!config?.affiliateTag) {
-        return res.status(400).json({ success: false, error: "Set your affiliate tag in Settings first" });
+      const result = await scheduler.runWhatsAppBatch();
+      if (!result.saved) {
+        return res.status(409).json({
+          success: false,
+          count: result.generated,
+          error: result.reason || "A complete 30-message batch was not created.",
+        });
       }
-      const {
-        affiliateTag,
-        spreadsheetId: configuredSpreadsheetId,
-        googleAppsScriptUrl,
-        googleAppsScriptSecret,
-      } = config;
-      const spreadsheetId = googleAppsScriptUrl ? undefined : configuredSpreadsheetId;
-
-      const allGroups = [
-        ...Object.keys(categorySearchTerms),
-        "boys", "girls", "men", "women",
-      ];
-      const PER_GROUP = Math.ceil(30 / allGroups.length);
-      const sheetRows: WhatsAppRow[] = [];
-      const generated: { productTitle: string; category: string }[] = [];
-
-      for (const cat of allGroups) {
-        let groupCount = 0;
-        try {
-          const raw = await discoverPremiumProducts(cat, PER_GROUP + 3);
-          for (const product of raw) {
-            if (generated.length >= 30 || groupCount >= PER_GROUP) break;
-            if (!isPremiumDeal(product.price, product.discount || "", (product as any).originalPrice || "")) continue;
-            if (product.asin) {
-              if (await wasRecentlyPosted(product.asin)) continue;
-            } else {
-              if (await wasTitlePosted(product.title)) continue;
-            }
-
-            const whatsappMessage = generatePersonalizedWhatsAppMessage(product, affiliateTag, cat);
-
-            sheetRows.push({
-              category: cat,
-              productTitle: product.title,
-              price: product.price,
-               originalPrice: (product as any).originalPrice || "",
-              discount: (product as any).discount || "",
-               rating: product.rating > 0 ? `${product.rating}/5` : "",
-              productUrl: `${product.url}?tag=${affiliateTag}`,
-              message: whatsappMessage,
-            });
-
-            const pInfo = { title: product.title, price: product.price, originalPrice: (product as any).originalPrice || "", discount: (product as any).discount || "", rating: product.rating, category: cat, url: product.url };
-            if (product.asin) await markAsPosted(product.asin, pInfo);
-            else await markTitleAsPosted(pInfo);
-
-            generated.push({ productTitle: product.title, category: cat });
-            groupCount++;
-          }
-          await new Promise(r => setTimeout(r, 1200));
-        } catch {
-          continue;
-        }
-        if (generated.length >= 30) break;
-      }
-
-      const generatedAt = new Date().toISOString();
-
-      // Always save local JSON + CSV first (works without Google auth)
-      let fileSaved = false;
-      if (sheetRows.length) {
-        try {
-          const dateIST = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" });
-          saveWhatsAppBatchFiles(sheetRows, dateIST, generatedAt);
-          fileSaved = true;
-        } catch (err) {
-          console.error("[WhatsApp] Local file save error:", err);
-        }
-      }
-
-      // Push to the user's Google Apps Script web app (no Replit connector/OAuth)
-      let sheetExported = false;
-      if (sheetRows.length && googleAppsScriptUrl) {
-        try {
-          const dateIST = new Date().toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric", timeZone: "Asia/Kolkata" });
-          await pushWhatsAppBatchToAppsScript(
-            googleAppsScriptUrl,
-            sheetRows,
-            dateIST,
-            googleAppsScriptSecret,
-            generatedAt,
-          );
-          sheetExported = true;
-        } catch (err) {
-          console.error("[WhatsApp] Apps Script push error:", err);
-        }
-      }
-
-      // Legacy Replit Google Sheets connector path
-      if (sheetRows.length && spreadsheetId) {
-        try {
-          await appendWhatsAppBatchToSheet(spreadsheetId, sheetRows);
-          sheetExported = true;
-        } catch (err) {
-          console.error("[WhatsApp] Sheets export error:", err);
-        }
-      }
-
-      res.json({ success: true, count: generated.length, categories: Array.from(new Set(generated.map(g => g.category))), sheetExported, fileSaved });
+      res.json({ success: true, count: result.generated });
     } catch (err) {
       res.status(500).json({ success: false, error: err instanceof Error ? err.message : "Unknown error" });
     }
@@ -397,10 +303,18 @@ export async function registerRoutes(
     const dataDir = path.join(process.cwd(), "data");
     const filePath = path.join(dataDir, "whatsapp-messages.csv");
     const jsonPath = path.join(dataDir, "whatsapp-messages.json");
-    if (!fs.existsSync(filePath) && fs.existsSync(jsonPath)) {
+    if (fs.existsSync(jsonPath)) {
       try {
         const batches: WhatsAppBatch[] = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
-        fs.writeFileSync(filePath, whatsappBatchesToCsv(batches), "utf8");
+        const latestBatch = batches[batches.length - 1];
+        if (!latestBatch || latestBatch.rows.length !== 30) {
+          return res.status(409).json({
+            error: "The latest daily batch is incomplete. The CSV will be available after 30 fresh messages are scraped.",
+            count: latestBatch?.rows.length || 0,
+          });
+        }
+        // The download is always the newest complete daily batch only.
+        fs.writeFileSync(filePath, whatsappBatchesToCsv([latestBatch]), "utf8");
       } catch {
         return res.status(500).json({ error: "Saved messages could not be converted to CSV." });
       }

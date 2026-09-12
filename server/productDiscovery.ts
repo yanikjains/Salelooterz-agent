@@ -3,6 +3,12 @@ import { log } from './index';
 
 export interface DiscoveredProduct extends ProductData {
   category: string;
+  /** Time the live Amazon search returned this product. */
+  scrapedAt: string;
+}
+
+function withScrapeTime(products: ProductData[], category: string, scrapedAt = new Date().toISOString()): DiscoveredProduct[] {
+  return products.map(product => ({ ...product, category, scrapedAt }));
 }
 
 /**
@@ -276,9 +282,9 @@ export async function discoverPremiumProducts(category: string, limit: number = 
       // Try a second premium term before giving up
       const searchTerm2 = getRandomPremiumTerm(category);
       const p2 = await searchAmazonIndia(searchTerm2, limit);
-      return p2.map(p => ({ ...p, category }));
+      return withScrapeTime(p2, category);
     }
-    return products.map(p => ({ ...p, category }));
+    return withScrapeTime(products, category);
   } catch (error) {
     log(`[Premium] Scraping failed for ${category}: ${error}`);
     return []; // no fake data — only live Amazon results
@@ -294,7 +300,7 @@ export async function discoverProducts(category: string, limit: number = 5): Pro
       log(`[Discovery] No results for "${category}" — skipping (no fake data)`);
       return [];
     }
-    return products.map(product => ({ ...product, category }));
+    return withScrapeTime(products, category);
   } catch (error) {
     log(`[Discovery] Scraping failed for "${category}": ${error}`);
     return []; // no fake data — only live Amazon results
@@ -342,7 +348,7 @@ export async function discoverHotDeals(limit: number = 5): Promise<DiscoveredPro
       return [];
     }
 
-    return products.map(product => ({ ...product, category: "deals" }));
+    return withScrapeTime(products, "deals");
   } catch (error) {
     log(`[Discovery] Hot deals scraping failed: ${error}`);
     return []; // no fake data — only live Amazon results

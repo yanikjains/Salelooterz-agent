@@ -67,7 +67,9 @@ function doPost(e) {
       if (!key || existingKeys.has(key)) return;
 
       newRows.push([
-        formatIst_(payload.generatedAt, payload.date),
+        // Use the timestamp captured when this product was scraped, not the
+        // time the whole 30-message batch finished.
+        formatIst_(row.scrapedAt || payload.generatedAt, payload.date),
         row.category || "",
         row.productTitle || "",
         row.price || "",

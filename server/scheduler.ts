@@ -45,6 +45,12 @@ export interface SchedulerStats {
   config: SchedulerConfig | null;
 }
 
+export interface WhatsAppBatchResult {
+  generated: number;
+  saved: boolean;
+  reason?: string;
+}
+
 async function loadSchedulerConfig(): Promise<SchedulerConfig | null> {
   try {
     if (existsSync(SCHEDULER_CONFIG_FILE)) {
@@ -185,9 +191,10 @@ class Scheduler {
     }, msTo3PM) as unknown as NodeJS.Timeout;
   }
 
-  private async runWhatsAppBatch() {
-    if (!this.config) return;
-    // One timestamp is shared by every message in this scheduled batch.
+  public async runWhatsAppBatch(): Promise<WhatsAppBatchResult> {
+    if (!this.config) {
+      return { generated: 0, saved: false, reason: "Scheduler is not configured." };
+    }
     const batchStartedAt = new Date();
     const generatedAt = batchStartedAt.toISOString();
     const {
@@ -242,7 +249,8 @@ class Scheduler {
           else              { if (await wasTitlePosted(product.title))    continue; }
           seenInBatch.add(batchKey);
 
-          const whatsappMessage = generatePersonalizedWhatsAppMessage(product, affiliateTag, cat, batchStartedAt);
+           const scrapedAt = product.scrapedAt ? new Date(product.scrapedAt) : new Date();
+           const whatsappMessage = generatePersonalizedWhatsAppMessage(product, affiliateTag, cat, scrapedAt);
 
            const discountStr = (product as any).discount || "";
            sheetRows.push({
@@ -254,6 +262,7 @@ class Scheduler {
             rating: product.rating > 0 ? `${product.rating}/5` : "",
             productUrl: `${product.url}?tag=${affiliateTag}`,
             message: whatsappMessage,
+             scrapedAt: scrapedAt.toISOString(),
           });
 
           const pInfo = { title: product.title, price: product.price, originalPrice: (product as any).originalPrice || "", discount: discountStr, rating: product.rating, category: cat, url: product.url };
@@ -269,7 +278,11 @@ class Scheduler {
      const generated = sheetRows.length;
      if (generated !== WHATSAPP_BATCH_SIZE) {
        log(`[Scheduler] WhatsApp batch not saved: found ${generated}/${WHATSAPP_BATCH_SIZE} qualified live products.`);
-       return;
+        return {
+          generated,
+          saved: false,
+          reason: `Only ${generated} fresh qualified products were found. Nothing was exported.`,
+        };
      }
 
      // Always save a local archive and spreadsheet-ready CSV first.
@@ -325,7 +338,11 @@ class Scheduler {
        : localSaved;
      if (!deliverySucceeded) {
        log(`[Scheduler] WhatsApp batch not marked as posted because the required export failed.`);
-       return;
+        return {
+          generated,
+          saved: false,
+          reason: "The complete batch was found, but the configured export failed.",
+        };
      }
 
      // Mark products only after the complete 30-message batch is saved/exported.
@@ -337,6 +354,7 @@ class Scheduler {
     this.waDailyCount = generated;
     await this.saveWaDate(this.todayIST());
     log(`[Scheduler] WhatsApp premium batch done: ${generated} messages → Sheets`);
+     return { generated, saved: true };
   }
 
   /** ms until the next occurrence of a given IST hour:minute */

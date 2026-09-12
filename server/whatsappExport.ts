@@ -32,6 +32,9 @@ export function whatsappBatchesToCsv(batches: WhatsAppBatch[]): string {
 /** Save the JSON archive and a spreadsheet-ready CSV without requiring OAuth. */
 export function saveWhatsAppBatchFiles(rows: WhatsAppRow[], date: string, generatedAt = new Date().toISOString()): void {
   if (!rows.length) return;
+  if (rows.length !== 30) {
+    throw new Error(`Refusing to save an incomplete WhatsApp batch: ${rows.length}/30 messages.`);
+  }
 
   const dataDir = path.join(process.cwd(), "data");
   if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });

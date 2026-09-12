@@ -136,6 +136,7 @@ export interface WhatsAppRow {
   rating: string;
   productUrl: string;
   message: string;
+  scrapedAt?: string;
 }
 
 // Column headers — keep in sync with dataRows below
@@ -190,12 +191,7 @@ export async function appendWhatsAppBatchToSheet(
   }
 
   // ── 2. Build rows ─────────────────────────────────────────────────────────
-  const nowIST = new Date(generatedAt).toLocaleString("en-IN", {
-    timeZone: "Asia/Kolkata",
-    day: "numeric", month: "short", year: "numeric",
-    hour: "2-digit", minute: "2-digit", hour12: true,
-  });
-  const dateLabel = new Date().toLocaleDateString("en-IN", {
+  const dateLabel = new Date(generatedAt).toLocaleDateString("en-IN", {
     timeZone: "Asia/Kolkata", day: "numeric", month: "long", year: "numeric",
   });
 
@@ -203,7 +199,11 @@ export async function appendWhatsAppBatchToSheet(
   const separatorRow = [`══════ ${dateLabel} ══════`, ...Array(colCount - 1).fill("")];
 
   const dataRows = rows.map(r => [
-    nowIST,
+    new Date(r.scrapedAt || generatedAt).toLocaleString("en-IN", {
+      timeZone: "Asia/Kolkata",
+      day: "numeric", month: "short", year: "numeric",
+      hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: true,
+    }),
     r.category,
     r.productTitle,
     r.price,
