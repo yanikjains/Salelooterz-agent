@@ -392,37 +392,6 @@ export async function registerRoutes(
     }
   });
 
-  // ── WHATSAPP MESSAGES DOWNLOAD ────────────────────────────────────────────────
-  app.get("/api/admin/whatsapp-messages/download", (_req, res) => {
-    try {
-      const filePath = path.join(process.cwd(), "data", "whatsapp-messages.json");
-      if (!fs.existsSync(filePath)) {
-        return res.status(404).json({ error: "No messages saved yet. Click 'Generate Now' first." });
-      }
-      const batches: { date: string; generatedAt: string; rows: WhatsAppRow[] }[] = JSON.parse(fs.readFileSync(filePath, "utf8"));
-
-      // Build a plain text file: one batch per day, messages separated by ---
-      let text = "SaleLooterz WhatsApp Messages\n";
-      text += "==============================\n\n";
-      for (const batch of batches.slice().reverse()) {
-        text += `═══ ${batch.date} ═══\n\n`;
-        for (const row of batch.rows) {
-          text += `[${row.category.toUpperCase()}] ${row.productTitle}\n`;
-          text += `Price: ${row.price}  Discount: ${row.discount}\n`;
-          text += `Link: ${row.productUrl}\n\n`;
-          text += `${row.message}\n`;
-          text += `---\n\n`;
-        }
-      }
-
-      res.setHeader("Content-Type", "text/plain; charset=utf-8");
-      res.setHeader("Content-Disposition", `attachment; filename="whatsapp-messages-${new Date().toISOString().slice(0,10)}.txt"`);
-      res.send(text);
-    } catch (err) {
-      res.status(500).json({ error: "Failed to read messages" });
-    }
-  });
-
   // ── WHATSAPP CSV EXPORT (no Google account or connector required) ─────────────
   app.get("/api/admin/whatsapp-messages/download.csv", (_req, res) => {
     const dataDir = path.join(process.cwd(), "data");

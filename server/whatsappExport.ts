@@ -43,7 +43,8 @@ export function saveWhatsAppBatchFiles(rows: WhatsAppRow[], date: string, genera
   const batches = [...existing, { date, generatedAt, rows }].slice(-30);
 
   fs.writeFileSync(jsonPath, JSON.stringify(batches, null, 2), "utf8");
-  fs.writeFileSync(path.join(dataDir, "whatsapp-messages.csv"), whatsappBatchesToCsv(batches), "utf8");
+  // The CSV is the daily handoff file: keep only the newest 30-message batch.
+  fs.writeFileSync(path.join(dataDir, "whatsapp-messages.csv"), whatsappBatchesToCsv([batches[batches.length - 1]]), "utf8");
 }
 
 /** Push a batch to the user's Google Apps Script web app, without OAuth. */

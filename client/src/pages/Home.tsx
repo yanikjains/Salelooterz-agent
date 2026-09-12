@@ -414,10 +414,6 @@ function Dashboard() {
                     ? <><Loader2 className="w-3 h-3 animate-spin" />Generating…</>
                     : <><RefreshCw className="w-3 h-3" />Generate Now</>}
                 </button>
-                <a href="/api/admin/whatsapp-messages/download" download
-                  className="flex items-center gap-1.5 h-8 px-4 rounded-lg bg-green-600/15 border border-green-500/25 text-green-400 hover:bg-green-600/25 transition-colors text-xs font-semibold">
-                  <Download className="w-3 h-3" />Download Messages
-                </a>
                 <a href="/api/admin/whatsapp-messages/download.csv" download
                   title="Open an Excel-compatible file with one complete WhatsApp message per row"
                   className="flex items-center gap-1.5 h-8 px-4 rounded-lg bg-blue-600/15 border border-blue-500/25 text-blue-400 hover:bg-blue-600/25 transition-colors text-xs font-semibold">
