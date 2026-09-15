@@ -241,13 +241,15 @@ class Scheduler {
           // Require a real rating (≥3.5) — skip junk products
           if (product.rating > 0 && product.rating < 3.5) continue;
 
-          const batchKey = product.asin
-            ? `asin:${product.asin}`
-            : `title:${normalizeTitle(product.title)}`;
-          if (seenInBatch.has(batchKey)) continue;
-          if (product.asin) { if (await wasRecentlyPosted(product.asin)) continue; }
-          else              { if (await wasTitlePosted(product.title))    continue; }
-          seenInBatch.add(batchKey);
+           const asinKey = product.asin ? `asin:${product.asin}` : "";
+           const titleKey = `title:${normalizeTitle(product.title)}`;
+           // A different ASIN can still be the same product family/variant.
+           // Reject either identity match within the current batch.
+           if ((asinKey && seenInBatch.has(asinKey)) || seenInBatch.has(titleKey)) continue;
+           if (product.asin && await wasRecentlyPosted(product.asin)) continue;
+           if (await wasTitlePosted(product.title)) continue;
+           if (asinKey) seenInBatch.add(asinKey);
+           seenInBatch.add(titleKey);
 
            const scrapedAt = product.scrapedAt ? new Date(product.scrapedAt) : new Date();
            const whatsappMessage = generatePersonalizedWhatsAppMessage(product, affiliateTag, cat, scrapedAt);
@@ -347,8 +349,10 @@ class Scheduler {
 
      // Mark products only after the complete 30-message batch is saved/exported.
      for (const record of pendingRecords) {
-       if (record.asin) await markAsPosted(record.asin, record.info);
-       else await markTitleAsPosted(record.info);
+        if (record.asin) await markAsPosted(record.asin, record.info);
+        // Keep both identities in memory so ASIN variants and repeated search
+        // results cannot be posted again during the next 90 days.
+        await markTitleAsPosted(record.info);
      }
 
     this.waDailyCount = generated;

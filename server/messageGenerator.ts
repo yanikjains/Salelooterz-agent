@@ -51,7 +51,7 @@ const premiumClosings = [
   "💎 Ye deal bar bar nahi aata — aaj hi grab karo!",
   "🏆 Premium product, genuine discount — miss mat karo!",
   "⚡ Limited stock hai — stock khatam hone se pehle order karo!",
-  "🎯 Personally verified deal — 100% genuine Amazon listing!",
+  "✅ Live Amazon listing checked — price details verified!",
   "🔥 Bahut log already order kar chuke hain — jaldi karo!",
   "💰 Is price mein ye quality rarely milti hai — loot lo!",
   "⭐ Best-in-class product, now at a price you can't ignore!",

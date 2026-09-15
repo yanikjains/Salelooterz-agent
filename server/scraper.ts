@@ -46,6 +46,16 @@ function isBlockedResponse(html: string): boolean {
   return blockedIndicators.some(indicator => lowerHtml.includes(indicator));
 }
 
+function parsePriceAmount(value: string): number {
+  return parseFloat(String(value || "").replace(/[₹,\s]/g, "").replace(/[^0-9.]/g, "")) || 0;
+}
+
+function hasVerifiedDiscount(product: ProductData): boolean {
+  const deal = parsePriceAmount(product.price);
+  const mrp = parsePriceAmount(product.originalPrice);
+  return deal > 0 && mrp > deal && mrp >= 3000;
+}
+
 export function extractASIN(url: string): string | null {
   const patterns = [
     /\/dp\/([A-Z0-9]{10})/i,
@@ -178,17 +188,13 @@ export async function scrapeAmazonProduct(url: string): Promise<ProductData> {
     }
     if (!originalPrice) originalPrice = price; // no valid MRP found → same as price
 
-    // ── Discount ────────────────────────────────────────────────────────────
+    // Always calculate the discount from the verified detail-page prices.
+    // Search-card badges can be stale or refer to a different variant.
     let discount = '';
-    const savingsPercent = $('.savingsPercentage').first().text().trim();
-    if (savingsPercent) {
-      discount = savingsPercent.replace('-', '').replace('%', '') + '% OFF';
-    } else {
-      const origNum = parseFloat(originalPrice.replace(/[₹,]/g, '')) || 0;
-      if (origNum > dealNum && dealNum > 0) {
-        const discountPercent = Math.round(((origNum - dealNum) / origNum) * 100);
-        if (discountPercent > 0 && discountPercent < 100) discount = `${discountPercent}% OFF`;
-      }
+    const origNum = parsePriceAmount(originalPrice);
+    if (origNum > dealNum && dealNum > 0) {
+      const discountPercent = Math.round(((origNum - dealNum) / origNum) * 100);
+      if (discountPercent > 0 && discountPercent < 100) discount = `${discountPercent}% OFF`;
     }
 
     let rating = 0;
@@ -243,83 +249,43 @@ export async function searchAmazonIndia(query: string, limit: number = 5): Promi
   try {
     const html = await fetchWithRetry(searchUrl);
     const $ = cheerio.load(html);
-    const products: ProductData[] = [];
+    const candidates: Array<{ asin: string; url: string; title: string }> = [];
+    const seenAsins = new Set<string>();
+    const candidateLimit = Math.max(limit * 2, limit + 6);
 
     $('div[data-asin]').each((_, element) => {
-      if (products.length >= limit) return false;
+      if (candidates.length >= candidateLimit) return false;
       
-      const asin = $(element).attr('data-asin');
+      const asin = ($(element).attr('data-asin') || '').trim().toUpperCase();
       if (!asin || asin.length !== 10) return;
+      if (seenAsins.has(asin)) return;
+      seenAsins.add(asin);
 
       const titleEl = $(element).find('h2 a span, .a-size-medium.a-color-base.a-text-normal, .a-size-base-plus.a-color-base.a-text-normal').first();
       const title = titleEl.text().trim();
       
       if (!title || title.length < 10) return;
-
-      // ── Deal price: prefer the .a-offscreen text inside a non-strikethrough
-      // price element. Avoid per-unit prices by using the offscreen full text.
-      let price = $(element).find('.a-price:not(.a-text-price) .a-offscreen').first().text().trim();
-      if (!price) {
-        const whole = $(element).find('.a-price-whole').first().text().trim().replace(/[,\.]/g, '');
-        if (whole) price = `₹${whole}`;
-      }
-      if (!price) return;
-
-      const priceNum = parseFloat(price.replace(/[₹,]/g, '')) || 0;
-      if (priceNum <= 0) return;
-
-      // ── MRP: must be strictly higher than the deal price
-      let originalPrice = '';
-      $(element).find('.a-price.a-text-price .a-offscreen').each((_, el) => {
-        if (originalPrice) return;
-        const val = $(el).text().trim();
-        const candidate = parseFloat(val.replace(/[₹,]/g, '')) || 0;
-        if (candidate > priceNum) originalPrice = val;
-      });
-      if (!originalPrice) originalPrice = price; // no valid MRP → same as price
-
-      const ratingText = $(element).find('.a-icon-alt').first().text().trim();
-      const ratingMatch = ratingText.match(/(\d+\.?\d*)/);
-      const rating = ratingMatch ? parseFloat(ratingMatch[1]) : 0;
-
-      const reviewsText = $(element).find('.a-size-base.s-underline-text, [aria-label*="stars"]').first().text().trim();
-      const reviewsMatch = reviewsText.match(/([\d,]+)/);
-      const reviews = reviewsMatch ? parseInt(reviewsMatch[1].replace(/,/g, '')) : 0;
-
-      const image = $(element).find('img.s-image').attr('src') || '';
-
-      // ── Discount: prefer the badge text (e.g. "-67%"), fall back to computed ──
-      let discount = '';
-      // Amazon renders discount badges as ".a-badge-label", ".savingsPercentage",
-      // or a plain bold label like "-67%"
-      const badgeRaw = $(element)
-        .find('.a-badge-label, .savingsPercentage, .a-color-price.a-text-bold')
-        .first().text().trim();
-      const badgeMatch = badgeRaw.match(/(\d+)\s*%/);
-      if (badgeMatch) {
-        discount = `${badgeMatch[1]}% OFF`;
-      } else {
-        const origNum = parseFloat(originalPrice.replace(/[₹,]/g, '')) || 0;
-        if (origNum > priceNum && priceNum > 0) {
-          const pct = Math.round(((origNum - priceNum) / origNum) * 100);
-          if (pct > 0 && pct < 100) discount = `${pct}% OFF`;
-        }
-      }
-
-      products.push({
-        title,
-        price,
-        originalPrice,
-        discount,
-        rating,
-        reviews,
-        image,
-        features: [],
-        url: `https://www.amazon.in/dp/${asin}`,
-        asin,
-      });
+      candidates.push({ asin, title, url: `https://www.amazon.in/dp/${asin}` });
     });
 
+    // Search pages are discovery only. Re-fetch every accepted candidate from
+    // its detail page so messages never use stale card prices or variant data.
+    const products: ProductData[] = [];
+    for (const candidate of candidates) {
+      if (products.length >= limit) break;
+      try {
+        const verified = await scrapeAmazonProduct(candidate.url);
+        if (verified.asin !== candidate.asin) continue;
+        if (!verified.title || verified.title.trim().length < 10) continue;
+        if (!hasVerifiedDiscount(verified)) continue;
+        products.push(verified);
+        await delay(350);
+      } catch (error) {
+        log(`[Scraper] Skipping unverified Amazon result ${candidate.asin}: ${error instanceof Error ? error.message : error}`);
+      }
+    }
+
+    log(`[Scraper] Verified ${products.length}/${candidates.length} live detail pages for "${query}"`);
     return products;
 
   } catch (error) {
