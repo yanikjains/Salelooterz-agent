@@ -45,6 +45,25 @@ const categoryLabels: Record<string, string> = {
   girls:       "💅 Girls' Exclusive Deal",
   men:         "👔 Men's Premium Deal",
   women:       "👗 Women's Exclusive Deal",
+  audio:       "🎧 Audio & Headphones Deal",
+  computers:   "💻 Computers & Accessories Deal",
+  gaming:      "🎮 Gaming Deal",
+  cameras:     "📷 Camera & Photography Deal",
+  televisions: "📺 Television Deal",
+  tablets:     "📱 Tablet Deal",
+  smartHome:   "🏡 Smart Home Deal",
+  power:       "🔋 Power Backup Deal",
+  personalCare:"🧴 Personal Care Deal",
+  hairCare:    "💇 Hair Care Deal",
+  perfumes:    "🌸 Perfume & Fragrance Deal",
+  footwear:    "👟 Branded Footwear Deal",
+  luggage:     "🧳 Luggage & Travel Bag Deal",
+  watches:     "⌚ Branded Watch Deal",
+  baby:        "👶 Baby Products Deal",
+  toys:        "🧸 Toys & Learning Deal",
+  office:      "🪑 Office Products Deal",
+  automotive:  "🚗 Automotive Deal",
+  travel:      "🏕️ Travel & Camping Deal",
 };
 
 const premiumClosings = [
@@ -123,7 +142,26 @@ function parsePriceNum(price: string): number {
 /** Returns true if product MRP (original price) is ≥ ₹3,000 — no cheap products on WhatsApp */
 export function isPremiumDeal(price: string, discount: string, originalPrice?: string): boolean {
   const mrp = originalPrice ? parsePriceNum(originalPrice) : parsePriceNum(price);
-  return mrp >= 3000;
+  return mrp > 2000;
+}
+
+/**
+ * WhatsApp quality gate:
+ * - MRP must be strictly above ₹2,000
+ * - savings must be at least 60%, calculated from the verified prices
+ * - rating and review volume must indicate a proven/popular product
+ */
+export function isAmazingWhatsAppDeal(product: ProductData | DiscoveredProduct): boolean {
+  const dealPrice = parsePriceNum(product.price);
+  const mrp = parsePriceNum((product as any).originalPrice || "");
+  const savingsPct = mrp > 0 ? ((mrp - dealPrice) / mrp) * 100 : 0;
+  return (
+    dealPrice > 0 &&
+    mrp > 2000 &&
+    savingsPct >= 60 &&
+    product.rating >= 4 &&
+    product.reviews >= 100
+  );
 }
 
 export function generatePersonalizedWhatsAppMessage(

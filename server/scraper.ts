@@ -53,7 +53,7 @@ function parsePriceAmount(value: string): number {
 function hasVerifiedDiscount(product: ProductData): boolean {
   const deal = parsePriceAmount(product.price);
   const mrp = parsePriceAmount(product.originalPrice);
-  return deal > 0 && mrp > deal && mrp >= 3000;
+  return deal > 0 && mrp > deal && mrp > 2000;
 }
 
 export function extractASIN(url: string): string | null {

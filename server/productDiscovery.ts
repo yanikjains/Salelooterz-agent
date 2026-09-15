@@ -141,6 +141,101 @@ export const premiumWhatsAppSearchTerms: Record<string, string[]> = {
     "women winter wear sale deal",
     "women home wear nightsuit sale",
   ],
+  audio: [
+    "premium headphones ANC sale",
+    "wireless earbuds popular deal",
+    "soundbar home theatre discount",
+  ],
+  computers: [
+    "laptop popular sale discount",
+    "mechanical keyboard premium deal",
+    "computer monitor 4K sale",
+  ],
+  gaming: [
+    "gaming monitor sale discount",
+    "gaming mouse keyboard combo deal",
+    "gaming headset popular sale",
+  ],
+  cameras: [
+    "mirrorless camera sale discount",
+    "DSLR camera popular deal",
+    "action camera 4K sale",
+  ],
+  televisions: [
+    "4K smart TV popular sale",
+    "OLED TV discount deal",
+    "LED television sale offer",
+  ],
+  tablets: [
+    "Android tablet popular sale",
+    "iPad discount deal",
+    "tablet with keyboard sale",
+  ],
+  smartHome: [
+    "smart home security camera sale",
+    "smart door lock discount",
+    "smart home automation kit deal",
+  ],
+  power: [
+    "inverter battery popular sale",
+    "solar power station discount",
+    "UPS backup power deal",
+  ],
+  personalCare: [
+    "electric shaver premium sale",
+    "body massager popular deal",
+    "electric toothbrush discount",
+  ],
+  hairCare: [
+    "professional hair dryer sale",
+    "hair straightener premium discount",
+    "hair curler popular deal",
+  ],
+  perfumes: [
+    "designer perfume original sale",
+    "EDP perfume popular discount",
+    "premium fragrance deal",
+  ],
+  footwear: [
+    "running shoes branded sale",
+    "sports shoes popular discount",
+    "leather shoes premium deal",
+  ],
+  luggage: [
+    "hard shell luggage premium sale",
+    "travel backpack popular deal",
+    "luggage set discount offer",
+  ],
+  watches: [
+    "men branded watch sale",
+    "women branded watch discount",
+    "automatic watch popular deal",
+  ],
+  baby: [
+    "baby stroller popular sale",
+    "baby car seat discount",
+    "premium baby monitor deal",
+  ],
+  toys: [
+    "educational toy popular sale",
+    "remote control car discount",
+    "building blocks premium deal",
+  ],
+  office: [
+    "office chair ergonomic sale",
+    "laser printer popular discount",
+    "office desk premium deal",
+  ],
+  automotive: [
+    "car dash camera popular sale",
+    "car vacuum cleaner discount",
+    "car accessories premium deal",
+  ],
+  travel: [
+    "travel accessories premium sale",
+    "travel neck pillow popular deal",
+    "camping tent discount offer",
+  ],
 };
 
 export const categorySearchTerms: Record<string, string[]> = {

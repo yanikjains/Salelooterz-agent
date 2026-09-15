@@ -1,5 +1,5 @@
-import { discoverProducts, discoverPremiumProducts, discoverHotDeals, categories, categorySearchTerms } from "./productDiscovery";
-import { generateTelegramMessageFromDiscovered, generateWhatsAppMessageFromDiscovered, generatePersonalizedWhatsAppMessage, isPremiumDeal } from "./messageGenerator";
+import { discoverProducts, discoverPremiumProducts, discoverHotDeals, categories, categorySearchTerms, premiumWhatsAppSearchTerms } from "./productDiscovery";
+import { generateTelegramMessageFromDiscovered, generateWhatsAppMessageFromDiscovered, generatePersonalizedWhatsAppMessage, isAmazingWhatsAppDeal } from "./messageGenerator";
 import { sendTelegramMessage } from "./telegram";
 import { appendToSheet, appendWhatsAppBatchToSheet, type WhatsAppRow } from "./sheets";
 import { storage } from "./storage";
@@ -206,12 +206,11 @@ class Scheduler {
     const user = await storage.getUser(ADMIN_USER_ID).catch(() => null);
     const spreadsheetId = configSheetId || user?.spreadsheetId || null;
 
-    // All 7 product categories + 4 demographic groups = 11 total
-    const allGroups = [
-      ...Object.keys(categorySearchTerms),
-      "boys", "girls", "men", "women",
-    ];
-    log(`[Scheduler] Running daily WhatsApp batch at ${batchStartedAt.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST (MRP ≥ ₹3,000) — target ${WHATSAPP_BATCH_SIZE}...`);
+    // Thirty focused categories. Every category gets a chance to contribute
+    // one deal before any category can contribute a second deal.
+    const allGroups = Object.keys(premiumWhatsAppSearchTerms);
+    const representedCategories = new Set<string>();
+    log(`[Scheduler] Running daily WhatsApp batch at ${batchStartedAt.toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })} IST (MRP > ₹2,000, ≥60% off, rating ≥4, reviews ≥100) — target ${WHATSAPP_BATCH_SIZE}...`);
 
     const sheetRows: WhatsAppRow[] = [];
     const pendingRecords: { asin?: string; info: Parameters<typeof markAsPosted>[1] }[] = [];
@@ -236,10 +235,11 @@ class Scheduler {
           // Require original price (MRP) ≥ ₹3,000 — no cheap products on notepad
           const origPriceStr = (product as any).originalPrice || product.price || "";
           const origPriceNum = parseInt(origPriceStr.replace(/[₹,\s]/g, '').replace(/[^0-9]/g, '')) || 0;
-          if (origPriceNum < 3000) continue;
+           if (origPriceNum <= 2000) continue;
 
-          // Require a real rating (≥3.5) — skip junk products
-          if (product.rating > 0 && product.rating < 3.5) continue;
+           // Only proven, popular products with a real calculated 60%+ saving.
+           if (!isAmazingWhatsAppDeal(product)) continue;
+           if (representedCategories.size < allGroups.length && representedCategories.has(cat)) continue;
 
            const asinKey = product.asin ? `asin:${product.asin}` : "";
            const titleKey = `title:${normalizeTitle(product.title)}`;
@@ -250,6 +250,7 @@ class Scheduler {
            if (await wasTitlePosted(product.title)) continue;
            if (asinKey) seenInBatch.add(asinKey);
            seenInBatch.add(titleKey);
+           representedCategories.add(cat);
 
            const scrapedAt = product.scrapedAt ? new Date(product.scrapedAt) : new Date();
            const whatsappMessage = generatePersonalizedWhatsAppMessage(product, affiliateTag, cat, scrapedAt);
