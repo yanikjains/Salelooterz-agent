@@ -14,6 +14,7 @@ import {
   saveWhatsAppBatchFiles,
   pushWhatsAppBatchToAppsScript,
   whatsappBatchesToCsv,
+  readWhatsAppExportState,
   type WhatsAppBatch,
 } from "./whatsappExport";
 
@@ -307,13 +308,30 @@ export async function registerRoutes(
       try {
         const batches: WhatsAppBatch[] = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
         const latestBatch = batches[batches.length - 1];
+        const exportState = readWhatsAppExportState();
+        if (exportState?.status === "generating") {
+          return res.status(409).json({
+            error: "A fresh WhatsApp batch is still being generated. Download will be enabled after it finishes.",
+          });
+        }
+        if (exportState?.status === "failed") {
+          return res.status(409).json({
+            error: exportState.reason || "The latest WhatsApp generation did not produce a fresh batch.",
+            count: exportState.generated || 0,
+          });
+        }
         if (!latestBatch || latestBatch.rows.length !== 30) {
           return res.status(409).json({
             error: "The latest daily batch is incomplete. The CSV will be available after 30 fresh messages are scraped.",
             count: latestBatch?.rows.length || 0,
           });
         }
-        // The download is always the newest complete daily batch only.
+        if (!exportState || exportState.status !== "saved") {
+          return res.status(409).json({
+            error: "No fresh WhatsApp batch has been generated since this export was updated. Generate a new batch first.",
+          });
+        }
+        // The download is always the newest complete batch created by the current export flow.
         fs.writeFileSync(filePath, whatsappBatchesToCsv([latestBatch]), "utf8");
       } catch {
         return res.status(500).json({ error: "Saved messages could not be converted to CSV." });
@@ -323,6 +341,28 @@ export async function registerRoutes(
       return res.status(404).json({ error: "No messages saved yet. Generate a batch first." });
     }
     res.download(filePath, `whatsapp-messages-${new Date().toISOString().slice(0, 10)}.csv`);
+  });
+
+  app.get("/api/admin/whatsapp-messages/export-status", (_req, res) => {
+    const state = readWhatsAppExportState();
+    const jsonPath = path.join(process.cwd(), "data", "whatsapp-messages.json");
+    let rows = 0;
+    let date: string | null = null;
+    try {
+      if (fs.existsSync(jsonPath)) {
+        const batches: WhatsAppBatch[] = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
+        const latest = batches[batches.length - 1];
+        rows = latest?.rows.length || 0;
+        date = latest?.date || null;
+      }
+    } catch {}
+    res.json({
+      available: state?.status === "saved" && rows === 30,
+      status: state?.status || "none",
+      rows,
+      date,
+      reason: state?.reason || null,
+    });
   });
 
   // ── WHATSAPP MESSAGES JSON (for dashboard) ────────────────────────────────────

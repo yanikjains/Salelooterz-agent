@@ -1,4 +1,5 @@
 import { discoverProducts, discoverPremiumProducts, discoverHotDeals, categories, categorySearchTerms, premiumWhatsAppSearchTerms } from "./productDiscovery";
+import { getAmazonBlockReason, isAmazonTemporarilyBlocked } from "./scraper";
 import { generateTelegramMessageFromDiscovered, generateWhatsAppMessageFromDiscovered, generatePersonalizedWhatsAppMessage, isAmazingWhatsAppDeal } from "./messageGenerator";
 import { sendTelegramMessage } from "./telegram";
 import { appendToSheet, appendWhatsAppBatchToSheet, type WhatsAppRow } from "./sheets";
@@ -7,7 +8,12 @@ import { wasRecentlyPosted, wasTitlePosted, markAsPosted, markTitleAsPosted, nor
 import { log } from "./index";
 import { readFile, writeFile } from "fs/promises";
 import { existsSync } from "fs";
-import { saveWhatsAppBatchFiles, pushWhatsAppBatchToAppsScript } from "./whatsappExport";
+import {
+  saveWhatsAppBatchFiles,
+  pushWhatsAppBatchToAppsScript,
+  beginWhatsAppBatchAttempt,
+  markWhatsAppBatchFailed,
+} from "./whatsappExport";
 
 export const ADMIN_USER_ID = "admin-scheduler";
 
@@ -96,6 +102,7 @@ class Scheduler {
   private hourCounts = new Map<string, number>();
   private dayCounts = new Map<string, number>();
   private config: SchedulerConfig | null = null;
+  private whatsappBatchInProgress = false;
 
   /** IST date string e.g. "2026-07-05" */
   private todayIST(): string {
@@ -192,6 +199,30 @@ class Scheduler {
   }
 
   public async runWhatsAppBatch(): Promise<WhatsAppBatchResult> {
+    if (this.whatsappBatchInProgress) {
+      return {
+        generated: 0,
+        saved: false,
+        reason: "A WhatsApp batch is already being generated. Wait for it to finish before starting another one.",
+      };
+    }
+
+    this.whatsappBatchInProgress = true;
+    beginWhatsAppBatchAttempt();
+    try {
+      const result = await this.runWhatsAppBatchInternal();
+      if (!result.saved) markWhatsAppBatchFailed(result.reason || "No complete batch was saved.", result.generated);
+      return result;
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "WhatsApp batch generation failed.";
+      markWhatsAppBatchFailed(reason, 0);
+      throw error;
+    } finally {
+      this.whatsappBatchInProgress = false;
+    }
+  }
+
+  private async runWhatsAppBatchInternal(): Promise<WhatsAppBatchResult> {
     if (!this.config) {
       return { generated: 0, saved: false, reason: "Scheduler is not configured." };
     }
@@ -218,6 +249,7 @@ class Scheduler {
 
     // Search multiple rounds. A fixed three-per-category cap caused partial
     // batches whenever Amazon returned blocked, duplicate, or filtered results.
+    rounds:
     for (let round = 1; round <= 3 && sheetRows.length < WHATSAPP_BATCH_SIZE; round++) {
       for (const cat of allGroups) {
         if (sheetRows.length >= WHATSAPP_BATCH_SIZE) break;
@@ -274,7 +306,17 @@ class Scheduler {
         }
           log(`[Scheduler] WhatsApp round ${round}, group "${cat}": ${acceptedForCategory} products`);
           await sleep(1500);
-        } catch { continue; }
+         } catch {
+           if (isAmazonTemporarilyBlocked()) {
+             log(`[Scheduler] Stopping WhatsApp scrape early: ${getAmazonBlockReason()}`);
+             break rounds;
+           }
+           continue;
+         }
+         if (isAmazonTemporarilyBlocked()) {
+           log(`[Scheduler] Stopping WhatsApp scrape early: ${getAmazonBlockReason()}`);
+           break rounds;
+         }
       }
     }
 

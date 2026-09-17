@@ -31,6 +31,22 @@ function delay(ms: number): Promise<void> {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+let amazonBlockedUntil = 0;
+let amazonBlockReason = "";
+
+function markAmazonBlocked(reason: string): void {
+  amazonBlockedUntil = Date.now() + 5 * 60 * 1000;
+  amazonBlockReason = reason;
+}
+
+export function isAmazonTemporarilyBlocked(): boolean {
+  return Date.now() < amazonBlockedUntil;
+}
+
+export function getAmazonBlockReason(): string {
+  return amazonBlockReason || "Amazon is temporarily blocking requests.";
+}
+
 function isBlockedResponse(html: string): boolean {
   const blockedIndicators = [
     'robot check',
@@ -108,7 +124,20 @@ async function fetchWithRetry(url: string, maxRetries: number = 3): Promise<stri
     } catch (error) {
       lastError = error instanceof Error ? error : new Error('Unknown error');
       log(`[Scraper] Attempt ${attempt}/${maxRetries} failed: ${lastError.message}`);
-      
+
+      const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+      const isAmazonThrottle =
+        status === 429 ||
+        status === 500 ||
+        status === 503 ||
+        lastError.message.includes("Amazon is temporarily blocking requests");
+      if (isAmazonThrottle) {
+        markAmazonBlocked(
+          status ? `Amazon returned HTTP ${status} while scraping.` : lastError.message,
+        );
+        break;
+      }
+
       if (attempt < maxRetries) {
         await delay(2000 * attempt);
       }

@@ -20,6 +20,14 @@ interface SchedulerStatus {
   recentAutomations: any[];
 }
 
+interface WhatsAppExportStatus {
+  available: boolean;
+  status: "generating" | "saved" | "failed" | "none";
+  rows: number;
+  date: string | null;
+  reason: string | null;
+}
+
 function fmt(iso: string | null) {
   if (!iso) return "—";
   return new Date(iso).toLocaleTimeString("en-IN", {
@@ -151,6 +159,7 @@ function Dashboard() {
   const [acting, setActing] = useState(false);
   const [tab, setTab] = useState<"control" | "settings">("control");
   const [generatingBatch, setGeneratingBatch] = useState(false);
+  const [whatsappExportStatus, setWhatsappExportStatus] = useState<WhatsAppExportStatus | null>(null);
   const [countdown, setCountdown] = useState("—");
 
   const [affiliateTag, setAffiliateTag] = useState(localStorage.getItem("sl_tag") || "");
@@ -192,7 +201,19 @@ function Dashboard() {
     } catch {}
   }, []);
 
+  const fetchWhatsAppExportStatus = useCallback(async () => {
+    try {
+      const r = await fetch("/api/admin/whatsapp-messages/export-status");
+      if (r.ok) setWhatsappExportStatus(await r.json());
+    } catch {}
+  }, []);
+
   useEffect(() => { fetchStatus(); loadConfig(); }, []);
+  useEffect(() => {
+    fetchWhatsAppExportStatus();
+    const t = setInterval(fetchWhatsAppExportStatus, 5000);
+    return () => clearInterval(t);
+  }, [fetchWhatsAppExportStatus]);
   useEffect(() => {
     const t = setInterval(fetchStatus, 5000);
     return () => clearInterval(t);
@@ -274,7 +295,8 @@ function Dashboard() {
         toast({ title: "Failed", description: d.error, variant: "destructive" });
       }
     } catch { toast({ title: "Network error", variant: "destructive" }); }
-    finally { setGeneratingBatch(false); }
+    finally { await fetchWhatsAppExportStatus(); }
+    setGeneratingBatch(false);
   };
 
   const running = status?.isRunning ?? false;
@@ -414,12 +436,36 @@ function Dashboard() {
                     ? <><Loader2 className="w-3 h-3 animate-spin" />Generating…</>
                     : <><RefreshCw className="w-3 h-3" />Generate Now</>}
                 </button>
-                <a href="/api/admin/whatsapp-messages/download.csv" download
-                  title="Open an Excel-compatible file with one complete WhatsApp message per row"
-                  className="flex items-center gap-1.5 h-8 px-4 rounded-lg bg-blue-600/15 border border-blue-500/25 text-blue-400 hover:bg-blue-600/25 transition-colors text-xs font-semibold">
+                <a
+                  href={whatsappExportStatus?.available ? "/api/admin/whatsapp-messages/download.csv" : undefined}
+                  download={whatsappExportStatus?.available ? true : undefined}
+                  aria-disabled={!whatsappExportStatus?.available}
+                  onClick={e => {
+                    if (!whatsappExportStatus?.available) {
+                      e.preventDefault();
+                      toast({
+                        title: whatsappExportStatus?.status === "generating" ? "Still generating" : "No fresh CSV available",
+                        description: whatsappExportStatus?.reason || "Generate a complete fresh batch before downloading.",
+                        variant: "destructive",
+                      });
+                    }
+                  }}
+                  title="Download only the newest complete 30-message batch"
+                  className={`flex items-center gap-1.5 h-8 px-4 rounded-lg border text-xs font-semibold transition-colors ${
+                    whatsappExportStatus?.available
+                      ? "bg-blue-600/15 border-blue-500/25 text-blue-400 hover:bg-blue-600/25"
+                      : "bg-white/[0.02] border-white/[0.08] text-white/25 cursor-not-allowed"
+                  }`}>
                   <Download className="w-3 h-3" />Download CSV
                 </a>
               </div>
+              <p className="text-[10px] text-white/25 mt-2">
+                {whatsappExportStatus?.available
+                  ? `Fresh complete batch ready · ${whatsappExportStatus.rows}/30 messages`
+                  : whatsappExportStatus?.status === "generating"
+                    ? "Scraping and verifying live Amazon listings…"
+                    : whatsappExportStatus?.reason || "No fresh complete batch available"}
+              </p>
             </div>
           </>
         )}
