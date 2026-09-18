@@ -97,6 +97,7 @@ class Scheduler {
   private categoryIndex = 0;
   private totalSent = 0;
   private telegramSent = 0;
+  private telegramBatchInProgress = false;
   private waDailyCount = 0;
   private memoryCount = 0;
   private hourCounts = new Map<string, number>();
@@ -431,6 +432,17 @@ class Scheduler {
     }, msNext) as unknown as NodeJS.Timeout;
   }
 
+  public async runTelegramBatchNow(): Promise<boolean> {
+    if (!this.config) return false;
+    if (this.telegramBatchInProgress) {
+      log("[Scheduler] Telegram batch already in progress — manual trigger skipped.");
+      return false;
+    }
+    await this.runBatch();
+    this.scheduleNextTelegramBatch();
+    return this.lastBatchSuccess;
+  }
+
   stop() {
     if (this.intervalId)   { clearTimeout(this.intervalId as unknown as NodeJS.Timeout); this.intervalId = null; }
     if (this.waIntervalId) { clearTimeout(this.waIntervalId); this.waIntervalId = null; }
@@ -463,6 +475,19 @@ class Scheduler {
   }
 
   private async runBatch() {
+    if (this.telegramBatchInProgress) {
+      log("[Scheduler] Telegram batch already in progress — scheduled trigger skipped.");
+      return;
+    }
+    this.telegramBatchInProgress = true;
+    try {
+      await this.runBatchInternal();
+    } finally {
+      this.telegramBatchInProgress = false;
+    }
+  }
+
+  private async runBatchInternal() {
     if (!this.config) return;
     const {
       affiliateTag,
@@ -481,7 +506,7 @@ class Scheduler {
       return;
     }
 
-    log(`[Scheduler] Starting Telegram batch — collecting up to ${PRODUCTS_PER_BATCH} products...`);
+    log(`[Scheduler] Starting Telegram batch — collecting exactly ${PRODUCTS_PER_BATCH} products...`);
 
     const collectedProducts: any[] = [];
     // Dual-key dedup: exact ASIN  +  normalised title prefix (catches variants with same title)

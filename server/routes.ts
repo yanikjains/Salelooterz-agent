@@ -165,9 +165,10 @@ export async function registerRoutes(
     try {
       const status = scheduler.getStatus();
       if (!status.config) return res.status(400).json({ error: "Configure and start automation first" });
-      res.json({ success: true, message: "Batch triggered — check live feed in a few seconds" });
-      scheduler.stop();
-      await scheduler.start(status.config);
+      res.status(202).json({ success: true, message: "Telegram batch started — only a complete 150-message batch will be marked successful." });
+      void scheduler.runTelegramBatchNow().catch(error => {
+        console.error("[Scheduler] Manual Telegram batch failed:", error);
+      });
     } catch (error) {
       res.status(500).json({ error: "Failed to run batch" });
     }
