@@ -3,21 +3,29 @@ export async function sendTelegramMessage(
   channelId: string,
   message: string
 ): Promise<boolean> {
-  try {
-    const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        chat_id: channelId,
-        text: message,
-        parse_mode: "HTML"
-      })
-    });
-    
-    return response.ok;
-  } catch (error) {
-    console.error("Error sending Telegram message:", error);
-    return false;
+  const url = `https://api.telegram.org/bot${botToken}/sendMessage`;
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          chat_id: channelId,
+          text: message,
+        }),
+      });
+
+      if (response.ok) return true;
+
+      const body = await response.text().catch(() => "");
+      console.error(`[Telegram] Send failed (${response.status}) attempt ${attempt}: ${body.slice(0, 240)}`);
+      if (attempt < 3) await new Promise(resolve => setTimeout(resolve, attempt * 1500));
+    } catch (error) {
+      console.error(`[Telegram] Send error attempt ${attempt}:`, error);
+      if (attempt < 3) await new Promise(resolve => setTimeout(resolve, attempt * 1500));
+    }
   }
+
+  return false;
 }

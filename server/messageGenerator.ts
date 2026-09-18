@@ -230,7 +230,11 @@ export function generatePersonalizedWhatsAppMessage(
   return msg;
 }
 
-export function generateTelegramMessage(product: ProductData | DiscoveredProduct, affiliateTag: string): string {
+export function generateTelegramMessage(
+  product: ProductData | DiscoveredProduct,
+  affiliateTag: string,
+  referenceDate = new Date(),
+): string {
   const affiliateUrl = `${product.url}${product.url.includes('?') ? '&' : '?'}tag=${affiliateTag}`;
 
   const title = product.title.length > 80 ? product.title.substring(0, 80) + '...' : product.title;
@@ -256,8 +260,21 @@ export function generateTelegramMessage(product: ProductData | DiscoveredProduct
     message += `\n`;
   }
 
+  if (product.features && product.features.length > 0) {
+    message += `\n🔑 Features:\n${product.features.slice(0, 3).map(f => `• ${f.substring(0, 70)}${f.length > 70 ? '...' : ''}`).join('\n')}\n`;
+  }
+
   message += `\n🛒 BUY NOW:\n${affiliateUrl}\n\n`;
   message += `⚡ Don't miss this deal!\n\n`;
+  message += `🕐 Verified at: ${referenceDate.toLocaleString('en-IN', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: true,
+    timeZone: 'Asia/Kolkata',
+  })} IST\n`;
   message += `#AmazonIndia #Deals #Shopping #Loot`;
 
   return message;
@@ -268,5 +285,6 @@ export function generateWhatsAppMessageFromDiscovered(product: DiscoveredProduct
 }
 
 export function generateTelegramMessageFromDiscovered(product: DiscoveredProduct, affiliateTag: string): string {
-  return generateTelegramMessage(product, affiliateTag);
+  const scrapedAt = new Date(product.scrapedAt);
+  return generateTelegramMessage(product, affiliateTag, Number.isNaN(scrapedAt.getTime()) ? new Date() : scrapedAt);
 }

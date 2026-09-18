@@ -472,6 +472,15 @@ class Scheduler {
     } = this.config;
     const spreadsheetId = googleAppsScriptUrl ? undefined : this.config.spreadsheetId;
 
+    if (!telegramBotToken || !telegramChannelId) {
+      log("[Scheduler] Telegram batch skipped: bot token or channel ID is not configured.");
+      this.lastBatchCount = 0;
+      this.lastBatchSkipped = PRODUCTS_PER_BATCH;
+      this.lastBatchSuccess = false;
+      this.lastRunAt = new Date();
+      return;
+    }
+
     log(`[Scheduler] Starting Telegram batch — collecting up to ${PRODUCTS_PER_BATCH} products...`);
 
     const collectedProducts: any[] = [];
@@ -482,9 +491,10 @@ class Scheduler {
     const normTitle = (t: string) =>
       t.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 55);
 
-    // ── Fixed per-category quotas — every category contributes equally ────────
-    const allCategoryIds = [...categories.map(c => c.id), "hot"];
-    const quotaPerCat = Math.ceil(PRODUCTS_PER_BATCH / allCategoryIds.length); // ~38
+    // ── Fixed quotas across all focused categories ────────────────────────────
+    // 30 categories × 5 products = exactly 150 per scheduled batch.
+    const allCategoryIds = Object.keys(premiumWhatsAppSearchTerms);
+    const quotaPerCat = PRODUCTS_PER_BATCH / allCategoryIds.length;
 
     for (const cat of allCategoryIds) {
       const catTarget = Math.min(quotaPerCat, PRODUCTS_PER_BATCH - collectedProducts.length);
@@ -496,9 +506,7 @@ class Scheduler {
         const fetchCount = catTarget - catCollected + 5;
         log(`[Scheduler] Scraping "${cat}" (attempt ${attempt + 1}) — need ${catTarget - catCollected} more`);
         try {
-          const rawProducts = cat === "hot"
-            ? await discoverHotDeals(fetchCount)
-            : await discoverProducts(cat, fetchCount);
+          const rawProducts = await discoverPremiumProducts(cat, fetchCount);
 
           for (const p of (rawProducts || [])) {
             if (catCollected >= catTarget) break;
@@ -537,9 +545,10 @@ class Scheduler {
 
     log(`[Scheduler] Collection done: ${collectedProducts.length} products, ${totalSkipped} dupes skipped`);
 
-    if (!collectedProducts.length) {
-      log("[Scheduler] No new products found — all were duplicates or scraping failed");
+    if (collectedProducts.length !== PRODUCTS_PER_BATCH) {
+      log(`[Scheduler] Telegram batch not sent: found ${collectedProducts.length}/${PRODUCTS_PER_BATCH} verified products.`);
       this.lastBatchCount = 0;
+      this.lastBatchSkipped = totalSkipped + (PRODUCTS_PER_BATCH - collectedProducts.length);
       this.lastBatchSuccess = false;
       this.lastRunAt = new Date();
       return;
@@ -547,6 +556,23 @@ class Scheduler {
 
     log(`[Scheduler] Sending ${collectedProducts.length} messages to Telegram...`);
     let tgSent = 0;
+    const sentProducts: any[] = [];
+
+    const markSentProducts = async () => {
+      for (const product of sentProducts) {
+        const productInfo = {
+          title: product.title,
+          price: product.price,
+          originalPrice: (product as any).originalPrice || "",
+          discount: (product as any).discount || "",
+          rating: product.rating,
+          category: product.category,
+          url: product.url,
+        };
+        if (product.asin) await markAsPosted(product.asin, productInfo);
+        else await markTitleAsPosted(productInfo);
+      }
+    };
 
     // ── Test Sheets connectivity ONCE before the loop ─────────────────────────
     // If the connector isn't set up, skip all per-product writes silently
@@ -578,8 +604,18 @@ class Scheduler {
       if (telegramBotToken && telegramChannelId) {
         try {
           const ok = await sendTelegramMessage(telegramBotToken, telegramChannelId, telegramMessage);
-          if (ok) { tgSent++; this.telegramSent++; }
-        } catch (e) { log(`[Scheduler] Telegram error: ${e}`); }
+          if (ok) {
+            tgSent++;
+            this.telegramSent++;
+            sentProducts.push(product);
+          } else {
+            log(`[Scheduler] Telegram send failed after retries; stopping this batch at ${tgSent}/${PRODUCTS_PER_BATCH}.`);
+            break;
+          }
+        } catch (e) {
+          log(`[Scheduler] Telegram error: ${e}`);
+          break;
+        }
         await sleep(TG_SEND_DELAY_MS);
       }
 
@@ -614,22 +650,23 @@ class Scheduler {
         });
       } catch {}
 
-      const productInfo = {
-        title: product.title,
-        price: product.price,
-        originalPrice: (product as any).originalPrice || "",
-        discount: (product as any).discount || "",
-        rating: product.rating,
-        category: product.category,
-        url: product.url,
-      };
-      if (product.asin) await markAsPosted(product.asin, productInfo);
-      else              await markTitleAsPosted(productInfo);
     }
 
+    if (tgSent !== PRODUCTS_PER_BATCH) {
+      await markSentProducts();
+      this.memoryCount = await getTotalMemoryCount();
+      this.lastBatchCount = tgSent;
+      this.lastBatchSkipped = totalSkipped + (PRODUCTS_PER_BATCH - tgSent);
+      this.lastBatchSuccess = false;
+      this.lastRunAt = new Date();
+      log(`[Scheduler] Telegram batch incomplete: ${tgSent}/${PRODUCTS_PER_BATCH} messages sent.`);
+      return;
+    }
+
+    await markSentProducts();
     this.memoryCount = await getTotalMemoryCount();
-    this.increment(collectedProducts.length);
-    this.lastBatchCount = collectedProducts.length;
+    this.increment(tgSent);
+    this.lastBatchCount = tgSent;
     this.lastBatchSkipped = totalSkipped;
     this.lastBatchSuccess = true;
     this.lastRunAt = new Date();
