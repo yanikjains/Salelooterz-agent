@@ -324,10 +324,13 @@ class Scheduler {
      const generated = sheetRows.length;
      if (generated !== WHATSAPP_BATCH_SIZE) {
        log(`[Scheduler] WhatsApp batch not saved: found ${generated}/${WHATSAPP_BATCH_SIZE} qualified live products.`);
+        const reason = isAmazonTemporarilyBlocked()
+          ? `${getAmazonBlockReason()} No WhatsApp messages were exported.`
+          : `Only ${generated} fresh qualified products were found. Nothing was exported.`;
         return {
           generated,
           saved: false,
-          reason: `Only ${generated} fresh qualified products were found. Nothing was exported.`,
+          reason,
         };
      }
 

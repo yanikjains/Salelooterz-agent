@@ -1,7 +1,7 @@
 {
   "status": "failed",
-  "startedAt": "2026-09-17T09:30:00.001Z",
-  "completedAt": "2026-09-17T09:43:09.258Z",
-  "generated": 1,
-  "reason": "Only 1 fresh qualified products were found. Nothing was exported."
+  "startedAt": "2026-09-19T13:50:57.155Z",
+  "completedAt": "2026-09-19T13:51:00.669Z",
+  "generated": 0,
+  "reason": "Only 0 fresh qualified products were found. Nothing was exported."
 }

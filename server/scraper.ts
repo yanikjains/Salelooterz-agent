@@ -147,6 +147,117 @@ async function fetchWithRetry(url: string, maxRetries: number = 3): Promise<stri
   throw lastError || new Error('Failed to fetch after retries');
 }
 
+/**
+ * Amazon is currently returning a CloudFront 503 to this server's direct
+ * requests. Jina's reader fetches the same live Amazon page from a separate
+ * reader network. It is only a transport fallback: all product facts still
+ * come from a fresh Amazon search/detail response and are validated below.
+ */
+async function fetchViaReader(url: string): Promise<string> {
+  const readerUrl = `https://r.jina.ai/http://${url.replace(/^https?:\/\//, '')}`;
+  const response = await fetch(readerUrl, {
+    headers: {
+      'User-Agent': getRandomUserAgent(),
+      'Accept': 'text/plain',
+    },
+    signal: AbortSignal.timeout(45_000),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Reader returned HTTP ${response.status}`);
+  }
+  const content = await response.text();
+  if (!content || /Title:\s*Page Not Found\b/i.test(content)) {
+    throw new Error('The live Amazon page was not found through the reader.');
+  }
+  if (isBlockedResponse(content)) {
+    throw new Error('The live Amazon page is blocked by Amazon.');
+  }
+  return content;
+}
+
+function parseReaderPrice(value: string): string {
+  const amount = value.replace(/[^\d.]/g, '');
+  return amount ? `₹${amount}` : '';
+}
+
+function parseAmazonProductMarkdown(markdown: string, asin: string, amazonInUrl: string): ProductData {
+  const titleLine = markdown.match(/^Title:\s*(.+)$/im)?.[1]?.trim() || '';
+  const title = titleLine
+    .replace(/\s+:\s+Amazon\.in.*$/i, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!title || title.length < 10) {
+    throw new Error('Could not extract product details from the live Amazon detail page.');
+  }
+
+  const priceSection = markdown.match(/##\s*Price\b([\s\S]*?)(?=\n##\s|\n\* \* \*|$)/i)?.[1] || markdown;
+  const dealMatch =
+    priceSection.match(/One-time purchase:\s*₹\s*([\d,]+(?:\.\d+)?)/i) ||
+    priceSection.match(/with\s+\d+\s+percent\s+savings[^₹]*₹\s*([\d,]+(?:\.\d+)?)/i);
+  const dealPrice = dealMatch ? parseReaderPrice(dealMatch[1]) : '';
+
+  const mrpMatch =
+    priceSection.match(/List Price:\s*₹\s*([\d,]+(?:\.\d+)?)/i) ||
+    priceSection.match(/M\.R\.P\.?:\s*₹\s*([\d,]+(?:\.\d+)?)/i);
+  const originalPrice = mrpMatch ? parseReaderPrice(mrpMatch[1]) : '';
+  const dealNum = parsePriceAmount(dealPrice);
+  const mrpNum = parsePriceAmount(originalPrice);
+  if (!dealNum || !mrpNum || mrpNum <= dealNum) {
+    throw new Error('The live Amazon detail page did not provide a valid deal price and MRP.');
+  }
+
+  const discountPercent = Math.round(((mrpNum - dealNum) / mrpNum) * 100);
+  const discount = discountPercent > 0 && discountPercent < 100 ? `${discountPercent}% OFF` : '';
+
+  const ratingMatch = markdown.match(/(\d+(?:\.\d+)?)\s+out of 5 stars,\s*([\d,]+)\s+ratings/i);
+  const rating = ratingMatch ? parseFloat(ratingMatch[1]) : 0;
+  const reviews = ratingMatch ? parseInt(ratingMatch[2].replace(/,/g, ''), 10) : 0;
+
+  const imageMatch = markdown.match(/!\[[^\]]*\]\((https?:\/\/(?:m\.media-amazon|images[^)]*amazon)[^)]*)\)/i);
+  const image = imageMatch?.[1] || '';
+
+  const features: string[] = [];
+  const featureSection = markdown.match(/##\s*About this Item\b([\s\S]*?)(?=\n##\s|\n\* \* \*|$)/i)?.[1] || '';
+  for (const line of featureSection.split('\n')) {
+    const feature = line.replace(/^\s*[*-]\s+/, '').replace(/\s+/g, ' ').trim();
+    if (feature && feature.length > 5 && !/^see more\b/i.test(feature)) {
+      features.push(feature);
+    }
+  }
+
+  return {
+    title,
+    price: dealPrice,
+    originalPrice,
+    discount,
+    rating,
+    reviews,
+    image,
+    features: features.slice(0, 5),
+    url: amazonInUrl,
+    asin,
+  };
+}
+
+function parseAmazonSearchMarkdown(markdown: string, candidateLimit: number): Array<{ asin: string; url: string; title: string }> {
+  const candidates: Array<{ asin: string; url: string; title: string }> = [];
+  const seenAsins = new Set<string>();
+  const linkPattern = /\[([^\]]{10,300})\]\((https?:\/\/[^)\s]+)\)/g;
+  let match: RegExpExecArray | null;
+
+  while (candidates.length < candidateLimit && (match = linkPattern.exec(markdown))) {
+    const title = match[1].replace(/\s+/g, ' ').trim();
+    const asin = extractASIN(match[2]);
+    if (!asin || seenAsins.has(asin) || /^image\s+\d+$/i.test(title)) continue;
+    if (/^(customer reviews|read more|see more reviews|amazon\.in)$/i.test(title)) continue;
+    seenAsins.add(asin);
+    candidates.push({ asin, title, url: `https://www.amazon.in/dp/${asin}` });
+  }
+
+  return candidates;
+}
+
 export async function scrapeAmazonProduct(url: string): Promise<ProductData> {
   const asin = extractASIN(url);
   
@@ -157,7 +268,19 @@ export async function scrapeAmazonProduct(url: string): Promise<ProductData> {
   const amazonInUrl = `https://www.amazon.in/dp/${asin}`;
 
   try {
-    const html = await fetchWithRetry(amazonInUrl);
+    let html: string;
+    try {
+      html = await fetchWithRetry(amazonInUrl);
+    } catch (directError) {
+      log(`[Scraper] Direct Amazon detail request failed for ${asin}; trying live reader fallback.`);
+      try {
+        const markdown = await fetchViaReader(amazonInUrl);
+        return parseAmazonProductMarkdown(markdown, asin, amazonInUrl);
+      } catch (readerError) {
+        log(`[Scraper] Reader detail request also failed for ${asin}: ${readerError instanceof Error ? readerError.message : readerError}`);
+        throw directError;
+      }
+    }
     const $ = cheerio.load(html);
 
     const title = $('#productTitle').text().trim() || 
@@ -276,26 +399,41 @@ export async function searchAmazonIndia(query: string, limit: number = 5): Promi
   const searchUrl = `https://www.amazon.in/s?k=${encodeURIComponent(query)}`;
   
   try {
-    const html = await fetchWithRetry(searchUrl);
-    const $ = cheerio.load(html);
-    const candidates: Array<{ asin: string; url: string; title: string }> = [];
+    let candidates: Array<{ asin: string; url: string; title: string }> = [];
     const seenAsins = new Set<string>();
     const candidateLimit = Math.max(limit * 2, limit + 6);
 
-    $('div[data-asin]').each((_, element) => {
-      if (candidates.length >= candidateLimit) return false;
-      
-      const asin = ($(element).attr('data-asin') || '').trim().toUpperCase();
-      if (!asin || asin.length !== 10) return;
-      if (seenAsins.has(asin)) return;
-      seenAsins.add(asin);
+    try {
+      const html = await fetchWithRetry(searchUrl);
+      const $ = cheerio.load(html);
+      $('div[data-asin]').each((_, element) => {
+        if (candidates.length >= candidateLimit) return false;
+        
+        const asin = ($(element).attr('data-asin') || '').trim().toUpperCase();
+        if (!asin || asin.length !== 10) return;
+        if (seenAsins.has(asin)) return;
+        seenAsins.add(asin);
 
-      const titleEl = $(element).find('h2 a span, .a-size-medium.a-color-base.a-text-normal, .a-size-base-plus.a-color-base.a-text-normal').first();
-      const title = titleEl.text().trim();
-      
-      if (!title || title.length < 10) return;
-      candidates.push({ asin, title, url: `https://www.amazon.in/dp/${asin}` });
-    });
+        const titleEl = $(element).find('h2 a span, .a-size-medium.a-color-base.a-text-normal, .a-size-base-plus.a-color-base.a-text-normal').first();
+        const title = titleEl.text().trim();
+        
+        if (!title || title.length < 10) return;
+        candidates.push({ asin, title, url: `https://www.amazon.in/dp/${asin}` });
+      });
+    } catch (directError) {
+      log(`[Scraper] Direct Amazon search failed for "${query}"; trying live reader fallback.`);
+      const markdown = await fetchViaReader(searchUrl);
+      candidates = parseAmazonSearchMarkdown(markdown, candidateLimit);
+      if (!candidates.length) throw directError;
+    }
+
+    // Amazon can also return a small HTTP 200 block/empty page instead of a
+    // 503. Treat an empty discovery result the same way as a failed request.
+    if (!candidates.length) {
+      log(`[Scraper] Direct Amazon search returned no candidates for "${query}"; trying live reader fallback.`);
+      const markdown = await fetchViaReader(searchUrl);
+      candidates = parseAmazonSearchMarkdown(markdown, candidateLimit);
+    }
 
     // Search pages are discovery only. Re-fetch every accepted candidate from
     // its detail page so messages never use stale card prices or variant data.
