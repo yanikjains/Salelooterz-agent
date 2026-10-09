@@ -1,0 +1,16 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "FDZwDjY1a31-KSuyi5eaD"
+uri = "file://amazon_great_indian_festival_50_deals_2026-10-09.txt"
+type = "text"
+title = "Amazon Great Indian Festival — 50 deal picks"
+description = "Plain-text deal list with Amazon product links, reported prices, source references, and price-change caveats."
+logical_id = "7e0fc89e-cdf4-48e6-846f-2bb266bbb03b"
+content_hash = "sha256:4d0e57eb42ae3cf6078842aefe176d3271fe8b96b3845198175b2083b2c17a3c"
+size = 8861
+mtime_ms = 1791554867384
+storage_uri = "gcs://replit-rams-assets-sisko/rams/assets/repl:e577626d-64ec-4ac6-b424-5227d62c6b23/7e0fc89e-cdf4-48e6-846f-2bb266bbb03b/c96ca1a3-047a-4f81-844b-354637a1ca29"
+storage_version_token = "1791554869038836"
+content_type = "text/plain"

@@ -156,11 +156,9 @@ async function fetchWithRetry(url: string, maxRetries: number = 3): Promise<stri
 async function fetchViaReader(url: string): Promise<string> {
   const readerUrl = `https://r.jina.ai/http://${url.replace(/^https?:\/\//, '')}`;
   const response = await fetch(readerUrl, {
-    headers: {
-      'User-Agent': getRandomUserAgent(),
-      'Accept': 'text/plain',
-    },
-    signal: AbortSignal.timeout(45_000),
+    // Jina's reader rejects browser-style User-Agent headers from this
+    // runtime with HTTP 403. Its default request headers are accepted.
+    signal: AbortSignal.timeout(20_000),
   });
 
   if (!response.ok) {
@@ -270,6 +268,9 @@ export async function scrapeAmazonProduct(url: string): Promise<ProductData> {
   try {
     let html: string;
     try {
+      if (isAmazonTemporarilyBlocked()) {
+        throw new Error(getAmazonBlockReason());
+      }
       html = await fetchWithRetry(amazonInUrl);
     } catch (directError) {
       log(`[Scraper] Direct Amazon detail request failed for ${asin}; trying live reader fallback.`);
