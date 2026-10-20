@@ -2,8 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Input } from "@/components/ui/input";
 import {
   Loader2, Send, Settings, Play, Square, RefreshCw,
-  XCircle, IndianRupee, FileSpreadsheet, Download,
-  CheckCircle2, AlertCircle, Zap,
+  XCircle, IndianRupee, FileSpreadsheet, Zap,
 } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import logo from "@assets/Salelooterz_logo_1780831157664.jpg";
@@ -13,19 +12,17 @@ interface SchedulerStatus {
   nextRunAt: string | null;
   lastRunAt: string | null;
   lastBatchSuccess: boolean;
+  lastBatchCount: number;
+  batchState: "idle" | "collecting" | "sending" | "success" | "failed";
+  batchProgress: number;
+  batchTarget: number;
+  batchSent: number;
+  lastBatchError: string | null;
   todayCount: number;
   telegramSent: number;
   memoryCount: number;
-  config: { affiliateTag: string; telegramChannelId?: string; googleAppsScriptUrl?: string } | null;
+  config: { affiliateTag: string; telegramChannelId?: string } | null;
   recentAutomations: any[];
-}
-
-interface WhatsAppExportStatus {
-  available: boolean;
-  status: "generating" | "saved" | "failed" | "none";
-  rows: number;
-  date: string | null;
-  reason: string | null;
 }
 
 function fmt(iso: string | null) {
@@ -158,16 +155,12 @@ function Dashboard() {
   const [status, setStatus] = useState<SchedulerStatus | null>(null);
   const [acting, setActing] = useState(false);
   const [tab, setTab] = useState<"control" | "settings">("control");
-  const [generatingBatch, setGeneratingBatch] = useState(false);
-  const [whatsappExportStatus, setWhatsappExportStatus] = useState<WhatsAppExportStatus | null>(null);
   const [countdown, setCountdown] = useState("—");
 
   const [affiliateTag, setAffiliateTag] = useState(localStorage.getItem("sl_tag") || "");
   const [botToken, setBotToken] = useState("");
   const [channelId, setChannelId] = useState("");
   const [sheetId, setSheetId] = useState("");
-  const [appsScriptUrl, setAppsScriptUrl] = useState("");
-  const [appsScriptSecret, setAppsScriptSecret] = useState("");
   const [showTokens, setShowTokens] = useState(false);
   const [testingTg, setTestingTg] = useState(false);
 
@@ -192,8 +185,6 @@ function Dashboard() {
       setBotToken(d.telegramBotToken || "");
       setChannelId(d.telegramChannelId || "");
       setSheetId(d.spreadsheetId || "");
-      setAppsScriptUrl(d.googleAppsScriptUrl || "");
-      setAppsScriptSecret(d.googleAppsScriptSecret || "");
       if (d.affiliateTag) {
         setAffiliateTag(d.affiliateTag);
         localStorage.setItem("sl_tag", d.affiliateTag);
@@ -201,19 +192,7 @@ function Dashboard() {
     } catch {}
   }, []);
 
-  const fetchWhatsAppExportStatus = useCallback(async () => {
-    try {
-      const r = await fetch("/api/admin/whatsapp-messages/export-status");
-      if (r.ok) setWhatsappExportStatus(await r.json());
-    } catch {}
-  }, []);
-
   useEffect(() => { fetchStatus(); loadConfig(); }, []);
-  useEffect(() => {
-    fetchWhatsAppExportStatus();
-    const t = setInterval(fetchWhatsAppExportStatus, 5000);
-    return () => clearInterval(t);
-  }, [fetchWhatsAppExportStatus]);
   useEffect(() => {
     const t = setInterval(fetchStatus, 5000);
     return () => clearInterval(t);
@@ -228,12 +207,15 @@ function Dashboard() {
     telegramBotToken: botToken.trim() || undefined,
     telegramChannelId: channelId.trim() || undefined,
     spreadsheetId: sheetId.trim() || undefined,
-    googleAppsScriptUrl: appsScriptUrl.trim() || undefined,
-    googleAppsScriptSecret: appsScriptSecret.trim() || undefined,
   });
 
   const handleStart = async () => {
     if (!affiliateTag.trim()) { toast({ title: "Set your affiliate tag in Settings first", variant: "destructive" }); return; }
+    if (!botToken.trim() || !channelId.trim()) {
+      toast({ title: "Set up Telegram first", description: "Add the bot token and channel ID in Settings.", variant: "destructive" });
+      setTab("settings");
+      return;
+    }
     setActing(true);
     try {
       const r = await fetch("/api/admin/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload()) });
@@ -255,7 +237,10 @@ function Dashboard() {
     try {
       const r = await fetch("/api/admin/run-now", { method: "POST" });
       const d = await r.json();
-      if (d.success) { toast({ title: "Batch triggered" }); setTimeout(fetchStatus, 5000); }
+      if (d.success) {
+        toast({ title: "Telegram batch started", description: "The dashboard will show collection and posting progress." });
+        await fetchStatus();
+      }
       else throw new Error(d.error);
     } catch (e) { toast({ title: "Failed", description: e instanceof Error ? e.message : "Error", variant: "destructive" }); }
     finally { setActing(false); }
@@ -279,24 +264,6 @@ function Dashboard() {
       else toast({ title: "Connection failed", description: d.error, variant: "destructive" });
     } catch { toast({ title: "Network error", variant: "destructive" }); }
     finally { setTestingTg(false); }
-  };
-
-  const handleGenerateBatch = async () => {
-    setGeneratingBatch(true);
-    try {
-      const r = await fetch("/api/admin/whatsapp-batch", { method: "POST" });
-      const d = await r.json();
-      if (d.success) {
-        toast({
-          title: `✅ ${d.count} WhatsApp messages generated`,
-          description: d.sheetExported ? "Exported to Google Sheet ✓" : d.fileSaved ? "Saved locally — download below" : "Check affiliate tag in Settings",
-        });
-      } else {
-        toast({ title: "Failed", description: d.error, variant: "destructive" });
-      }
-    } catch { toast({ title: "Network error", variant: "destructive" }); }
-    finally { await fetchWhatsAppExportStatus(); }
-    setGeneratingBatch(false);
   };
 
   const running = status?.isRunning ?? false;
@@ -365,7 +332,9 @@ function Dashboard() {
                     </button>
                   ) : (
                     <>
-                      <button onClick={handleRunNow} disabled={acting}
+                      <button
+                        onClick={handleRunNow}
+                        disabled={acting || status?.batchState === "collecting" || status?.batchState === "sending"}
                         className="h-9 px-4 rounded-xl border border-white/[0.08] bg-white/[0.03] hover:bg-white/[0.07] text-white/70 hover:text-white text-xs font-semibold flex items-center gap-1.5 transition-colors disabled:opacity-30">
                         {acting ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
                         Run Now
@@ -387,18 +356,55 @@ function Dashboard() {
                   <StatBox label="Last Run" value={fmt(status?.lastRunAt ?? null)} mono />
                   <StatBox
                     label="Status"
-                    value={status?.lastBatchSuccess ? "✓ OK" : "✗ Error"}
+                    value={
+                      status?.batchState === "collecting" ? "Collecting" :
+                      status?.batchState === "sending" ? "Posting" :
+                      status?.batchState === "success" ? "✓ OK" :
+                      status?.batchState === "failed" ? "✗ Failed" : "Ready"
+                    }
                   />
                 </div>
               )}
             </div>
+
+            {status && status.batchState !== "idle" && (
+              <div className={`rounded-2xl border p-4 ${
+                status.batchState === "failed" ? "border-red-500/20 bg-red-500/[0.03]" :
+                status.batchState === "success" ? "border-green-500/20 bg-green-500/[0.03]" :
+                "border-blue-500/20 bg-blue-500/[0.03]"
+              }`}>
+                <div className="flex items-center justify-between gap-3 text-[11px]">
+                  <span className="font-semibold text-white/70">
+                    {status.batchState === "collecting" && `Checking live listings · ${status.batchProgress}/${status.batchTarget}`}
+                    {status.batchState === "sending" && `Posting to Telegram · ${status.batchSent}/${status.batchTarget}`}
+                    {status.batchState === "success" && `Telegram batch complete · ${status.lastBatchCount} messages posted`}
+                    {status.batchState === "failed" && `Batch stopped · ${status.batchSent}/${status.batchTarget} messages posted`}
+                  </span>
+                  {(status.batchState === "collecting" || status.batchState === "sending") && (
+                    <span className="text-white/35 font-mono">
+                      {Math.round(((status.batchState === "sending" ? status.batchSent : status.batchProgress) / Math.max(status.batchTarget, 1)) * 100)}%
+                    </span>
+                  )}
+                </div>
+                {(status.batchState === "collecting" || status.batchState === "sending") && (
+                  <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-white/10">
+                    <div
+                      className="h-full rounded-full bg-green-500 transition-all"
+                      style={{ width: `${Math.min(100, Math.round(((status.batchState === "sending" ? status.batchSent : status.batchProgress) / Math.max(status.batchTarget, 1)) * 100))}%` }}
+                    />
+                  </div>
+                )}
+                {status.lastBatchError && status.batchState === "failed" && (
+                  <p className="mt-2 text-[11px] leading-relaxed text-red-300/80">{status.lastBatchError}</p>
+                )}
+              </div>
+            )}
 
             {/* Schedule row */}
             <div className="flex flex-wrap items-center gap-1.5 px-0.5">
               <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-white/15 mr-1">Schedule</span>
               {[
                 { label: "Telegram", detail: "10 AM + 7 PM IST", count: "150 × 2 msgs" },
-                { label: "WhatsApp → Sheets", detail: "3 PM IST", count: "30 msgs" },
               ].map((s, i) => (
                 <div key={i} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-white/[0.07] bg-white/[0.02]">
                   <span className="text-[11px] font-semibold text-white/50">{s.label}</span>
@@ -410,63 +416,6 @@ function Dashboard() {
               ))}
             </div>
 
-            {/* WhatsApp → Google Sheets card */}
-            <div className="rounded-2xl border border-white/[0.07] bg-white/[0.015] p-4">
-              <div className="flex items-center justify-between gap-3 mb-3">
-                <div>
-                  <p className="text-[13px] font-bold text-white">WhatsApp Messages</p>
-                  <p className="text-[11px] text-white/30 mt-0.5">
-                     Generated daily at 3 PM IST → pushed to Google Sheets + CSV backup
-                  </p>
-                </div>
-                {sheetId.trim() && (
-                  <a
-                    href={`https://docs.google.com/spreadsheets/d/${sheetId.trim()}`}
-                    target="_blank" rel="noopener noreferrer"
-                    className="shrink-0 flex items-center gap-1.5 h-8 px-3 rounded-lg bg-green-600/15 border border-green-500/25 text-green-400 hover:bg-green-600/25 transition-colors text-[11px] font-semibold"
-                  >
-                    <FileSpreadsheet className="w-3 h-3" />Open Sheet
-                  </a>
-                )}
-              </div>
-              <div className="flex items-center gap-2">
-                <button onClick={handleGenerateBatch} disabled={generatingBatch}
-                  className="flex items-center gap-1.5 h-8 px-4 rounded-lg border border-white/[0.08] bg-white/[0.02] hover:bg-white/[0.06] text-white/50 hover:text-white text-xs font-semibold transition-colors disabled:opacity-30">
-                  {generatingBatch
-                    ? <><Loader2 className="w-3 h-3 animate-spin" />Generating…</>
-                    : <><RefreshCw className="w-3 h-3" />Generate Now</>}
-                </button>
-                <a
-                  href={whatsappExportStatus?.available ? "/api/admin/whatsapp-messages/download.csv" : undefined}
-                  download={whatsappExportStatus?.available ? true : undefined}
-                  aria-disabled={!whatsappExportStatus?.available}
-                  onClick={e => {
-                    if (!whatsappExportStatus?.available) {
-                      e.preventDefault();
-                      toast({
-                        title: whatsappExportStatus?.status === "generating" ? "Still generating" : "No fresh CSV available",
-                        description: whatsappExportStatus?.reason || "Generate a complete fresh batch before downloading.",
-                        variant: "destructive",
-                      });
-                    }
-                  }}
-                  title="Download only the newest complete 30-message batch"
-                  className={`flex items-center gap-1.5 h-8 px-4 rounded-lg border text-xs font-semibold transition-colors ${
-                    whatsappExportStatus?.available
-                      ? "bg-blue-600/15 border-blue-500/25 text-blue-400 hover:bg-blue-600/25"
-                      : "bg-white/[0.02] border-white/[0.08] text-white/25 cursor-not-allowed"
-                  }`}>
-                  <Download className="w-3 h-3" />Download CSV
-                </a>
-              </div>
-              <p className="text-[10px] text-white/25 mt-2">
-                {whatsappExportStatus?.available
-                  ? `Fresh complete batch ready · ${whatsappExportStatus.rows}/30 messages`
-                  : whatsappExportStatus?.status === "generating"
-                    ? "Scraping and verifying live Amazon listings…"
-                    : whatsappExportStatus?.reason || "No fresh complete batch available"}
-              </p>
-            </div>
           </>
         )}
 
@@ -481,9 +430,7 @@ function Dashboard() {
             <div className="grid sm:grid-cols-2 gap-3">
               {[
                 { label: "Affiliate Tag", icon: <IndianRupee className="w-2.5 h-2.5" />, value: affiliateTag, onChange: setAffiliateTag, placeholder: "yourtag-21", required: true },
-                 { label: "Google Sheet ID (optional)", icon: <FileSpreadsheet className="w-2.5 h-2.5" />, value: sheetId, onChange: setSheetId, placeholder: "Only for Replit connector" },
-                 { label: "Apps Script Web App URL", icon: <FileSpreadsheet className="w-2.5 h-2.5" />, value: appsScriptUrl, onChange: setAppsScriptUrl, placeholder: "https://script.google.com/macros/s/.../exec" },
-                 { label: "Apps Script Secret", icon: <Settings className="w-2.5 h-2.5" />, value: appsScriptSecret, onChange: setAppsScriptSecret, placeholder: "Same secret as Apps Script", secret: true },
+                 { label: "Google Sheet ID (optional)", icon: <FileSpreadsheet className="w-2.5 h-2.5" />, value: sheetId, onChange: setSheetId, placeholder: "For Telegram post logs" },
                 { label: "Telegram Bot Token", icon: <Send className="w-2.5 h-2.5" />, value: botToken, onChange: setBotToken, placeholder: "1234567890:AAF…", secret: true },
                 { label: "Telegram Channel ID", icon: <Send className="w-2.5 h-2.5" />, value: channelId, onChange: setChannelId, placeholder: "@yourchannel" },
               ].map((field, i) => (

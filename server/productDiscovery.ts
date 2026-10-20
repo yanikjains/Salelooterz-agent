@@ -12,11 +12,9 @@ function withScrapeTime(products: ProductData[], category: string, scrapedAt = n
 }
 
 /**
- * WhatsApp deal search terms — targets quality products with high discounts (60%+ off).
- * These terms are designed to surface genuinely discounted products across all price ranges.
- * Used exclusively for the daily WhatsApp batch.
+ * Focused deal search terms used by the Telegram posting agent.
  */
-export const premiumWhatsAppSearchTerms: Record<string, string[]> = {
+export const telegramSearchTerms: Record<string, string[]> = {
   electronics: [
     "bluetooth earphones deal sale",
     "smart LED bulb combo offer",
@@ -362,26 +360,31 @@ function getRandomSearchTerm(category: string): string {
   return terms[Math.floor(Math.random() * terms.length)];
 }
 
-function getRandomPremiumTerm(category: string): string {
-  const terms = premiumWhatsAppSearchTerms[category] || premiumWhatsAppSearchTerms.electronics;
-  return terms[Math.floor(Math.random() * terms.length)];
+const telegramTermIndexes = new Map<string, number>();
+
+function getNextTelegramTerm(category: string): string {
+  const terms = telegramSearchTerms[category] || telegramSearchTerms.electronics;
+  const index = telegramTermIndexes.get(category) || 0;
+  telegramTermIndexes.set(category, (index + 1) % terms.length);
+  return terms[index];
 }
 
-/** Scrapes premium/expensive products for the daily WhatsApp batch */
-export async function discoverPremiumProducts(category: string, limit: number = 5): Promise<DiscoveredProduct[]> {
+/** Scrapes current Amazon detail pages for the Telegram posting batch. */
+export async function discoverTelegramProducts(category: string, limit: number = 5): Promise<DiscoveredProduct[]> {
   try {
-    const searchTerm = getRandomPremiumTerm(category);
-    log(`[Premium] Discovering "${category}" using: "${searchTerm}"`);
-    const products = await searchAmazonIndia(searchTerm, limit + 3);
+    const searchTerm = getNextTelegramTerm(category);
+    log(`[Telegram discovery] "${category}" using: "${searchTerm}"`);
+    const products = await searchAmazonIndia(searchTerm, limit);
     if (products.length === 0) {
-      // Try a second premium term before giving up
-      const searchTerm2 = getRandomPremiumTerm(category);
+      // Try one different focused query before giving up on this category.
+      const searchTerm2 = getNextTelegramTerm(category);
+      if (searchTerm2 === searchTerm) return [];
       const p2 = await searchAmazonIndia(searchTerm2, limit);
       return withScrapeTime(p2, category);
     }
     return withScrapeTime(products, category);
   } catch (error) {
-    log(`[Premium] Scraping failed for ${category}: ${error}`);
+    log(`[Telegram discovery] Scraping failed for ${category}: ${error}`);
     return []; // no fake data — only live Amazon results
   }
 }

@@ -189,10 +189,11 @@ function parseAmazonProductMarkdown(markdown: string, asin: string, amazonInUrl:
     throw new Error('Could not extract product details from the live Amazon detail page.');
   }
 
-  const priceSection = markdown.match(/##\s*Price\b([\s\S]*?)(?=\n##\s|\n\* \* \*|$)/i)?.[1] || markdown;
+  const priceSection = markdown.match(/^#{1,6}\s*Price\b([\s\S]*?)(?=^#{1,6}\s|\n\* \* \*|$)/im)?.[1] || markdown;
   const dealMatch =
     priceSection.match(/One-time purchase:\s*₹\s*([\d,]+(?:\.\d+)?)/i) ||
-    priceSection.match(/with\s+\d+\s+percent\s+savings[^₹]*₹\s*([\d,]+(?:\.\d+)?)/i);
+    priceSection.match(/₹\s*([\d,]+(?:\.\d+)?)\s+with\s+\d+\s+percent\s+savings/i) ||
+    priceSection.match(/(?:Deal Price|Sale Price|Current Price):\s*₹\s*([\d,]+(?:\.\d+)?)/i);
   const dealPrice = dealMatch ? parseReaderPrice(dealMatch[1]) : '';
 
   const mrpMatch =
@@ -208,15 +209,27 @@ function parseAmazonProductMarkdown(markdown: string, asin: string, amazonInUrl:
   const discountPercent = Math.round(((mrpNum - dealNum) / mrpNum) * 100);
   const discount = discountPercent > 0 && discountPercent < 100 ? `${discountPercent}% OFF` : '';
 
-  const ratingMatch = markdown.match(/(\d+(?:\.\d+)?)\s+out of 5 stars,\s*([\d,]+)\s+ratings/i);
+  const productTextStart = Math.max(0, markdown.indexOf(title));
+  const productText = markdown.slice(productTextStart, productTextStart + 5000);
+  const ratingMatch =
+    productText.match(/(\d+(?:\.\d+)?)\s+out of 5 stars[_\s]*\]\([^)]*\)\s*\[\(?([\d,]+)\)?\]/i) ||
+    productText.match(/(\d+(?:\.\d+)?)\s+out of 5 stars,\s*([\d,]+)\s+ratings/i) ||
+    productText.match(/(\d+(?:\.\d+)?)\s+out of 5 stars\s*\(([\d,]+)\)/i);
   const rating = ratingMatch ? parseFloat(ratingMatch[1]) : 0;
   const reviews = ratingMatch ? parseInt(ratingMatch[2].replace(/,/g, ''), 10) : 0;
 
-  const imageMatch = markdown.match(/!\[[^\]]*\]\((https?:\/\/(?:m\.media-amazon|images[^)]*amazon)[^)]*)\)/i);
-  const image = imageMatch?.[1] || '';
+  const productSection = markdown.slice(Math.max(0, productTextStart - 2500), productTextStart + 8000);
+  const productImages = Array.from(productSection.matchAll(/!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/g));
+  const imageMatch =
+    productImages.find((match) =>
+      /m\.media-amazon\.com\/images\/I\//i.test(match[2]) &&
+      match[1].toLowerCase().includes(title.slice(0, 32).toLowerCase()),
+    ) ||
+    productImages.find((match) => /m\.media-amazon\.com\/images\/I\//i.test(match[2]));
+  const image = imageMatch?.[2] || '';
 
   const features: string[] = [];
-  const featureSection = markdown.match(/##\s*About this Item\b([\s\S]*?)(?=\n##\s|\n\* \* \*|$)/i)?.[1] || '';
+  const featureSection = markdown.match(/^#{1,6}\s*About this Item\b([\s\S]*?)(?=^#{1,6}\s|\n\* \* \*|$)/im)?.[1] || '';
   for (const line of featureSection.split('\n')) {
     const feature = line.replace(/^\s*[*-]\s+/, '').replace(/\s+/g, ' ').trim();
     if (feature && feature.length > 5 && !/^see more\b/i.test(feature)) {
@@ -279,7 +292,7 @@ export async function scrapeAmazonProduct(url: string): Promise<ProductData> {
         return parseAmazonProductMarkdown(markdown, asin, amazonInUrl);
       } catch (readerError) {
         log(`[Scraper] Reader detail request also failed for ${asin}: ${readerError instanceof Error ? readerError.message : readerError}`);
-        throw directError;
+        throw readerError;
       }
     }
     const $ = cheerio.load(html);
@@ -439,18 +452,25 @@ export async function searchAmazonIndia(query: string, limit: number = 5): Promi
     // Search pages are discovery only. Re-fetch every accepted candidate from
     // its detail page so messages never use stale card prices or variant data.
     const products: ProductData[] = [];
-    for (const candidate of candidates) {
-      if (products.length >= limit) break;
-      try {
-        const verified = await scrapeAmazonProduct(candidate.url);
-        if (verified.asin !== candidate.asin) continue;
-        if (!verified.title || verified.title.trim().length < 10) continue;
-        if (!hasVerifiedDiscount(verified)) continue;
-        products.push(verified);
-        await delay(350);
-      } catch (error) {
-        log(`[Scraper] Skipping unverified Amazon result ${candidate.asin}: ${error instanceof Error ? error.message : error}`);
+    const detailConcurrency = 3;
+    for (let offset = 0; offset < candidates.length && products.length < limit; offset += detailConcurrency) {
+      const candidateBatch = candidates.slice(offset, offset + detailConcurrency);
+      const verifiedBatch = await Promise.all(candidateBatch.map(async (candidate) => {
+        try {
+          const verified = await scrapeAmazonProduct(candidate.url);
+          if (verified.asin !== candidate.asin) return null;
+          if (!verified.title || verified.title.trim().length < 10) return null;
+          if (!hasVerifiedDiscount(verified)) return null;
+          return verified;
+        } catch (error) {
+          log(`[Scraper] Skipping unverified Amazon result ${candidate.asin}: ${error instanceof Error ? error.message : error}`);
+          return null;
+        }
+      }));
+      for (const verified of verifiedBatch) {
+        if (verified && products.length < limit) products.push(verified);
       }
+      await delay(300);
     }
 
     log(`[Scraper] Verified ${products.length}/${candidates.length} live detail pages for "${query}"`);

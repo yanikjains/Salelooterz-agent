@@ -1,5 +1,3 @@
-import { useState, useEffect } from "react";
-
 export interface ProductData {
   title: string;
   price: string;
@@ -31,12 +29,15 @@ export const mockScrape = async (url: string): Promise<ProductData> => {
   });
 };
 
-export const generateViralMessage = (product: ProductData, platform: 'whatsapp' | 'telegram'): string => {
-  const discount = "15% OFF"; // Mock discount
-  
-  if (platform === 'whatsapp') {
-    return `🔥 *PRICE DROP ALERT* 🔥\n\n*${product.title.substring(0, 40)}...*\n\n❌ ~Was: $399.00~\n✅ *Now: ${product.price}* (${discount})\n\n😱 *Why you need this:*\n${product.features.map(f => `• ${f}`).join('\n')}\n\n👇 *Grab yours before it's gone:*\n${product.url}?tag=my-affiliate-20\n\n#AmazonDeals #Tech #Sale`;
-  } else {
-    return `🚀 *FLASH DEAL ALERT* 🚀\n\n*${product.title}*\n\n💰 *Price:* ${product.price} (Save ${discount})\n⭐️ *Rating:* ${product.rating}/5 (${product.reviews} reviews)\n\n✨ *Key Features:*\n${product.features.map(f => `🔹 ${f}`).join('\n')}\n\n🔗 *ORDER HERE:* [Link](${product.url}?tag=my-affiliate-20)\n\n⚠️ _Limited time offer!_\n\n#Amazon #Deals #Discounts #TechDeals`;
-  }
+export const generateViralMessage = (product: ProductData): string => {
+  const details = product.features.slice(0, 3).map(feature => `• ${feature}`).join("\n");
+  return [
+    `🔥 <b>${product.title}</b>`,
+    "",
+    `Deal price: <b>${product.price}</b>`,
+    `⭐ ${product.rating.toFixed(1)}/5 · ${product.reviews.toLocaleString("en-IN")} ratings`,
+    details ? `\n<b>Product details</b>\n${details}` : "",
+    "",
+    `🛒 <a href="${product.url}">View product</a>`,
+  ].filter(Boolean).join("\n");
 };
